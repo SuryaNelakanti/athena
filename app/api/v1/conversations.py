@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.schemas.chat import ChatCreate, ChatResponse, MessageCreate
-from app.services.chat_service import ChatService
+from app.schemas.conversations import ChatCreate, ChatResponse, MessageCreate
+from app.services.conversation_service import ChatService
 from app.services.llm_service import LLMService
 from app.utils.dependencies import get_current_user, get_db
 
