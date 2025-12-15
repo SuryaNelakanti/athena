@@ -1,0 +1,12 @@
+{
+    "name": "athena-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "concurrently \"npm run dev --prefix frontend\" \"cd backend && python -m uvicorn main:app --reload\"",
+        "start": "npm run dev"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

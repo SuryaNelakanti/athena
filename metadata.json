@@ -1,0 +1,5 @@
+{
+  "name": "Athena",
+  "description": "AI Proxy, Observability, and Evaluation Platform. Instrument, debug, and improve LLM applications.",
+  "requestFramePermissions": []
+}
