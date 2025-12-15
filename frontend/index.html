@@ -12,6 +12,7 @@
     rel="stylesheet">
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
@@ -19,10 +20,37 @@
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
-            gray: {
-              750: '#2d3748',
-              850: '#1a202c',
-              950: '#0d1117',
+            // Semantic Colors (Themed)
+            app: 'var(--bg-app)',
+            panel: 'var(--bg-panel)',
+            'panel-hover': 'var(--bg-panel-hover)',
+            text: {
+              main: 'var(--text-main)',
+              muted: 'var(--text-muted)',
+              inverted: 'var(--text-inverted)',
+            },
+            border: {
+              base: 'var(--border-base)',
+              hover: 'var(--border-hover)',
+            },
+
+            // Accents (Keep specific ones available)
+            indigo: {
+              500: '#6366f1',
+              600: '#4f46e5',
+            },
+            rose: {
+              500: '#f43f5e',
+            },
+            emerald: {
+              500: '#10b981',
+            },
+
+            // Legacy/Specific Palette access if needed
+            gofun: '#FFFFFC',
+            shironeri: '#F3F3F2',
+            ink: {
+              900: '#1a1a1a',
             }
           }
         },
@@ -30,29 +58,67 @@
     }
   </script>
   <style>
-    body {
-      background-color: #0d1117;
-      /* gray-950 */
-      color: #e2e8f0;
+    :root {
+      /* Light Mode (Japanese Nuevo Tokyo) */
+      --bg-app: #FFFFFC;
+      /* Gofun */
+      --bg-panel: #F3F3F2;
+      /* Shironeri */
+      --bg-panel-hover: #EAE5E3;
+      /* Soshoku */
+      --text-main: #1a1a1a;
+      /* Ink 900 */
+      --text-muted: #4a4a4a;
+      /* Ink 600 */
+      --text-inverted: #ffffff;
+      --border-base: #E5E4E6;
+      /* Shiraumenezu */
+      --border-hover: #E7E7EB;
+      /* Murasakisuishiyou */
     }
 
-    /* Custom scrollbar for dark theme */
+    .dark {
+      /* Dark Mode (Cinematic Void) */
+      --bg-app: #0d1117;
+      /* Gray 950 */
+      --bg-panel: #161b22;
+      /* Gray 900 */
+      --bg-panel-hover: #21262d;
+      /* Gray 850 */
+      --text-main: #c9d1d9;
+      /* Gray 100 */
+      --text-muted: #8b949e;
+      /* Gray 400 */
+      --text-inverted: #0d1117;
+      --border-base: #30363d;
+      /* Gray 700 */
+      --border-hover: #6e7681;
+      /* Gray 600 */
+    }
+
+    body {
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Custom scrollbar */
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
 
     ::-webkit-scrollbar-track {
-      background: #0d1117;
+      background: var(--bg-app);
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #2d3748;
+      background: var(--border-base);
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #4a5568;
+      background: var(--border-hover);
     }
   </style>
 

@@ -9,7 +9,7 @@ interface LogTableProps {
 }
 
 const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTraceId }) => {
-  
+
   const formatTime = (ms: number) => {
     return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
@@ -20,22 +20,22 @@ const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTrac
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full bg-app transition-colors duration-300">
       {/* Toolbar / Filters (Placeholder) */}
-      <div className="px-6 py-3 border-b border-gray-800 flex items-center gap-4 bg-gray-950">
-        <input 
-            type="text" 
-            placeholder="Search logs (e.g. status:error or model:gpt-4)..." 
-            className="flex-1 bg-gray-900 border border-gray-800 text-sm text-gray-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600"
+      <div className="px-6 py-3 border-b border-border-base flex items-center gap-4 bg-app">
+        <input
+          type="text"
+          placeholder="Search logs (e.g. status:error or model:gpt-4)..."
+          className="flex-1 bg-panel border border-border-base text-sm text-text-main rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-text-muted/50"
         />
         <div className="flex gap-2 text-xs">
-            <button className="px-3 py-1.5 bg-gray-900 border border-gray-800 rounded text-gray-400 hover:text-white">Time: 24h</button>
-            <button className="px-3 py-1.5 bg-gray-900 border border-gray-800 rounded text-gray-400 hover:text-white">Status: All</button>
+          <button className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors">Time: 24h</button>
+          <button className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors">Status: All</button>
         </div>
       </div>
 
       {/* Header */}
-      <div className="grid grid-cols-12 gap-4 px-6 py-2 text-xs font-medium text-gray-500 border-b border-gray-800 bg-gray-950/50 sticky top-0 z-10">
+      <div className="grid grid-cols-12 gap-4 px-6 py-2 text-xs font-semibold text-text-muted border-b border-border-base bg-app/95 sticky top-0 z-10 backdrop-blur-sm">
         <div className="col-span-2">Time</div>
         <div className="col-span-3">Trace Name</div>
         <div className="col-span-2">Model</div>
@@ -53,53 +53,52 @@ const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTrac
           const model = trace.spans.find(s => s.attributes.model)?.attributes.model || '-';
 
           return (
-            <div 
+            <div
               key={trace.id}
               onClick={() => onSelectTrace(trace.id)}
-              className={`grid grid-cols-12 gap-4 px-6 py-3 text-sm border-b border-gray-800/50 cursor-pointer hover:bg-gray-900/50 transition-colors ${
-                isSelected ? 'bg-indigo-900/10 border-indigo-500/20' : ''
-              }`}
+              className={`grid grid-cols-12 gap-4 px-6 py-3 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-colors ${isSelected ? 'bg-indigo-500/10 border-indigo-500/20' : ''
+                }`}
             >
-              <div className="col-span-2 text-gray-400 font-mono text-xs flex items-center">
+              <div className="col-span-2 text-text-muted font-mono text-xs flex items-center">
                 {formatTime(trace.timestamp)}
               </div>
-              
-              <div className="col-span-3 font-medium text-gray-200 truncate flex items-center gap-2">
-                 <span className="truncate" title={root.name}>{root.name}</span>
-                 {trace.tags.map(tag => (
-                     <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-800 text-gray-400 border border-gray-700">{tag}</span>
-                 ))}
+
+              <div className="col-span-3 font-medium text-text-main truncate flex items-center gap-2">
+                <span className="truncate" title={root.name}>{root.name}</span>
+                {trace.tags.map(tag => (
+                  <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-panel text-text-muted border border-border-base">{tag}</span>
+                ))}
               </div>
 
-              <div className="col-span-2 text-gray-400 text-xs flex items-center truncate">
+              <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
                 {model !== '-' && <CpuChipIcon className="w-3 h-3 mr-1.5 opacity-50" />}
                 {model}
               </div>
 
-              <div className="col-span-1 text-right text-gray-300 font-mono text-xs flex items-center justify-end">
+              <div className="col-span-1 text-right text-text-main font-mono text-xs flex items-center justify-end">
                 {formatDuration(trace.total_latency)}
               </div>
 
-              <div className="col-span-2 text-right text-gray-400 font-mono text-xs flex items-center justify-end">
+              <div className="col-span-2 text-right text-text-muted font-mono text-xs flex items-center justify-end">
                 {trace.total_tokens > 0 ? trace.total_tokens.toLocaleString() : '-'}
               </div>
 
-              <div className="col-span-1 text-right text-gray-400 font-mono text-xs flex items-center justify-end">
+              <div className="col-span-1 text-right text-text-muted font-mono text-xs flex items-center justify-end">
                 {trace.total_cost > 0 ? `$${trace.total_cost.toFixed(4)}` : '-'}
               </div>
 
               <div className="col-span-1 flex items-center justify-center">
                 {trace.status === 'success' ? (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></div>
                 ) : (
-                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
+                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-sm"></div>
                 )}
               </div>
             </div>
           );
         })}
         {traces.length === 0 && (
-            <div className="p-8 text-center text-gray-500 text-sm">No traces found for this period.</div>
+          <div className="p-8 text-center text-text-muted text-sm italic">No traces found for this period.</div>
         )}
       </div>
     </div>
