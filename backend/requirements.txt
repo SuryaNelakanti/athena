@@ -3,3 +3,9 @@ uvicorn
 pydantic
 sqlmodel
 aiosqlite
+httpx
+openai
+anthropic
+google-generativeai
+pytest
+pytest-asyncio

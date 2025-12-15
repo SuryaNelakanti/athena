@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import LogTable from './components/LogTable';
 import TraceDetail from './components/TraceDetail';
 import Dashboard from './components/Dashboard';
+import Labs from './components/Labs';
 import { fetchProjects, fetchTraces } from './services/api';
 import { Project, Trace } from './types';
 
@@ -56,6 +57,9 @@ const App: React.FC = () => {
 
     if (currentPath === '/') {
       return <Dashboard />;
+    }
+    if (currentPath === '/labs') {
+      return <Labs />;
     }
     if (currentPath.startsWith('/logs')) {
       return (

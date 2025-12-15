@@ -1,21 +1,22 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 from contextlib import asynccontextmanager
-from sqlmodel import select, Session
+from sqlmodel import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import init_db, get_session
-# Import both Pydantic schemas (Trace, Span) and DB Models (TraceModel, SpanModel, Project)
 from .models import (
     Trace, Span, Project, TraceModel, SpanModel, 
-    SpanMetrics, SpanAttributes
+    SpanMetrics, SpanAttributes, SpanType
 )
+from .routers import proxy as proxy_router
 
 # --- Startup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB (Sync, but okay in lifespan)
-    init_db()
+    # Initialize DB (Async)
+    await init_db()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -29,38 +30,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Endpoints (Sync for Threadpool execution) ---
+# Include Routers
+app.include_router(proxy_router.router)
+
+# --- Endpoints (Async) ---
 
 @app.get("/")
-def read_root():
-    return {"message": "Athena API is running with SQLite persistence (Sync)"}
+async def read_root():
+    return {"message": "Athena API is running with SQLite persistence (Async)"}
 
 @app.get("/projects", response_model=List[Project])
-def get_projects(session: Session = Depends(get_session)):
-    result = session.exec(select(Project))
-    return result.all()
+async def get_projects(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(Project))
+    return result.scalars().all()
 
 @app.get("/projects/{project_id}/traces", response_model=List[Trace])
-def get_project_traces(project_id: str, session: Session = Depends(get_session)):
-    # Explicitly load spans? SQLModel with sync session handles lazy loading if accessed
-    # But usually better to join or eager load.
-    # For now, let's rely on basic select.
+async def get_project_traces(project_id: str, session: AsyncSession = Depends(get_session)):
+    # Async select
+    statement = select(TraceModel).where(TraceModel.project_id == project_id).order_by(TraceModel.timestamp.desc())
+    result = await session.execute(statement)
+    trace_models = result.scalars().all()
     
-    # statement = select(TraceModel).where(TraceModel.project_id == project_id).order_by(TraceModel.timestamp.desc())
-    # result = session.exec(statement)
-    # trace_models = result.all()
-    # Issue: TraceModel.spans access will trigger lazy load. 
-    # Since session is open, this should work.
+    # Needs explicit loading of spans if not joined? 
+    # SLQModel with AsyncSession doesn't support lazy loading of relationships easily.
+    # We should use selectinload or similar, or just query spans separately or join.
+    # For now, simplest approach:
     
-    trace_models = session.exec(select(TraceModel).where(TraceModel.project_id == project_id).order_by(TraceModel.timestamp.desc())).all()
-
-    # Convert DB Models -> API Response Models
     api_traces = []
     for tm in trace_models:
-        # Reconstruct Root Span vs Children
+        # Fetch spans for this trace
+        spans_statement = select(SpanModel).where(SpanModel.trace_id == tm.id)
+        spans_statement = select(SpanModel).where(SpanModel.trace_id == tm.id)
+        spans_result = await session.execute(spans_statement)
+        spans = spans_result.scalars().all()
         
         def to_span_pydantic(sm: SpanModel) -> Span:
-            return Span(
+             return Span(
                 id=sm.id,
                 trace_id=sm.trace_id,
                 parent_id=sm.parent_id,
@@ -76,9 +81,8 @@ def get_project_traces(project_id: str, session: Session = Depends(get_session))
                 tags=sm.tags or [],
                 error_message=sm.error_message
             )
-        
-        # Accessing tm.spans triggers query
-        converted_spans = [to_span_pydantic(s) for s in tm.spans]
+
+        converted_spans = [to_span_pydantic(s) for s in spans]
         root_span = next((s for s in converted_spans if not s.parent_id), None)
         
         if root_span:
@@ -98,8 +102,8 @@ def get_project_traces(project_id: str, session: Session = Depends(get_session))
     return api_traces
 
 @app.post("/traces", response_model=Dict[str, str])
-def create_trace(trace: Trace, session: Session = Depends(get_session)):
-    # 1. Upsert Project? (Assumed to exist)
+async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session)):
+    # 1. Upsert Project? (Assumed to exist for now, or ignore)
     
     # 2. Create TraceModel
     trace_model = TraceModel(
@@ -134,5 +138,5 @@ def create_trace(trace: Trace, session: Session = Depends(get_session)):
         )
         session.add(span_model)
     
-    session.commit()
+    await session.commit()
     return {"status": "success", "trace_id": trace.id}

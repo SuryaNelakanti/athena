@@ -1,13 +1,14 @@
 import React from 'react';
 import { Project } from '../types';
-import { 
-  HomeIcon, 
-  ListBulletIcon, 
-  BeakerIcon, 
-  CircleStackIcon, 
-  Cog6ToothIcon, 
+import {
+  HomeIcon,
+  ListBulletIcon,
+  BeakerIcon,
+  CircleStackIcon,
+  Cog6ToothIcon,
   UserCircleIcon,
-  ChevronUpDownIcon
+  ChevronUpDownIcon,
+  CommandLineIcon
 } from '@heroicons/react/24/outline';
 
 interface LayoutProps {
@@ -19,18 +20,20 @@ interface LayoutProps {
   onNavigate: (path: string) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ 
-  children, 
-  projects, 
-  currentProject, 
-  onProjectChange, 
-  currentPath, 
-  onNavigate 
+const Layout: React.FC<LayoutProps> = ({
+  children,
+  projects,
+  currentProject,
+  onProjectChange,
+  currentPath,
+  onNavigate
 }) => {
-  
+
   const navItems = [
     { name: 'Dashboard', icon: HomeIcon, path: '/' },
     { name: 'Logs', icon: ListBulletIcon, path: '/logs' },
+    { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
+    { name: 'Services', icon: CircleStackIcon, path: '/services' }, // Placeholder renaming Datasets maybe? No, let's keep Datasets
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
@@ -48,12 +51,12 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <div className="p-3">
-            <div className="relative">
-                <button className="w-full flex items-center justify-between bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-300 transition-colors">
-                    <span className="truncate font-medium">{currentProject.name}</span>
-                    <ChevronUpDownIcon className="w-4 h-4 text-gray-500" />
-                </button>
-            </div>
+          <div className="relative">
+            <button className="w-full flex items-center justify-between bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-md px-3 py-2 text-sm text-gray-300 transition-colors">
+              <span className="truncate font-medium">{currentProject.name}</span>
+              <ChevronUpDownIcon className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-2 space-y-1">
@@ -63,11 +66,10 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 key={item.name}
                 onClick={() => onNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-all ${
-                  isActive 
-                    ? 'bg-indigo-500/10 text-indigo-400 font-medium' 
-                    : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-all ${isActive
+                  ? 'bg-indigo-500/10 text-indigo-400 font-medium'
+                  : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200'
+                  }`}
               >
                 <item.icon className="w-5 h-5" />
                 {item.name}
@@ -80,8 +82,8 @@ const Layout: React.FC<LayoutProps> = ({
           <button className="flex items-center gap-3 text-sm text-gray-400 hover:text-white transition-colors w-full">
             <UserCircleIcon className="w-6 h-6" />
             <div className="flex flex-col items-start">
-                <span className="text-xs font-medium">Jane Doe</span>
-                <span className="text-[10px] text-gray-500">Engineering</span>
+              <span className="text-xs font-medium">Jane Doe</span>
+              <span className="text-[10px] text-gray-500">Engineering</span>
             </div>
           </button>
         </div>

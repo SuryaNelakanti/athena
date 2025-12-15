@@ -3,6 +3,22 @@ Athena is an AI proxy + observability + evaluation platform with a closed-loop w
 
 
 
+## Configuration
+
+To use real AI providers, you need to configure your API keys.
+
+1. Navigate to the `backend` directory.
+2. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+3. Add your API keys to `.env`:
+   - **OpenAI**: [Get API Key](https://platform.openai.com/api-keys) -> `OPENAI_API_KEY`
+   - **Anthropic**: [Get API Key](https://console.anthropic.com/settings/keys) -> `ANTHROPIC_API_KEY`
+   - **Gemini**: [Get API Key](https://aistudio.google.com/app/apikey) -> `GEMINI_API_KEY`
+
+> **Note**: You can use the `Mock Model` in Labs without any API keys for testing - It just doesn't do anything :D
+
 ## Run Athena locally
 
 **Prerequisites:**  Node.js, Python 
