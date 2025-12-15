@@ -1,14 +1,95 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trace } from '../types';
-import { ClockIcon, CurrencyDollarIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, CurrencyDollarIcon, CpuChipIcon, FunnelIcon, BookmarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { api, View } from '../services/api';
 
 interface LogTableProps {
   traces: Trace[];
   onSelectTrace: (traceId: string) => void;
   selectedTraceId: string | null;
+  projectId: string;
+  onRefresh: () => void; // Trigger parent refresh
+  setFilters: (filters: { status?: string, search?: string }) => void;
+  currentFilters: { status?: string, search?: string };
 }
 
-const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTraceId }) => {
+const LogTable: React.FC<LogTableProps> = ({
+  traces,
+  onSelectTrace,
+  selectedTraceId,
+  projectId,
+  onRefresh,
+  setFilters,
+  currentFilters
+}) => {
+  const [searchInput, setSearchInput] = useState(currentFilters.search || '');
+  const [statusFilter, setStatusFilter] = useState(currentFilters.status || 'all');
+
+  // Views State
+  const [views, setViews] = useState<View[]>([]);
+  const [showSaveView, setShowSaveView] = useState(false);
+  const [newViewName, setNewViewName] = useState('');
+  const [showViewsList, setShowViewsList] = useState(false);
+
+  useEffect(() => {
+    if (projectId) {
+      loadViews();
+    }
+  }, [projectId]);
+
+  const loadViews = async () => {
+    try {
+      const vs = await api.getViews(projectId);
+      setViews(vs);
+    } catch (e) {
+      console.error("Failed to load views", e);
+    }
+  };
+
+  const handleSearch = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      setFilters({ ...currentFilters, search: searchInput });
+    }
+  };
+
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    setFilters({ ...currentFilters, status });
+  };
+
+  const handleSaveView = async () => {
+    if (!newViewName.trim()) return;
+    try {
+      await api.createView({
+        project_id: projectId,
+        name: newViewName,
+        config: { status: statusFilter, search: searchInput }
+      });
+      setNewViewName('');
+      setShowSaveView(false);
+      loadViews();
+    } catch (e) {
+      console.error("Failed to save view", e);
+    }
+  };
+
+  const applyView = (view: View) => {
+    setSearchInput(view.config.search || '');
+    setStatusFilter(view.config.status || 'all');
+    setFilters({
+      status: view.config.status,
+      search: view.config.search
+    });
+    setShowViewsList(false);
+  };
+
+  const handleDeleteView = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('Delete this view?')) {
+      await api.deleteView(id);
+      loadViews();
+    }
+  }
 
   const formatTime = (ms: number) => {
     return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -21,16 +102,80 @@ const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTrac
 
   return (
     <div className="flex flex-col h-full bg-app transition-colors duration-300">
-      {/* Toolbar / Filters (Placeholder) */}
+      {/* Toolbar / Filters */}
       <div className="px-6 py-3 border-b border-border-base flex items-center gap-4 bg-app">
-        <input
-          type="text"
-          placeholder="Search logs (e.g. status:error or model:gpt-4)..."
-          className="flex-1 bg-panel border border-border-base text-sm text-text-main rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-text-muted/50"
-        />
-        <div className="flex gap-2 text-xs">
-          <button className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors">Time: 24h</button>
-          <button className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors">Status: All</button>
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={handleSearch}
+            placeholder="Search logs (Enter to apply)..."
+            className="w-full bg-panel border border-border-base text-sm text-text-main rounded-md pl-3 pr-8 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-text-muted/50"
+          />
+        </div>
+
+        <div className="flex gap-2 text-xs items-center relative">
+          {/* Status Filter */}
+          <select
+            className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main focus:outline-none cursor-pointer"
+            value={statusFilter}
+            onChange={(e) => handleStatusChange(e.target.value)}
+          >
+            <option value="all">Status: All</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+          </select>
+
+          {/* Views Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowViewsList(!showViewsList)}
+              className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors flex items-center gap-2"
+            >
+              <BookmarkIcon className="w-3.5 h-3.5" />
+              Views
+            </button>
+            {showViewsList && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-panel border border-border-base rounded-md shadow-lg z-20 py-1">
+                {views.length === 0 && <div className="px-3 py-2 text-text-muted italic">No saved views</div>}
+                {views.map(v => (
+                  <div
+                    key={v.id}
+                    onClick={() => applyView(v)}
+                    className="px-3 py-2 hover:bg-panel-hover cursor-pointer flex justify-between items-center group"
+                  >
+                    <span className="text-text-main truncate text-xs">{v.name}</span>
+                    <button onClick={(e) => handleDeleteView(e, v.id)} className="opacity-0 group-hover:opacity-100 hover:text-rose-500">
+                      <XMarkIcon className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                <div className="border-t border-border-base mt-1 pt-1 px-2 pb-1">
+                  {showSaveView ? (
+                    <div className="flex flex-col gap-2 mt-1">
+                      <input
+                        autoFocus
+                        className="bg-app border border-border-base rounded px-2 py-1 text-xs text-text-main"
+                        placeholder="View Name"
+                        value={newViewName}
+                        onChange={e => setNewViewName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveView()}
+                      />
+                      <button onClick={handleSaveView} className="bg-indigo-600 text-white rounded px-2 py-1 text-xs">Save</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSaveView(true)}
+                      className="w-full text-left px-2 py-1 text-indigo-500 hover:text-indigo-400 text-xs"
+                    >
+                      + Save Current View
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -98,7 +243,7 @@ const LogTable: React.FC<LogTableProps> = ({ traces, onSelectTrace, selectedTrac
           );
         })}
         {traces.length === 0 && (
-          <div className="p-8 text-center text-text-muted text-sm italic">No traces found for this period.</div>
+          <div className="p-8 text-center text-text-muted text-sm italic">No traces found matching filters.</div>
         )}
       </div>
     </div>

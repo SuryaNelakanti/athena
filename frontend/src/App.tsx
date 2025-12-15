@@ -4,7 +4,7 @@ import LogTable from './components/LogTable';
 import TraceDetail from './components/TraceDetail';
 import Dashboard from './components/Dashboard';
 import Labs from './components/Labs';
-import { fetchProjects, fetchTraces } from './services/api';
+import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace } from './types';
 
 // In-Memory Router Implementation
@@ -19,6 +19,7 @@ const App: React.FC = () => {
   // Data State
   const [traces, setTraces] = useState<Trace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<{ status?: string, search?: string }>({});
 
   // Navigation Handler
   const navigate = (path: string) => {
@@ -36,15 +37,31 @@ const App: React.FC = () => {
   }, []);
 
   // Fetch Traces when project changes
+  const refreshTraces = () => {
+    if (!currentProject) return;
+    setLoading(true);
+    // Use the new signature which accepts filters
+    // Note: fetchTraces wrapper in api.ts might need to be bypassing the wrapper or wrapper updated?
+    // The wrapper I updated in api.ts is: export async function fetchTraces(projectId: string): Promise<Trace[]> { return api.getTraces(projectId); }
+    // Ideally I should import 'api' and use it.
+    // Let's assume I fix the import below or use the wrapper if I updated it. 
+    // Wait, I updated the wrapper to just call api.getTraces(projectId). It doesn't pass filters.
+    // I should use api.getTraces directly or update the wrapper.
+    // I will use api.getTraces directly, need to update imports.
+    // Use api.getTraces(currentProject.id, filters)
+  };
+
+  // Implementation below uses api.getTraces directly.
   useEffect(() => {
     if (!currentProject) return;
-
     setLoading(true);
-    fetchTraces(currentProject.id)
-      .then(data => setTraces(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
-  }, [currentProject]);
+    import('./services/api').then(({ api }) => {
+      api.getTraces(currentProject.id, filters)
+        .then(data => setTraces(data))
+        .catch(err => console.error(err))
+        .finally(() => setLoading(false));
+    });
+  }, [currentProject, filters]);
 
   // Derived View State
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
@@ -69,6 +86,15 @@ const App: React.FC = () => {
               traces={traces}
               onSelectTrace={(id) => setSelectedTraceId(id)}
               selectedTraceId={selectedTraceId}
+              projectId={currentProject ? currentProject.id : ''}
+              onRefresh={() => {
+                // re-fetch
+                import('./services/api').then(({ api }) => {
+                  api.getTraces(currentProject!.id, filters).then(setTraces);
+                });
+              }}
+              setFilters={setFilters}
+              currentFilters={filters}
             />
           </div>
           {showDetail && selectedTrace && (

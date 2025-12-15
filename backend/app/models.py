@@ -56,6 +56,15 @@ class SpanModel(SQLModel, table=True):
     
     trace: TraceModel = Relationship(back_populates="spans")
 
+class ViewModel(SQLModel, table=True):
+    __tablename__ = "view"
+    
+    id: str = Field(primary_key=True)
+    project_id: str = Field(index=True)
+    name: str
+    config: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
 # Pydantic Schemas for API (matching the Frontend types mostly)
 
 class SpanMetrics(BaseModel):

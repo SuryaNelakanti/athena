@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Trace, Span } from '../types';
 import {
     ClockIcon,
@@ -11,6 +11,7 @@ import {
     CubeIcon,
     ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline';
+import { Tooltip } from './Tooltip';
 
 interface TraceDetailProps {
     trace: Trace;
@@ -52,7 +53,19 @@ const SpanRow: React.FC<SpanRowProps> = ({
         >
             <div className="flex-1 flex items-center overflow-hidden mr-4">
                 <div style={{ paddingLeft: `${depth * 16}px` }} className="flex items-center gap-2 truncate">
-                    <span className="opacity-70">{iconMap[span.type]}</span>
+                    <Tooltip content={
+                        <span>
+                            <span className="font-semibold text-indigo-400">{span.type.toUpperCase()}</span>
+                            <span className="ml-1 text-gray-400">
+                                {span.type === 'llm' ? 'Language Model' : span.type === 'chain' ? 'Workflow Chain' : span.type === 'tool' ? 'External Tool' : 'Context Retrieval'}
+                            </span>
+                        </span>
+                    }>
+                        <span className="opacity-70">
+                            {iconMap[span.type]}
+                        </span>
+                    </Tooltip>
+
                     <span className={`text-sm truncate ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-text-main'}`}>{span.name}</span>
                     <span className="text-[10px] text-text-muted border border-border-base px-1 rounded bg-app">{span.type}</span>
                 </div>
@@ -86,6 +99,11 @@ const JSONViewer = ({ data, label }: { data: any, label: string }) => (
 
 const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [selectedSpan, setSelectedSpan] = useState<Span>(trace.root_span);
+
+    // Update selected span when the trace changes (e.g. user clicks a different row)
+    useEffect(() => {
+        setSelectedSpan(trace.root_span);
+    }, [trace.id, trace.root_span]);
 
     const sortedSpans = useMemo(() => {
         return [...trace.spans].sort((a, b) => a.start_time - b.start_time);
