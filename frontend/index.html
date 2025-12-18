@@ -8,7 +8,7 @@
   <title>Athena - AI Observability Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
   <script>
     tailwind.config = {
@@ -16,7 +16,8 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+            sans: ['Figtree', 'sans-serif'],
+            serif: ['EB Garamond', 'serif'],
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
@@ -34,13 +35,10 @@
               hover: 'var(--border-hover)',
             },
 
-            // Accents (Keep specific ones available)
-            indigo: {
-              500: '#6366f1',
-              600: '#4f46e5',
-            },
-            rose: {
-              500: '#f43f5e',
+            wispr: {
+              purple: '#8D7CE4',
+              'purple-light': '#A597ED',
+              'purple-dark': '#7565C8',
             },
             emerald: {
               500: '#10b981',
@@ -59,41 +57,29 @@
   </script>
   <style>
     :root {
-      /* Light Mode (Japanese Nuevo Tokyo) */
-      --bg-app: #FFFFFC;
-      /* Gofun */
-      --bg-panel: #F3F3F2;
-      /* Shironeri */
-      --bg-panel-hover: #EAE5E3;
-      /* Soshoku */
-      --text-main: #1a1a1a;
-      /* Ink 900 */
-      --text-muted: #4a4a4a;
-      /* Ink 600 */
-      --text-inverted: #ffffff;
-      --border-base: #E5E4E6;
-      /* Shiraumenezu */
-      --border-hover: #E7E7EB;
-      /* Murasakisuishiyou */
+      /* Light Mode (Lumen) */
+      --bg-app: #FDFCFB;
+      --bg-panel: #F7F2EF;
+      --bg-panel-hover: #EFE9E4;
+      --text-main: #1D1D1F;
+      --text-muted: #6E6E73;
+      --text-inverted: #FFFFFF;
+      --border-base: #E8E5E1;
+      --border-hover: #D8D4CF;
+      --accent-primary: #8D7CE4;
     }
 
     .dark {
-      /* Dark Mode (Cinematic Void) */
-      --bg-app: #0d1117;
-      /* Gray 950 */
-      --bg-panel: #161b22;
-      /* Gray 900 */
-      --bg-panel-hover: #21262d;
-      /* Gray 850 */
-      --text-main: #c9d1d9;
-      /* Gray 100 */
-      --text-muted: #8b949e;
-      /* Gray 400 */
-      --text-inverted: #0d1117;
-      --border-base: #30363d;
-      /* Gray 700 */
-      --border-hover: #6e7681;
-      /* Gray 600 */
+      /* Dark Mode (Pulse) */
+      --bg-app: #0C0C0C;
+      --bg-panel: #141414;
+      --bg-panel-hover: #1D1D1F;
+      --text-main: #F5F5F7;
+      --text-muted: #A1A1A6;
+      --text-inverted: #0C0C0C;
+      --border-base: #262626;
+      --border-hover: #333333;
+      --accent-primary: #8D7CE4;
     }
 
     body {

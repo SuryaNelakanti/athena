@@ -1,6 +1,6 @@
 import { Project, Trace } from '../types';
 
-const API_BASE_URL = 'http://localhost:8001';
+const API_BASE_URL = 'http://localhost:8000';
 
 export interface View {
     id: string;

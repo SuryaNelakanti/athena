@@ -40,15 +40,15 @@ const SpanRow: React.FC<SpanRowProps> = ({
     const widthPercent = Math.max(((span.end_time - span.start_time) / totalDuration) * 100, 1);
 
     const iconMap: Record<string, React.ReactNode> = {
-        llm: <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-purple-600" />,
-        chain: <CubeIcon className="w-3.5 h-3.5 text-blue-600" />,
-        tool: <CodeBracketIcon className="w-3.5 h-3.5 text-orange-600" />,
-        retriever: <CodeBracketIcon className="w-3.5 h-3.5 text-teal-600" />,
+        llm: <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-wispr-purple" />,
+        chain: <CubeIcon className="w-3.5 h-3.5 text-blue-500" />,
+        tool: <CodeBracketIcon className="w-3.5 h-3.5 text-amber-500" />,
+        retriever: <CodeBracketIcon className="w-3.5 h-3.5 text-emerald-500" />,
     };
 
     return (
         <div
-            className={`group flex items-center py-2 px-4 hover:bg-panel-hover cursor-pointer border-l-2 border-transparent transition-colors ${isSelected ? 'bg-indigo-500/10 border-indigo-500' : ''}`}
+            className={`group flex items-center py-2.5 px-6 hover:bg-panel-hover cursor-pointer border-l-2 border-transparent transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple' : ''}`}
             onClick={() => onSelect(span)}
         >
             <div className="flex-1 flex items-center overflow-hidden mr-4">
@@ -72,9 +72,9 @@ const SpanRow: React.FC<SpanRowProps> = ({
             </div>
 
             {/* Waterfall visualization */}
-            <div className="w-32 h-6 relative bg-border-base/30 rounded overflow-hidden flex-shrink-0">
+            <div className="w-36 h-2 relative bg-border-base/40 rounded-full overflow-hidden flex-shrink-0">
                 <div
-                    className={`absolute top-1 bottom-1 rounded-sm opacity-80 ${span.status === 'error' ? 'bg-rose-500' : 'bg-indigo-500'}`}
+                    className={`absolute top-0 bottom-0 rounded-full transition-all duration-300 ${span.status === 'error' ? 'bg-rose-500' : 'bg-wispr-purple'}`}
                     style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
                 />
             </div>
@@ -87,10 +87,10 @@ const SpanRow: React.FC<SpanRowProps> = ({
 }
 
 const JSONViewer = ({ data, label }: { data: any, label: string }) => (
-    <div className="mb-6">
-        <h4 className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-2">{label}</h4>
-        <div className="bg-app/50 border border-border-base rounded-md p-3 overflow-x-auto shadow-inner">
-            <pre className="text-xs font-mono text-text-main whitespace-pre-wrap">
+    <div className="mb-8">
+        <h4 className="text-[10px] uppercase tracking-widest text-text-muted font-bold mb-3 opacity-60">{label}</h4>
+        <div className="bg-app border border-border-base rounded-2xl p-4 overflow-x-auto shadow-sm">
+            <pre className="text-[12px] font-mono text-text-main whitespace-pre-wrap leading-relaxed">
                 {JSON.stringify(data, null, 2)}
             </pre>
         </div>
@@ -115,17 +115,17 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     return (
         <div className="h-full flex flex-col bg-panel border-l border-border-base text-text-main font-sans transition-colors duration-300">
             {/* Header */}
-            <div className="h-14 border-b border-border-base flex items-center justify-between px-6 bg-app flex-shrink-0">
-                <div className="flex items-center gap-4">
-                    <button onClick={onClose} className="text-text-muted hover:text-text-main transition-colors">
+            <div className="h-20 border-b border-border-base flex items-center justify-between px-8 bg-app flex-shrink-0">
+                <div className="flex items-center gap-6">
+                    <button onClick={onClose} className="p-2 -ml-2 rounded-xl text-text-muted hover:text-text-main hover:bg-panel-hover transition-all">
                         <ChevronRightIcon className="w-5 h-5" />
                     </button>
                     <div className="flex flex-col">
-                        <h2 className="text-sm font-bold text-text-main">{trace.root_span.name}</h2>
-                        <div className="flex items-center gap-2 text-xs text-text-muted font-mono">
-                            <span>{trace.id}</span>
-                            <span>•</span>
-                            <span>{new Date(trace.timestamp).toLocaleString()}</span>
+                        <h2 className="text-lg font-serif font-black text-text-main leading-tight">{trace.root_span.name}</h2>
+                        <div className="flex items-center gap-3 text-xs text-text-muted font-medium mt-0.5">
+                            <span className="opacity-70">{trace.id.substring(0, 8)}...</span>
+                            <span className="w-1 h-1 rounded-full bg-border-hover"></span>
+                            <span>{new Date(trace.timestamp).toLocaleTimeString()}</span>
                         </div>
                     </div>
                     {trace.status === 'error' && (
@@ -170,39 +170,39 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                 </div>
 
                 {/* Right: Span Details */}
-                <div className="w-1/2 overflow-y-auto bg-panel p-6">
-                    <div className="mb-6 flex items-start justify-between">
+                <div className="w-1/2 overflow-y-auto bg-panel p-8">
+                    <div className="mb-8 flex items-start justify-between">
                         <div>
-                            <h3 className="text-lg font-bold text-text-main mb-1">{selectedSpan.name}</h3>
+                            <h3 className="text-2xl font-serif font-black text-text-main mb-2">{selectedSpan.name}</h3>
                             <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 rounded text-xs bg-app text-text-muted border border-border-base font-mono">
+                                <span className="px-2.5 py-1 rounded-lg text-[10px] bg-app text-text-muted border border-border-base font-bold uppercase tracking-widest">
                                     {selectedSpan.type}
                                 </span>
-                                <span className="px-2 py-0.5 rounded text-xs bg-app text-text-muted border border-border-base font-mono">
+                                <span className="px-2.5 py-1 rounded-lg text-[10px] bg-app text-text-muted border border-border-base font-mono opacity-60">
                                     {selectedSpan.id}
                                 </span>
                             </div>
                         </div>
                         {selectedSpan.metrics.cost !== undefined && selectedSpan.metrics.cost > 0 && (
-                            <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400 text-xs font-mono font-medium">
+                            <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm shadow-emerald-500/10">
                                 ${selectedSpan.metrics.cost.toFixed(5)}
                             </div>
                         )}
                     </div>
 
                     {/* Attributes Grid */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="grid grid-cols-2 gap-4 mb-8">
                         {Object.entries(selectedSpan.attributes).map(([key, value]) => (
-                            <div key={key} className="bg-app/50 p-3 rounded border border-border-base">
-                                <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">{key.replace('_', ' ')}</div>
-                                <div className="text-sm text-text-main font-mono truncate">
+                            <div key={key} className="bg-app border border-border-base p-4 rounded-2xl hover:border-border-hover transition-all group">
+                                <div className="text-[9px] text-text-muted uppercase tracking-widest mb-1.5 font-bold opacity-60 group-hover:opacity-100 transition-opacity">{key.replace('_', ' ')}</div>
+                                <div className="text-sm text-text-main font-semibold truncate">
                                     {String(value)}
                                 </div>
                             </div>
                         ))}
-                        <div className="bg-app/50 p-3 rounded border border-border-base">
-                            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Tokens</div>
-                            <div className="text-sm text-text-main font-mono">
+                        <div className="bg-app border border-border-base p-4 rounded-2xl hover:border-border-hover transition-all group">
+                            <div className="text-[9px] text-text-muted uppercase tracking-widest mb-1.5 font-bold opacity-60 group-hover:opacity-100 transition-opacity">Tokens</div>
+                            <div className="text-sm text-text-main font-semibold">
                                 {selectedSpan.metrics.total_tokens || 0}
                             </div>
                         </div>

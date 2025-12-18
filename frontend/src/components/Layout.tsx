@@ -63,17 +63,17 @@ const Layout: React.FC<LayoutProps> = ({
     <div className="flex h-screen bg-app text-text-main font-sans overflow-hidden transition-colors duration-300">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border-base flex flex-col bg-panel flex-shrink-0 transition-colors duration-300">
-        <div className="p-4 border-b border-border-base flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-            A
+        <div className="p-6 border-b border-border-base flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold shadow-xl shadow-wispr-purple/20 transition-transform hover:scale-105 cursor-pointer">
+            <span className="text-xl font-serif">A</span>
           </div>
-          <span className="font-semibold text-text-main tracking-tight text-lg">Athena</span>
+          <span className="font-serif font-bold text-text-main tracking-tight text-2xl">Athena</span>
         </div>
 
-        <div className="p-3">
+        <div className="p-4">
           <div className="relative">
-            <button className="w-full flex items-center justify-between bg-app border border-border-base hover:border-border-hover rounded-md px-3 py-2 text-sm text-text-muted transition-colors shadow-sm">
-              <span className="truncate font-medium">{currentProject.name}</span>
+            <button className="w-full flex items-center justify-between bg-app border border-border-base hover:border-border-hover rounded-xl px-4 py-2.5 text-sm text-text-muted transition-all shadow-sm">
+              <span className="truncate font-semibold uppercase tracking-wider text-[11px] opacity-80">{currentProject.name}</span>
               <ChevronUpDownIcon className="w-4 h-4 text-text-muted" />
             </button>
           </div>
@@ -86,30 +86,32 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 key={item.name}
                 onClick={() => onNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-all ${isActive
-                  ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-500/20'
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl transition-all duration-200 ${isActive
+                  ? 'bg-wispr-purple/10 text-wispr-purple font-semibold border border-wispr-purple/20'
                   : 'text-text-muted hover:bg-panel-hover hover:text-text-main'
                   }`}
               >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-text-muted'}`} />
+                <item.icon className={`w-5 h-5 transition-colors ${isActive ? 'text-wispr-purple' : 'text-text-muted'}`} />
                 {item.name}
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-border-base flex items-center justify-between">
+        <div className="p-6 border-t border-border-base flex items-center justify-between">
           <button className="flex items-center gap-3 text-sm text-text-muted hover:text-text-main transition-colors">
-            <UserCircleIcon className="w-6 h-6" />
-            <div className="flex flex-col items-start">
-              <span className="text-xs font-medium">Jane Doe</span>
-              <span className="text-[10px] text-text-muted/70">Engineering</span>
+            <div className="w-10 h-10 rounded-full bg-border-base flex items-center justify-center overflow-hidden border border-border-base">
+              <UserCircleIcon className="w-8 h-8 text-text-muted" />
+            </div>
+            <div className="flex flex-col items-start translate-y-[-1px]">
+              <span className="text-sm font-semibold text-text-main">Jane Doe</span>
+              <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-60">Engineering</span>
             </div>
           </button>
 
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-md text-text-muted hover:bg-panel-hover hover:text-text-main transition-colors"
+            className="p-2.5 rounded-xl text-text-muted hover:bg-panel-hover hover:text-text-main transition-all border border-transparent hover:border-border-base"
             title="Toggle Theme"
           >
             {isDarkMode ? '🌙' : '☀️'}

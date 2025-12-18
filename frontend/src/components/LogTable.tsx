@@ -111,30 +111,30 @@ const LogTable: React.FC<LogTableProps> = ({
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={handleSearch}
             placeholder="Search logs (Enter to apply)..."
-            className="w-full bg-panel border border-border-base text-sm text-text-main rounded-md pl-3 pr-8 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-text-muted/50"
+            className="w-full bg-panel border border-border-base text-sm text-text-main rounded-xl pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple placeholder-text-muted/40 transition-all"
           />
         </div>
 
         <div className="flex gap-2 text-xs items-center relative">
           {/* Status Filter */}
           <select
-            className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main focus:outline-none cursor-pointer"
+            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
           >
-            <option value="all">Status: All</option>
-            <option value="success">Success</option>
-            <option value="error">Error</option>
+            <option value="all">STATUS: ALL</option>
+            <option value="success">SUCCESS</option>
+            <option value="error">ERROR</option>
           </select>
 
           {/* Views Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowViewsList(!showViewsList)}
-              className="px-3 py-1.5 bg-panel border border-border-base rounded text-text-muted hover:text-text-main hover:border-border-hover transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all flex items-center gap-2"
             >
               <BookmarkIcon className="w-3.5 h-3.5" />
-              Views
+              VIEWS
             </button>
             {showViewsList && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-panel border border-border-base rounded-md shadow-lg z-20 py-1">
@@ -162,14 +162,14 @@ const LogTable: React.FC<LogTableProps> = ({
                         onChange={e => setNewViewName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSaveView()}
                       />
-                      <button onClick={handleSaveView} className="bg-indigo-600 text-white rounded px-2 py-1 text-xs">Save</button>
+                      <button onClick={handleSaveView} className="bg-wispr-purple text-white rounded-lg px-2 py-1.5 text-xs font-bold shadow-lg shadow-wispr-purple/20">Save</button>
                     </div>
                   ) : (
                     <button
                       onClick={() => setShowSaveView(true)}
-                      className="w-full text-left px-2 py-1 text-indigo-500 hover:text-indigo-400 text-xs"
+                      className="w-full text-left px-2 py-1.5 text-wispr-purple hover:text-wispr-purple-dark text-[10px] font-bold tracking-wider"
                     >
-                      + Save Current View
+                      + SAVE CURRENT VIEW
                     </button>
                   )}
                 </div>
@@ -201,7 +201,7 @@ const LogTable: React.FC<LogTableProps> = ({
             <div
               key={trace.id}
               onClick={() => onSelectTrace(trace.id)}
-              className={`grid grid-cols-12 gap-4 px-6 py-3 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-colors ${isSelected ? 'bg-indigo-500/10 border-indigo-500/20' : ''
+              className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : ''
                 }`}
             >
               <div className="col-span-2 text-text-muted font-mono text-xs flex items-center">
@@ -234,9 +234,9 @@ const LogTable: React.FC<LogTableProps> = ({
 
               <div className="col-span-1 flex items-center justify-center">
                 {trace.status === 'success' ? (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
                 ) : (
-                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-sm"></div>
+                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
                 )}
               </div>
             </div>

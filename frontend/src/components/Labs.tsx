@@ -255,9 +255,9 @@ const Labs: React.FC = () => {
     return (
         <div className="flex h-full bg-app transition-colors duration-300">
             <div className="w-1/3 border-r border-border-base flex flex-col bg-panel transition-colors duration-300">
-                <div className="p-4 border-b border-border-base bg-app transition-colors duration-300">
-                    <h2 className="text-lg font-bold text-text-main mb-1">Playground</h2>
-                    <p className="text-xs text-text-muted">Test prompts with different providers.</p>
+                <div className="p-6 border-b border-border-base bg-app transition-colors duration-300">
+                    <h2 className="text-xl font-serif font-black text-text-main leading-tight mb-1">Playground</h2>
+                    <p className="text-xs text-text-muted font-medium opacity-70">Experiment with different models and prompts.</p>
                 </div>
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-6">
@@ -268,9 +268,9 @@ const Labs: React.FC = () => {
                                 <button
                                     key={p.id}
                                     onClick={() => { setProvider(p.id); }}
-                                    className={`px-3 py-2 rounded-md text-sm font-medium border transition-all ${provider === p.id
-                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
-                                            : 'bg-app text-text-muted border-border-base hover:border-indigo-400 hover:text-indigo-600'
+                                    className={`px-3 py-2.5 rounded-xl text-[10px] uppercase font-bold tracking-widest border transition-all ${provider === p.id
+                                        ? 'bg-wispr-purple text-white border-wispr-purple shadow-lg shadow-wispr-purple/20'
+                                        : 'bg-app text-text-muted border-border-base hover:border-wispr-purple-light hover:text-text-main'
                                         }`}
                                 >
                                     {p.name}
@@ -285,7 +285,7 @@ const Labs: React.FC = () => {
                             <select
                                 value={model}
                                 onChange={(e) => setModel(e.target.value)}
-                                className="w-full appearance-none bg-app border border-border-base text-text-main text-sm rounded-md px-3 py-2 pr-8 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                className="w-full appearance-none bg-app border border-border-base text-text-main text-sm font-semibold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple transition-all cursor-pointer shadow-sm"
                             >
                                 {displayedModels.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -300,20 +300,20 @@ const Labs: React.FC = () => {
                         <textarea
                             value={systemPrompt}
                             onChange={(e) => setSystemPrompt(e.target.value)}
-                            className="w-full h-32 bg-app border border-border-base text-text-main text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none placeholder-text-muted/50"
+                            className="w-full h-32 bg-app border border-border-base text-text-main text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple transition-all resize-none placeholder-text-muted/40 shadow-sm leading-relaxed"
                             placeholder="You are a helpful assistant..."
                         />
                     </div>
 
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Parameters</label>
-                        <div className="bg-app border border-border-base rounded-md p-3 space-y-3">
+                        <div className="bg-app border border-border-base rounded-2xl p-4 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-text-muted">Temperature</span>
-                                <span className="text-xs font-mono text-text-main">0.7</span>
+                                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-70">Temperature</span>
+                                <span className="text-xs font-mono font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base">0.7</span>
                             </div>
-                            <div className="w-full bg-border-base h-1 rounded-full overflow-hidden">
-                                <div className="bg-indigo-500 h-full w-[70%]"></div>
+                            <div className="w-full bg-border-base/50 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-wispr-purple h-full w-[70%] shadow-[0_0_8px_rgba(141,124,228,0.4)]"></div>
                             </div>
                         </div>
                     </div>
@@ -332,22 +332,22 @@ const Labs: React.FC = () => {
 
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm ${msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-none'
-                                    : 'bg-panel border border-border-base text-text-main rounded-bl-none'
+                            <div className={`max-w-[80%] rounded-3xl px-6 py-4 shadow-sm ${msg.role === 'user'
+                                ? 'bg-wispr-purple text-white shadow-xl shadow-wispr-purple/20'
+                                : 'bg-panel border border-border-base text-text-main'
                                 }`}>
-                                <div className="text-xs opacity-70 mb-1 uppercase tracking-wider font-semibold">
+                                <div className={`text-[9px] mb-1 uppercase tracking-widest font-black opacity-60 ${msg.role === 'user' ? 'text-white/80' : 'text-text-muted'}`}>
                                     {msg.role}
                                     {msg.role === 'assistant' && msg.reasoning && (
-                                        <span className="ml-2 text-[10px] bg-purple-500/20 text-purple-600 dark:text-purple-300 px-1.5 py-0.5 rounded">reasoning</span>
+                                        <span className="ml-2 text-[8px] bg-wispr-purple/20 text-wispr-purple dark:text-wispr-purple-light px-2 py-0.5 rounded-full border border-wispr-purple/10">reasoning</span>
                                     )}
                                 </div>
-                                <div className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content || (msg.reasoning ? <span className="italic opacity-50">Thinking...</span> : '')}</div>
+                                <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{msg.content || (msg.reasoning ? <span className="italic opacity-50">Thinking...</span> : '')}</div>
 
                                 {msg.reasoning && (
                                     <div className="mt-3 pt-3 border-t border-dashed border-gray-400/30 text-xs">
-                                        <div className="font-semibold mb-1 opacity-75">Reasoning Process:</div>
-                                        <div className="font-mono opacity-80 whitespace-pre-wrap bg-black/5 dark:bg-white/5 p-2 rounded">{msg.reasoning}</div>
+                                        <div className="font-bold uppercase tracking-widest text-[9px] mb-2 opacity-60">Reasoning Process</div>
+                                        <div className="font-mono text-[11px] opacity-90 whitespace-pre-wrap bg-black/5 dark:bg-white/5 p-4 rounded-xl leading-relaxed border border-border-base/50">{msg.reasoning}</div>
                                     </div>
                                 )}
                             </div>
@@ -368,18 +368,18 @@ const Labs: React.FC = () => {
                                     handleSubmit();
                                 }
                             }}
-                            placeholder="Enter your message..."
-                            className="w-full bg-app border border-border-base text-text-main text-sm rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors shadow-sm resize-none h-[52px] max-h-32 placeholder-text-muted/50"
+                            placeholder="Type a message..."
+                            className="w-full bg-app border border-border-base text-text-main text-sm font-medium rounded-2xl pl-5 pr-14 py-4 focus:outline-none focus:ring-4 focus:ring-wispr-purple/10 focus:border-wispr-purple transition-all shadow-lg shadow-black/5 resize-none h-[64px] max-h-48 placeholder-text-muted/40 leading-relaxed"
                         />
                         <button
                             onClick={handleSubmit}
                             disabled={loading || !input.trim()}
-                            className="absolute right-2 top-2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                            className="absolute right-3 top-3 p-2.5 bg-wispr-purple text-white rounded-xl hover:bg-wispr-purple-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-wispr-purple/20"
                         >
                             {loading ? (
-                                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                <ArrowPathIcon className="w-5 h-5 animate-spin" />
                             ) : (
-                                <PaperAirplaneIcon className="w-4 h-4" />
+                                <PaperAirplaneIcon className="w-5 h-5" />
                             )}
                         </button>
                     </div>
