@@ -4,6 +4,10 @@ import LogTable from './components/LogTable';
 import TraceDetail from './components/TraceDetail';
 import Dashboard from './components/Dashboard';
 import Labs from './components/Labs';
+import DatasetList from './components/DatasetList';
+import ExperimentList from './components/ExperimentList';
+import DatasetDetail from './components/DatasetDetail';
+import ExperimentDetail from './components/ExperimentDetail';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace } from './types';
 
@@ -15,6 +19,8 @@ const App: React.FC = () => {
   // Default to '/' directly to avoid accessing window.location in restricted contexts
   const [currentPath, setCurrentPath] = useState('/');
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [selectedDataset, setSelectedDataset] = useState<any | null>(null);
+  const [selectedExperiment, setSelectedExperiment] = useState<any | null>(null);
 
   // Data State
   const [traces, setTraces] = useState<Trace[]>([]);
@@ -108,11 +114,23 @@ const App: React.FC = () => {
         </div>
       );
     }
+    if (currentPath === '/datasets') {
+      if (selectedDataset) {
+        return <DatasetDetail dataset={selectedDataset} onBack={() => setSelectedDataset(null)} />;
+      }
+      return <DatasetList projectId={currentProject?.id || ''} onSelectDataset={setSelectedDataset} />;
+    }
+    if (currentPath === '/experiments') {
+      if (selectedExperiment) {
+        return <ExperimentDetail experiment={selectedExperiment} onBack={() => setSelectedExperiment(null)} />;
+      }
+      return <ExperimentList projectId={currentProject?.id || ''} onSelectExperiment={setSelectedExperiment} />;
+    }
     return (
       <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Coming in Phase 2</h2>
-          <p>Datasets and Experiments are under construction.</p>
+          <h2 className="text-xl font-semibold mb-2">Phase 2: More to come</h2>
+          <p>Settings and refined dashboard views are in progress.</p>
         </div>
       </div>
     );

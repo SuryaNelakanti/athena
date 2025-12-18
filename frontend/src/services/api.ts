@@ -50,7 +50,61 @@ export const api = {
     deleteView: async (viewId: string): Promise<void> => {
         const response = await fetch(`${API_BASE_URL}/views/${viewId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete view');
-    }
+    },
+
+    // Datasets
+    getDatasets: async (projectId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/?project_id=${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch datasets');
+        return response.json();
+    },
+
+    createDataset: async (dataset: any): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dataset),
+        });
+        if (!response.ok) throw new Error('Failed to create dataset');
+        return response.json();
+    },
+
+    getDatasetRows: async (datasetId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows`);
+        if (!response.ok) throw new Error('Failed to fetch dataset rows');
+        return response.json();
+    },
+
+    promoteToDataset: async (traceId: string, datasetId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/promote?trace_id=${traceId}&dataset_id=${datasetId}`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to promote trace to dataset');
+        return response.json();
+    },
+
+    // Experiments
+    getExperiments: async (projectId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/?project_id=${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch experiments');
+        return response.json();
+    },
+
+    createExperiment: async (experiment: any): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(experiment),
+        });
+        if (!response.ok) throw new Error('Failed to create experiment');
+        return response.json();
+    },
+
+    getExperimentResults: async (experimentId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/results`);
+        if (!response.ok) throw new Error('Failed to fetch experiment results');
+        return response.json();
+    },
 };
 
 // Deprecated standalone functions if used elsewhere, or update them to use api object. 

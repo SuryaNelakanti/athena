@@ -9,9 +9,12 @@ import {
     ChevronDownIcon,
     ChevronRightIcon,
     CubeIcon,
-    ChatBubbleLeftRightIcon
+    ChatBubbleLeftRightIcon,
+    PlusCircleIcon
 } from '@heroicons/react/24/outline';
 import { Tooltip } from './Tooltip';
+import { api } from '../services/api';
+import { Dataset } from '../types';
 
 interface TraceDetailProps {
     trace: Trace;
@@ -99,6 +102,27 @@ const JSONViewer = ({ data, label }: { data: any, label: string }) => (
 
 const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [selectedSpan, setSelectedSpan] = useState<Span>(trace.root_span);
+    const [datasets, setDatasets] = useState<Dataset[]>([]);
+    const [isPromoting, setIsPromoting] = useState(false);
+    const [showDatasetPicker, setShowDatasetPicker] = useState(false);
+
+    useEffect(() => {
+        api.getDatasets(trace.project_id).then(setDatasets).catch(console.error);
+    }, [trace.project_id]);
+
+    const handlePromote = async (datasetId: string) => {
+        setIsPromoting(true);
+        try {
+            await api.promoteToDataset(trace.id, datasetId);
+            alert("Successfully added to dataset!");
+            setShowDatasetPicker(false);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to add to dataset.");
+        } finally {
+            setIsPromoting(false);
+        }
+    };
 
     // Update selected span when the trace changes (e.g. user clicks a different row)
     useEffect(() => {
@@ -147,6 +171,35 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     <div className="flex flex-col items-end">
                         <span className="text-text-muted">Cost</span>
                         <span className="text-text-main font-mono font-medium">${trace.total_cost.toFixed(4)}</span>
+                    </div>
+
+                    <div className="relative ml-4">
+                        <button
+                            onClick={() => setShowDatasetPicker(!showDatasetPicker)}
+                            className="flex items-center gap-2 px-4 py-2 bg-wispr-purple/10 text-wispr-purple border border-wispr-purple/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple hover:text-white transition-all shadow-sm"
+                        >
+                            <PlusCircleIcon className="w-4 h-4" />
+                            ADD TO DATASET
+                        </button>
+
+                        {showDatasetPicker && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-panel border border-border-base rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                                <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-text-muted font-bold border-b border-border-base/50">Select Dataset</div>
+                                {datasets.length === 0 && (
+                                    <div className="px-3 py-4 text-xs text-text-muted italic text-center">No datasets found for this project</div>
+                                )}
+                                {datasets.map(ds => (
+                                    <button
+                                        key={ds.id}
+                                        onClick={() => handlePromote(ds.id)}
+                                        disabled={isPromoting}
+                                        className="w-full text-left px-3 py-2 hover:bg-wispr-purple/10 hover:text-wispr-purple text-xs font-medium transition-colors disabled:opacity-50"
+                                    >
+                                        {ds.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

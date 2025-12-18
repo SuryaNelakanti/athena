@@ -59,3 +59,41 @@ export interface Trace {
   status: 'success' | 'error';
   tags: string[];
 }
+
+export interface Dataset {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string;
+  version: number;
+  created_at: number;
+}
+
+export interface DatasetRow {
+  id: string;
+  dataset_id: string;
+  input: any;
+  expected?: any;
+  metadata: Record<string, any>;
+  created_at: number;
+}
+
+export interface Experiment {
+  id: string;
+  project_id: string;
+  dataset_id: string;
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  summary: Record<string, any>;
+  created_at: number;
+}
+
+export interface ExperimentResult {
+  id: string;
+  experiment_id: string;
+  dataset_row_id: string;
+  output: any;
+  scores: Record<string, any>;
+  latency_ms: number;
+  created_at: number;
+}

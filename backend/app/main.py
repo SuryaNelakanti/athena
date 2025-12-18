@@ -11,6 +11,9 @@ from .models import (
     SpanMetrics, SpanAttributes, SpanType
 )
 from .routers import proxy as proxy_router
+from .routers import views as views_router
+from .routers import datasets as datasets_router
+from .routers import experiments as experiments_router
 
 # --- Startup ---
 @asynccontextmanager
@@ -51,6 +54,8 @@ from .routers import views as views_router
 
 # ... (inside lifespan or app definition)
 app.include_router(views_router.router)
+app.include_router(datasets_router.router)
+app.include_router(experiments_router.router)
 
 @app.get("/projects/{project_id}/traces", response_model=List[Trace])
 async def get_project_traces(

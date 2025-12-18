@@ -33,7 +33,6 @@ const Layout: React.FC<LayoutProps> = ({
     { name: 'Dashboard', icon: HomeIcon, path: '/' },
     { name: 'Logs', icon: ListBulletIcon, path: '/logs' },
     { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
-    { name: 'Services', icon: CircleStackIcon, path: '/services' }, // Placeholder renaming Datasets maybe? No, let's keep Datasets
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings' },

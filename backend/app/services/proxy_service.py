@@ -6,7 +6,7 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ProviderConfig, ModelCard
 from app.providers.factory import get_envoy
-from app.models import TraceModel, SpanModel, SpanType # Trace, Span DB models mainly
+from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel # Trace, Span, Dataset DB models
 
 class ProxyService:
     def __init__(self, session: AsyncSession):
@@ -168,3 +168,30 @@ class ProxyService:
                 print(f"Failed to list models for {p}: {e}")
                 
         return all_models
+
+    async def promote_to_dataset(self, trace_id: str, dataset_id: str) -> DatasetRowModel:
+        """
+        Promotes the root span of a trace to a dataset row.
+        """
+        from sqlmodel import select
+        statement = select(SpanModel).where(
+            SpanModel.trace_id == trace_id, 
+            SpanModel.parent_id == None
+        )
+        result = await self.session.execute(statement)
+        root_span = result.scalar_one_or_none()
+        
+        if not root_span:
+            raise ValueError(f"Root span not found for trace {trace_id}")
+            
+        row = DatasetRowModel(
+            id=f"dr_{uuid.uuid4().hex[:8]}",
+            dataset_id=dataset_id,
+            input=root_span.input,
+            expected=root_span.output, # Output becomes the 'expected' value
+            meta={"source_trace_id": trace_id}
+        )
+        self.session.add(row)
+        await self.session.commit()
+        await self.session.refresh(row)
+        return row
