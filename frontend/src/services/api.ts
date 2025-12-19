@@ -1,4 +1,4 @@
-import { Project, Trace } from '../types';
+import { Project, Trace, Log } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -87,7 +87,7 @@ export const api = {
     getLogs: async (
         projectId: string,
         filters?: { level?: string; trace_id?: string; search?: string; limit?: number; offset?: number }
-    ): Promise<any[]> => {
+    ): Promise<Log[]> => {
         const params = new URLSearchParams();
         if (filters?.level) params.append('level', filters.level);
         if (filters?.trace_id) params.append('trace_id', filters.trace_id);

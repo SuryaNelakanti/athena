@@ -1,29 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Trace } from '../types';
-import { ClockIcon, CurrencyDollarIcon, CpuChipIcon, FunnelIcon, BookmarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Log, Trace } from '../types';
+import { ClockIcon, CurrencyDollarIcon, CpuChipIcon, FunnelIcon, BookmarkIcon, XMarkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { api, View } from '../services/api';
 
 interface LogTableProps {
-  traces: Trace[];
-  onSelectTrace: (traceId: string) => void;
-  selectedTraceId: string | null;
   projectId: string;
-  onRefresh: () => void; // Trigger parent refresh
-  setFilters: (filters: { status?: string, search?: string }) => void;
-  currentFilters: { status?: string, search?: string };
+  onSelectLog: (log: Log) => void;
+  onOpenTrace?: (traceId: string) => void;  // Drill-down to trace detail
+  selectedLogId: string | null;
 }
 
 const LogTable: React.FC<LogTableProps> = ({
-  traces,
-  onSelectTrace,
-  selectedTraceId,
   projectId,
-  onRefresh,
-  setFilters,
-  currentFilters
+  onSelectLog,
+  onOpenTrace,
+  selectedLogId,
 }) => {
-  const [searchInput, setSearchInput] = useState(currentFilters.search || '');
-  const [statusFilter, setStatusFilter] = useState(currentFilters.status || 'all');
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [levelFilter, setLevelFilter] = useState('all');
 
   // Views State
   const [views, setViews] = useState<View[]>([]);
@@ -31,16 +27,35 @@ const LogTable: React.FC<LogTableProps> = ({
   const [newViewName, setNewViewName] = useState('');
   const [showViewsList, setShowViewsList] = useState(false);
 
+  // Load logs when project or filters change
   useEffect(() => {
     if (projectId) {
+      loadLogs();
       loadViews();
     }
   }, [projectId]);
 
+  const loadLogs = async (filters?: { level?: string; search?: string }) => {
+    setLoading(true);
+    try {
+      const fetchedLogs = await api.getLogs(projectId, {
+        level: filters?.level && filters.level !== 'all' ? filters.level : undefined,
+        search: filters?.search || undefined,
+        limit: 100,
+      });
+      setLogs(fetchedLogs);
+    } catch (e) {
+      console.error("Failed to load logs", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadViews = async () => {
     try {
       const vs = await api.getViews(projectId);
-      setViews(vs);
+      // Filter to only show log views
+      setViews(vs.filter(v => v.config.entity_type === 'logs' || !v.config.entity_type));
     } catch (e) {
       console.error("Failed to load views", e);
     }
@@ -48,13 +63,13 @@ const LogTable: React.FC<LogTableProps> = ({
 
   const handleSearch = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      setFilters({ ...currentFilters, search: searchInput });
+      loadLogs({ level: levelFilter, search: searchInput });
     }
   };
 
-  const handleStatusChange = (status: string) => {
-    setStatusFilter(status);
-    setFilters({ ...currentFilters, status });
+  const handleLevelChange = (level: string) => {
+    setLevelFilter(level);
+    loadLogs({ level, search: searchInput });
   };
 
   const handleSaveView = async () => {
@@ -63,7 +78,7 @@ const LogTable: React.FC<LogTableProps> = ({
       await api.createView({
         project_id: projectId,
         name: newViewName,
-        config: { status: statusFilter, search: searchInput }
+        config: { level: levelFilter, search: searchInput, entity_type: 'logs' }
       });
       setNewViewName('');
       setShowSaveView(false);
@@ -75,11 +90,8 @@ const LogTable: React.FC<LogTableProps> = ({
 
   const applyView = (view: View) => {
     setSearchInput(view.config.search || '');
-    setStatusFilter(view.config.status || 'all');
-    setFilters({
-      status: view.config.status,
-      search: view.config.search
-    });
+    setLevelFilter(view.config.level || 'all');
+    loadLogs({ level: view.config.level, search: view.config.search });
     setShowViewsList(false);
   };
 
@@ -89,15 +101,26 @@ const LogTable: React.FC<LogTableProps> = ({
       await api.deleteView(id);
       loadViews();
     }
-  }
+  };
 
   const formatTime = (ms: number) => {
     return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
-  const formatDuration = (ms: number) => {
+  const formatDuration = (ms?: number) => {
+    if (!ms) return '-';
     if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
+  };
+
+  const getLevelBadge = (level: string) => {
+    const colors: Record<string, string> = {
+      'DEBUG': 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+      'INFO': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+      'WARN': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+      'ERROR': 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+    };
+    return colors[level] || colors['INFO'];
   };
 
   return (
@@ -116,15 +139,17 @@ const LogTable: React.FC<LogTableProps> = ({
         </div>
 
         <div className="flex gap-2 text-xs items-center relative">
-          {/* Status Filter */}
+          {/* Level Filter */}
           <select
             className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
-            value={statusFilter}
-            onChange={(e) => handleStatusChange(e.target.value)}
+            value={levelFilter}
+            onChange={(e) => handleLevelChange(e.target.value)}
           >
-            <option value="all">STATUS: ALL</option>
-            <option value="success">SUCCESS</option>
-            <option value="error">ERROR</option>
+            <option value="all">LEVEL: ALL</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
           </select>
 
           {/* Views Dropdown */}
@@ -176,81 +201,90 @@ const LogTable: React.FC<LogTableProps> = ({
               </div>
             )}
           </div>
+
+          {/* Refresh button */}
+          <button
+            onClick={() => loadLogs({ level: levelFilter, search: searchInput })}
+            className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all"
+          >
+            ↻
+          </button>
         </div>
       </div>
 
       {/* Header */}
       <div className="grid grid-cols-12 gap-4 px-6 py-2 text-xs font-semibold text-text-muted border-b border-border-base bg-app/95 sticky top-0 z-10 backdrop-blur-sm">
         <div className="col-span-2">Time</div>
-        <div className="col-span-3">Trace Name</div>
+        <div className="col-span-3">Message</div>
         <div className="col-span-2">Model</div>
         <div className="col-span-1 text-right">Latency</div>
         <div className="col-span-2 text-right">Tokens</div>
         <div className="col-span-1 text-right">Cost</div>
-        <div className="col-span-1 text-center">Status</div>
+        <div className="col-span-1 text-center">Level</div>
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {traces.map((trace) => {
-          const isSelected = selectedTraceId === trace.id;
-          const root = trace.root_span;
-          const model = trace.spans.find(s => s.attributes.model)?.attributes.model || '-';
+        {loading ? (
+          <div className="p-8 text-center text-text-muted text-sm italic">Loading logs...</div>
+        ) : logs.length === 0 ? (
+          <div className="p-8 text-center text-text-muted text-sm italic">No logs found matching filters.</div>
+        ) : (
+          logs.map((log) => {
+            const isSelected = selectedLogId === log.id;
 
-          return (
-            <div
-              key={trace.id}
-              onClick={() => onSelectTrace(trace.id)}
-              className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : ''
-                }`}
-            >
-              <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums">
-                {formatTime(trace.timestamp)}
-              </div>
+            return (
+              <div
+                key={log.id}
+                onClick={() => onSelectLog(log)}
+                className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : ''
+                  }`}
+              >
+                <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums gap-2">
+                  {formatTime(log.timestamp)}
+                  {log.trace_id && onOpenTrace && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onOpenTrace(log.trace_id!); }}
+                      className="p-1 hover:bg-wispr-purple/10 rounded transition-colors"
+                      title="View Trace"
+                    >
+                      <ArrowTopRightOnSquareIcon className="w-3 h-3 text-wispr-purple" />
+                    </button>
+                  )}
+                </div>
 
-              <div className="col-span-3 flex flex-col justify-center min-w-0">
-                <span className="font-medium text-text-main truncate" title={root.name}>{root.name}</span>
-                {trace.tags.length > 0 && (
-                  <div className="flex items-center gap-1 mt-1 overflow-hidden">
-                    {trace.tags.slice(0, 3).map(tag => (
-                      <span key={tag} className="px-1.5 py-0.5 rounded text-[9px] bg-panel text-text-muted border border-border-base truncate max-w-[80px]" title={tag}>{tag}</span>
-                    ))}
-                    {trace.tags.length > 3 && (
-                      <span className="text-[9px] text-text-muted">+{trace.tags.length - 3}</span>
-                    )}
-                  </div>
-                )}
-              </div>
+                <div className="col-span-3 flex flex-col justify-center min-w-0">
+                  <span className="font-medium text-text-main truncate" title={log.message}>{log.message}</span>
+                  {log.trace_id && (
+                    <span className="text-[10px] text-text-muted truncate">trace: {log.trace_id.substring(0, 8)}...</span>
+                  )}
+                </div>
 
-              <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
-                {model !== '-' && <CpuChipIcon className="w-3 h-3 mr-1.5 opacity-50" />}
-                {model}
-              </div>
+                <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
+                  {log.model && <CpuChipIcon className="w-3 h-3 mr-1.5 opacity-50" />}
+                  {log.model || '-'}
+                </div>
 
-              <div className="col-span-1 text-right text-text-main text-xs flex items-center justify-end tabular-nums">
-                {formatDuration(trace.total_latency)}
-              </div>
+                <div className="col-span-1 text-right text-text-main text-xs flex items-center justify-end tabular-nums">
+                  {formatDuration(log.latency_ms)}
+                </div>
 
-              <div className="col-span-2 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
-                {trace.total_tokens > 0 ? trace.total_tokens.toLocaleString() : '-'}
-              </div>
+                <div className="col-span-2 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
+                  {log.total_tokens ? log.total_tokens.toLocaleString() : '-'}
+                </div>
 
-              <div className="col-span-1 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
-                {trace.total_cost > 0 ? `$${trace.total_cost.toFixed(4)}` : '-'}
-              </div>
+                <div className="col-span-1 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
+                  {log.cost ? `$${log.cost.toFixed(4)}` : '-'}
+                </div>
 
-              <div className="col-span-1 flex items-center justify-center">
-                {trace.status === 'success' ? (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-                ) : (
-                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
-                )}
+                <div className="col-span-1 flex items-center justify-center">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getLevelBadge(log.level)}`}>
+                    {log.level}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
-        {traces.length === 0 && (
-          <div className="p-8 text-center text-text-muted text-sm italic">No traces found matching filters.</div>
+            );
+          })
         )}
       </div>
     </div>

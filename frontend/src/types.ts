@@ -72,13 +72,19 @@ export interface Dataset {
 export interface DatasetRow {
   id: string;
   dataset_id: string;
+  // Versioning fields
+  logical_id: string;  // Groups revisions of the same logical row
+  version: number;  // Revision number
+  is_deleted: boolean;  // Tombstone marker
+  // Content fields
   input: any;
   expected?: any;
-  metadata: Record<string, any>;
+  meta: Record<string, any>;
   example_type: 'gold' | 'anti_pattern';  // "gold" (positive example) or "anti_pattern" (negative example)
   source_trace_id?: string;  // If promoted from a trace
   created_at: number;
 }
+
 
 export interface Experiment {
   id: string;
@@ -168,7 +174,17 @@ export interface Log {
   level: LogLevel;
   message: string;
   timestamp: number;
+  // Proxy call metrics
+  latency_ms?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost?: number;
+  model?: string;
+  provider?: string;
+  // Structured data
   attributes: Record<string, any>;
-  metadata: Record<string, any>;
+  log_metadata: Record<string, any>;
   created_at: number;
 }
+

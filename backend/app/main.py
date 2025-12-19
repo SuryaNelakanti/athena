@@ -57,6 +57,15 @@ app.add_middleware(
 app.include_router(proxy_router.router)
 app.include_router(projects_router.router)
 app.include_router(logs_router.router)
+app.include_router(views_router.router)
+app.include_router(datasets_router.router)
+app.include_router(experiments_router.router)
+app.include_router(model_registry_router.router)
+app.include_router(providers_router.router)
+app.include_router(functions_router.router)
+app.include_router(guardrails_router.router)
+
+from sqlalchemy import func
 
 # --- Endpoints (Async) ---
 
@@ -69,21 +78,8 @@ async def get_projects(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Project))
     return result.scalars().all()
 
-from sqlalchemy import func
-
-# ... (imports)
-from .routers import views as views_router
-
-# ... (inside lifespan or app definition)
-app.include_router(views_router.router)
-app.include_router(datasets_router.router)
-app.include_router(experiments_router.router)
-app.include_router(model_registry_router.router)
-app.include_router(providers_router.router)
-app.include_router(functions_router.router)
-app.include_router(guardrails_router.router)
-
 @app.get("/projects/{project_id}/traces", response_model=List[Trace])
+
 async def get_project_traces(
     project_id: str,
     status: str = None,

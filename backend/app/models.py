@@ -87,11 +87,22 @@ class LogModel(SQLModel, table=True):
     message: str
     timestamp: int = Field(index=True)
     
+    # Proxy call metrics (nullable for non-proxy logs)
+    latency_ms: Optional[float] = Field(default=None)
+    prompt_tokens: Optional[int] = Field(default=None)
+    completion_tokens: Optional[int] = Field(default=None)
+    total_tokens: Optional[int] = Field(default=None)
+    cost: Optional[float] = Field(default=None)
+    model: Optional[str] = Field(default=None, index=True)
+    provider: Optional[str] = Field(default=None, index=True)
+    
     # Structured data
     attributes: Dict = Field(sa_column=Column(JSON), default={})
     log_metadata: Dict = Field(sa_column=Column(JSON), default={})
     
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+
 
 # --- Dataset Models ---
 
@@ -107,13 +118,22 @@ class DatasetModel(SQLModel, table=True):
 class DatasetRowModel(SQLModel, table=True):
     __tablename__ = "dataset_row"
     id: str = Field(primary_key=True)
-    dataset_id: str = Field(foreign_key="dataset.id")
+    dataset_id: str = Field(foreign_key="dataset.id", index=True)
+    
+    # Append-only versioning fields
+    logical_id: str = Field(index=True)  # Groups revisions of the same logical row
+    version: int = Field(default=1)  # Revision number for this logical row
+    is_deleted: bool = Field(default=False)  # Tombstone marker for soft deletes
+    
+    # Content fields
     input: Dict = Field(sa_column=Column(JSON), default={})
     expected: Optional[Dict] = Field(sa_column=Column(JSON), default={})
     meta: Dict = Field(sa_column=Column(JSON), default={})
     example_type: str = Field(default="gold")  # "gold" (positive example) or "anti_pattern" (negative example)
     source_trace_id: Optional[str] = Field(default=None)  # If promoted from a trace
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+
 
 # --- Experiment Models ---
 

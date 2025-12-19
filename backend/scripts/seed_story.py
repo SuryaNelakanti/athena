@@ -20,6 +20,7 @@ from app.models import (
     ExperimentRunModel,
     ExperimentRunResultModel,
     FunctionModel,
+    LogModel,
     ModelRegistryModel,
     Project,
     SpanModel,
@@ -379,6 +380,43 @@ async def seed_prod_story(session: AsyncSession) -> dict[str, str]:
     add(make_trace(trace_id=trace_id, project_id="proj_gtm", timestamp_ms=start, status="error", tags=["env:prod", "area:outbound", "failure:compliance"], spans=spans), spans)
 
     await session.commit()
+    
+    # Seed logs corresponding to each trace (for Logs UI demo)
+    log_entries = [
+        # Support logs
+        ("log_support_001", "proj_support", "trace_support_refund_001", "INFO", "LLM call to gpt-4o", start - 8 * 60 * 1000, 640, 220, 0.0021, "gpt-4o", "openai"),
+        ("log_support_002", "proj_support", "trace_support_refund_bad_001", "ERROR", "LLM call to gpt-4o-mini failed: Hallucinated refund window", start - 33 * 60 * 1000, 780, 180, 0.0017, "gpt-4o-mini", "openai"),
+        ("log_support_003", "proj_support", "trace_support_stream_001", "INFO", "LLM stream call to claude-3-5-sonnet-20240620", start - 18 * 60 * 1000, 2100, 140, 0.0012, "claude-3-5-sonnet-20240620", "anthropic"),
+        # Legal logs
+        ("log_legal_001", "proj_legal", "trace_legal_clause_001", "INFO", "LLM call to gpt-4o", start - 55 * 60 * 1000, 3100, 980, 0.018, "gpt-4o", "openai"),
+        ("log_legal_002", "proj_legal", "trace_legal_bad_001", "ERROR", "LLM call to gpt-4o-mini failed: Referenced Section 19.4 which does not exist", start - 95 * 60 * 1000, 2400, 760, 0.013, "gpt-4o-mini", "openai"),
+        # GTM logs
+        ("log_gtm_001", "proj_gtm", "trace_gtm_email_001", "INFO", "LLM call to claude-3-5-sonnet-20240620", start - 25 * 60 * 1000, 1600, 260, 0.0026, "claude-3-5-sonnet-20240620", "anthropic"),
+        ("log_gtm_002", "proj_gtm", "trace_gtm_spam_bad_001", "ERROR", "LLM call to gpt-4o-mini failed: No unsubscribe/opt-out footer", start - 80 * 60 * 1000, 1400, 180, 0.0015, "gpt-4o-mini", "openai"),
+    ]
+    
+    for log_id, project_id, trace_id, level, message, timestamp, latency_ms, total_tokens, cost, model, provider in log_entries:
+        session.add(LogModel(
+            id=log_id,
+            project_id=project_id,
+            trace_id=trace_id,
+            span_id=None,
+            level=level,
+            message=message,
+            timestamp=timestamp,
+            latency_ms=latency_ms,
+            prompt_tokens=int(total_tokens * 0.55),
+            completion_tokens=int(total_tokens * 0.45),
+            total_tokens=total_tokens,
+            cost=cost,
+            model=model,
+            provider=provider,
+            attributes={},
+            log_metadata={},
+            created_at=timestamp + int(latency_ms),
+        ))
+    
+    await session.commit()
     return bad
 
 
@@ -485,6 +523,9 @@ async def seed_datasets(session: AsyncSession, bad: dict[str, str]) -> None:
             DatasetRowModel(
                 id=f"dr_seed_{idx:03d}",
                 dataset_id=dataset_id,
+                logical_id=f"drl_seed_{idx:03d}",  # Versioning fields
+                version=1,
+                is_deleted=False,
                 input={"prompt": prompt},
                 expected={"answer": answer, "citations": citations(doc_id, "Source Document", "Evidence quote placeholder for demo.")},
                 meta={"source_trace_id": source_trace_id} if source_trace_id else {},

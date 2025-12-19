@@ -10,7 +10,7 @@ import DatasetDetail from './components/DatasetDetail';
 import ExperimentDetail from './components/ExperimentDetail';
 import Settings from './components/Settings';
 import { fetchProjects, api } from './services/api'; // Added api import
-import { Project, Trace } from './types';
+import { Project, Trace, Log } from './types';
 
 // In-Memory Router Implementation
 const App: React.FC = () => {
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   // Default to '/' directly to avoid accessing window.location in restricted contexts
   const [currentPath, setCurrentPath] = useState('/');
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<Log | null>(null);
   const [selectedDataset, setSelectedDataset] = useState<any | null>(null);
   const [selectedExperiment, setSelectedExperiment] = useState<any | null>(null);
 
@@ -58,22 +59,7 @@ const App: React.FC = () => {
     }).catch(err => console.error(err));
   }, []);
 
-  // Fetch Traces when project changes
-  const refreshTraces = () => {
-    if (!currentProject) return;
-    setLoading(true);
-    // Use the new signature which accepts filters
-    // Note: fetchTraces wrapper in api.ts might need to be bypassing the wrapper or wrapper updated?
-    // The wrapper I updated in api.ts is: export async function fetchTraces(projectId: string): Promise<Trace[]> { return api.getTraces(projectId); }
-    // Ideally I should import 'api' and use it.
-    // Let's assume I fix the import below or use the wrapper if I updated it. 
-    // Wait, I updated the wrapper to just call api.getTraces(projectId). It doesn't pass filters.
-    // I should use api.getTraces directly or update the wrapper.
-    // I will use api.getTraces directly, need to update imports.
-    // Use api.getTraces(currentProject.id, filters)
-  };
-
-  // Implementation below uses api.getTraces directly.
+  // Fetch Traces when project changes (for trace detail view)
   useEffect(() => {
     if (!currentProject) return;
     setLoading(true);
@@ -85,12 +71,33 @@ const App: React.FC = () => {
     });
   }, [currentProject, filters]);
 
+  // Handle opening trace from log row
+  const handleOpenTrace = async (traceId: string) => {
+    // Fetch the full trace and show detail
+    const existingTrace = traces.find(t => t.id === traceId);
+    if (existingTrace) {
+      setSelectedTraceId(traceId);
+    } else {
+      // Trace not in current list, fetch it
+      try {
+        const fetchedTraces = await api.getTraces(currentProject!.id, { limit: 1 });
+        const foundTrace = fetchedTraces.find(t => t.id === traceId);
+        if (foundTrace) {
+          setTraces(prev => [...prev, foundTrace]);
+          setSelectedTraceId(traceId);
+        }
+      } catch (err) {
+        console.error('Failed to fetch trace:', err);
+      }
+    }
+  };
+
   // Derived View State
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
   const showDetail = !!selectedTraceId;
 
   const renderContent = () => {
-    if (loading && traces.length === 0) {
+    if (loading && traces.length === 0 && currentPath !== '/logs') {
       return <div className="flex items-center justify-center h-full text-gray-500">Loading...</div>;
     }
 
@@ -105,18 +112,10 @@ const App: React.FC = () => {
         <div className="flex h-full">
           <div className={`${showDetail ? 'w-1/2 hidden md:block' : 'w-full'} border-r border-gray-800 transition-all`}>
             <LogTable
-              traces={traces}
-              onSelectTrace={(id) => setSelectedTraceId(id)}
-              selectedTraceId={selectedTraceId}
               projectId={currentProject ? currentProject.id : ''}
-              onRefresh={() => {
-                // re-fetch
-                import('./services/api').then(({ api }) => {
-                  api.getTraces(currentProject!.id, filters).then(setTraces);
-                });
-              }}
-              setFilters={setFilters}
-              currentFilters={filters}
+              onSelectLog={(log) => setSelectedLog(log)}
+              onOpenTrace={handleOpenTrace}
+              selectedLogId={selectedLog?.id || null}
             />
           </div>
           {showDetail && selectedTrace && (

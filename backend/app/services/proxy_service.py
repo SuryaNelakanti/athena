@@ -6,7 +6,7 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ProviderConfig, ModelCard
 from app.providers.factory import get_envoy
-from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel # Trace, Span, Dataset DB models
+from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel, LogModel  # Trace, Span, Dataset, Log DB models
 from app.services.provider_keys import ProviderKeyStore
 from app.services.cache import get_cache
 
@@ -136,20 +136,62 @@ class ProxyService:
              trace.total_latency = latency
              trace.status = "success"
              
+             # Create canonical log row for this proxy call
+             log = LogModel(
+                 id=f"log_{uuid.uuid4().hex[:16]}",
+                 project_id=project_id,
+                 trace_id=trace_id,
+                 span_id=span_id,
+                 level="INFO",
+                 message=f"LLM call to {request.model}",
+                 timestamp=start_time,
+                 latency_ms=latency,
+                 prompt_tokens=response.usage.prompt_tokens if response.usage else None,
+                 completion_tokens=response.usage.completion_tokens if response.usage else None,
+                 total_tokens=response.usage.total_tokens if response.usage else None,
+                 cost=None,  # TODO: implement cost calculation
+                 model=request.model,
+                 provider=provider_name,
+                 attributes={},
+                 log_metadata={},
+                 created_at=end_time,
+             )
+             self.session.add(log)
+             
              self.session.add(span)
              self.session.add(trace)
              await self.session.commit()
              
              return response
+
              
         except Exception as e:
             end_time = int(time.time() * 1000)
+            latency = end_time - start_time
             span.end_time = end_time
             span.status = "error"
             span.error_message = str(e)
             
             trace.status = "error"
-            trace.total_latency = end_time - start_time
+            trace.total_latency = latency
+            
+            # Create error log row
+            log = LogModel(
+                id=f"log_{uuid.uuid4().hex[:16]}",
+                project_id=project_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                level="ERROR",
+                message=f"LLM call to {request.model} failed: {str(e)}",
+                timestamp=start_time,
+                latency_ms=latency,
+                model=request.model,
+                provider=provider_name,
+                attributes={"error": str(e)},
+                log_metadata={},
+                created_at=end_time,
+            )
+            self.session.add(log)
             
             self.session.add(span)
             self.session.add(trace)
@@ -255,6 +297,24 @@ class ProxyService:
             trace.total_latency = latency_ms
             trace.status = "success"
 
+            # Create canonical log row for streaming call
+            log = LogModel(
+                id=f"log_{uuid.uuid4().hex[:16]}",
+                project_id=project_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                level="INFO",
+                message=f"LLM stream call to {request.model}",
+                timestamp=start_time,
+                latency_ms=latency_ms,
+                model=request.model,
+                provider=provider_name,
+                attributes={"streaming": True},
+                log_metadata={},
+                created_at=end_time,
+            )
+            self.session.add(log)
+
             self.session.add(span)
             self.session.add(trace)
             await self.session.commit()
@@ -263,13 +323,32 @@ class ProxyService:
 
         except Exception as e:
             end_time = int(time.time() * 1000)
+            latency_ms = end_time - start_time
             span.end_time = end_time
             span.status = "error"
             span.error_message = str(e)
-            span.metrics = {"latency_ms": end_time - start_time}
+            span.metrics = {"latency_ms": latency_ms}
 
             trace.status = "error"
-            trace.total_latency = end_time - start_time
+            trace.total_latency = latency_ms
+
+            # Create error log row for streaming
+            log = LogModel(
+                id=f"log_{uuid.uuid4().hex[:16]}",
+                project_id=project_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                level="ERROR",
+                message=f"LLM stream call to {request.model} failed: {str(e)}",
+                timestamp=start_time,
+                latency_ms=latency_ms,
+                model=request.model,
+                provider=provider_name,
+                attributes={"streaming": True, "error": str(e)},
+                log_metadata={},
+                created_at=end_time,
+            )
+            self.session.add(log)
 
             self.session.add(span)
             self.session.add(trace)

@@ -43,12 +43,22 @@ class LogResponse(BaseModel):
     timestamp: int
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+    # Proxy call metrics
+    latency_ms: Optional[float] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    cost: Optional[float] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    # Structured data
     attributes: Dict[str, Any] = {}
     log_metadata: Dict[str, Any] = {}
     created_at: int
 
     class Config:
         from_attributes = True
+
 
 
 class LogBatchResponse(BaseModel):
