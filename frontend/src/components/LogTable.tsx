@@ -204,15 +204,22 @@ const LogTable: React.FC<LogTableProps> = ({
               className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : ''
                 }`}
             >
-              <div className="col-span-2 text-text-muted font-mono text-xs flex items-center">
+              <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums">
                 {formatTime(trace.timestamp)}
               </div>
 
-              <div className="col-span-3 font-medium text-text-main truncate flex items-center gap-2">
-                <span className="truncate" title={root.name}>{root.name}</span>
-                {trace.tags.map(tag => (
-                  <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-panel text-text-muted border border-border-base">{tag}</span>
-                ))}
+              <div className="col-span-3 flex flex-col justify-center min-w-0">
+                <span className="font-medium text-text-main truncate" title={root.name}>{root.name}</span>
+                {trace.tags.length > 0 && (
+                  <div className="flex items-center gap-1 mt-1 overflow-hidden">
+                    {trace.tags.slice(0, 3).map(tag => (
+                      <span key={tag} className="px-1.5 py-0.5 rounded text-[9px] bg-panel text-text-muted border border-border-base truncate max-w-[80px]" title={tag}>{tag}</span>
+                    ))}
+                    {trace.tags.length > 3 && (
+                      <span className="text-[9px] text-text-muted">+{trace.tags.length - 3}</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
@@ -220,15 +227,15 @@ const LogTable: React.FC<LogTableProps> = ({
                 {model}
               </div>
 
-              <div className="col-span-1 text-right text-text-main font-mono text-xs flex items-center justify-end">
+              <div className="col-span-1 text-right text-text-main text-xs flex items-center justify-end tabular-nums">
                 {formatDuration(trace.total_latency)}
               </div>
 
-              <div className="col-span-2 text-right text-text-muted font-mono text-xs flex items-center justify-end">
+              <div className="col-span-2 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
                 {trace.total_tokens > 0 ? trace.total_tokens.toLocaleString() : '-'}
               </div>
 
-              <div className="col-span-1 text-right text-text-muted font-mono text-xs flex items-center justify-end">
+              <div className="col-span-1 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
                 {trace.total_cost > 0 ? `$${trace.total_cost.toFixed(4)}` : '-'}
               </div>
 

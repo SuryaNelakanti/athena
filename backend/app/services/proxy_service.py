@@ -7,10 +7,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ProviderConfig, ModelCard
 from app.providers.factory import get_envoy
 from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel # Trace, Span, Dataset DB models
+from app.services.provider_keys import ProviderKeyStore
+from app.services.cache import get_cache
 
 class ProxyService:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    def _provider_config(self, provider_name: str) -> ProviderConfig | None:
+        api_key = ProviderKeyStore.get_key(provider_name)
+        if not api_key:
+            return None
+        return ProviderConfig(provider_name=provider_name, api_key=api_key)
+
+    async def _allocate_trace_id(self, requested_trace_id: Optional[str]) -> tuple[str, Optional[str]]:
+        """
+        Returns (trace_id_to_use, parent_trace_id).
+
+        `ChatCompletionRequest.trace_id` is treated as a "parent trace" hint when the ID already exists,
+        to avoid primary-key collisions with the current single-root-trace schema.
+        """
+        if not requested_trace_id:
+            return str(uuid.uuid4()), None
+
+        existing = await self.session.get(TraceModel, requested_trace_id)
+        if existing:
+            return str(uuid.uuid4()), requested_trace_id
+
+        return requested_trace_id, None
     
     def _resolve_provider(self, request: ChatCompletionRequest) -> str:
         if request.provider:
@@ -27,12 +51,12 @@ class ProxyService:
         # Fallback or error
         raise ValueError(f"Could not resolve provider for model: {request.model}")
 
-    async def chat_completion(self, request: ChatCompletionRequest, project_id: str = "default") -> ChatCompletionResponse:
+    async def chat_completion(self, request: ChatCompletionRequest, project_id: str = "default", bypass_cache: bool = False) -> ChatCompletionResponse:
         provider_name = self._resolve_provider(request)
-        envoy = get_envoy(provider_name)
+        envoy = get_envoy(provider_name, self._provider_config(provider_name))
         
         # --- Start Trace ---
-        trace_id = request.trace_id or str(uuid.uuid4())
+        trace_id, parent_trace_id = await self._allocate_trace_id(request.trace_id)
         span_id = str(uuid.uuid4())
         start_time = int(time.time() * 1000)
         
@@ -55,7 +79,11 @@ class ProxyService:
             total_cost=0.0,
             total_tokens=0,
             status="pending",
-            tags=[f"model:{request.model}", f"provider:{provider_name}"]
+            tags=[
+                f"model:{request.model}",
+                f"provider:{provider_name}",
+                *([f"parent_trace:{parent_trace_id}"] if parent_trace_id else []),
+            ]
         )
         self.session.add(trace)
         
@@ -74,7 +102,8 @@ class ProxyService:
             attributes={
                 "model": request.model,
                 "provider": provider_name,
-                "temperature": request.temperature
+                "temperature": request.temperature,
+                **({"parent_trace_id": parent_trace_id} if parent_trace_id else {}),
             },
             tags=[]
         )
@@ -129,18 +158,123 @@ class ProxyService:
             raise e
 
     async def stream_chat_completion(self, request: ChatCompletionRequest, project_id: str = "default") -> AsyncGenerator[str, None]:
-        # TODO: Full Streaming Trace Logic (Aggregation)
-        # For Phase 2 MVP, just pass through.
-        
+        # Persist a trace/span for streaming runs and aggregate final output.
         provider_name = self._resolve_provider(request)
-        envoy = get_envoy(provider_name)
-        
-        stream = envoy.stream_chat_completion(request)
-        
-        async for chunk in stream:
-            yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
-        
-        yield "data: [DONE]\n\n"
+        envoy = get_envoy(provider_name, self._provider_config(provider_name))
+
+        trace_id, parent_trace_id = await self._allocate_trace_id(request.trace_id)
+        span_id = str(uuid.uuid4())
+        start_time = int(time.time() * 1000)
+
+        trace = TraceModel(
+            id=trace_id,
+            project_id=project_id,
+            timestamp=start_time,
+            total_latency=0.0,
+            total_cost=0.0,
+            total_tokens=0,
+            status="pending",
+            tags=[
+                f"model:{request.model}",
+                f"provider:{provider_name}",
+                "stream:true",
+                *([f"parent_trace:{parent_trace_id}"] if parent_trace_id else []),
+            ],
+        )
+        self.session.add(trace)
+
+        span = SpanModel(
+            id=span_id,
+            trace_id=trace_id,
+            parent_id=None,
+            name="LLM Call (stream)",
+            type=SpanType.LLM,
+            start_time=start_time,
+            end_time=start_time,
+            status="pending",
+            input=request.model_dump(exclude_none=True),
+            output={},
+            metrics={},
+            attributes={
+                "model": request.model,
+                "provider": provider_name,
+                "temperature": request.temperature,
+                **({"parent_trace_id": parent_trace_id} if parent_trace_id else {}),
+            },
+            tags=[],
+        )
+        self.session.add(span)
+        await self.session.commit()
+
+        aggregated_content = ""
+        aggregated_reasoning = ""
+        stream_response_id: Optional[str] = None
+
+        try:
+            async for chunk in envoy.stream_chat_completion(request):
+                if not stream_response_id:
+                    stream_response_id = chunk.id
+
+                if chunk.choices:
+                    for choice in chunk.choices:
+                        if choice.delta and choice.delta.content:
+                            aggregated_content += choice.delta.content
+                        if choice.delta and choice.delta.reasoning_content:
+                            aggregated_reasoning += choice.delta.reasoning_content
+
+                yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+
+            end_time = int(time.time() * 1000)
+            latency_ms = end_time - start_time
+
+            span.end_time = end_time
+            span.status = "success"
+            span.metrics = {"latency_ms": latency_ms}
+
+            # Store an aggregated "final" output snapshot for UI/debugging.
+            span.output = {
+                "id": stream_response_id or f"stream-{trace_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": aggregated_content},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": None,
+                "provider": provider_name,
+                **({"athena_reasoning": aggregated_reasoning} if aggregated_reasoning else {}),
+            }
+
+            if aggregated_reasoning:
+                span.attributes = {**(span.attributes or {}), "reasoning_enabled": True}
+
+            trace.total_latency = latency_ms
+            trace.status = "success"
+
+            self.session.add(span)
+            self.session.add(trace)
+            await self.session.commit()
+
+            yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            end_time = int(time.time() * 1000)
+            span.end_time = end_time
+            span.status = "error"
+            span.error_message = str(e)
+            span.metrics = {"latency_ms": end_time - start_time}
+
+            trace.status = "error"
+            trace.total_latency = end_time - start_time
+
+            self.session.add(span)
+            self.session.add(trace)
+            await self.session.commit()
+            raise e
 
     async def list_models(self) -> List[ModelCard]:
         """
@@ -156,7 +290,7 @@ class ProxyService:
         
         for p in providers:
             try:
-                envoy = get_envoy(p)
+                envoy = get_envoy(p, self._provider_config(p))
                 model_ids = await envoy.list_models()
                 for mid in model_ids:
                     all_models.append(ModelCard(

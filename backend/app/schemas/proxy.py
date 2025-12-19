@@ -26,6 +26,7 @@ class ChatCompletionRequest(BaseModel):
     # Athena Extensions
     provider: Optional[str] = None # Force specific provider if model name is ambiguous
     trace_id: Optional[str] = None # Parent trace ID for context propagation
+    project_id: Optional[str] = None # Target project for this request
 
 class ChatCompletionChoice(BaseModel):
     index: int

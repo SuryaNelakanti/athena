@@ -8,12 +8,13 @@ import time
 
 class GeminiEnvoy(TitanEnvoy):
     def __init__(self, config: Optional[ProviderConfig] = None):
-        api_key = config.api_key if config else os.getenv("GEMINI_API_KEY")
-        if not api_key:
-             print("Warning: GEMINI_API_KEY not found.")
-        
-        genai.configure(api_key=api_key)
         self.config = config
+        api_key = config.api_key if config else os.getenv("GEMINI_API_KEY")
+        self._has_api_key = bool(api_key)
+        if not api_key:
+            print("Warning: GEMINI_API_KEY not found.")
+        else:
+            genai.configure(api_key=api_key)
 
     def _prepare_history(self, messages: List[ChatMessage]):
         history = []
@@ -39,6 +40,8 @@ class GeminiEnvoy(TitanEnvoy):
         return system_instruction, history
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        if not self._has_api_key:
+            raise RuntimeError("GEMINI_API_KEY not configured.")
         system_instruction, history = self._prepare_history(request.messages)
         
         model = genai.GenerativeModel(
@@ -89,6 +92,8 @@ class GeminiEnvoy(TitanEnvoy):
         )
 
     async def stream_chat_completion(self, request: ChatCompletionRequest) -> AsyncGenerator[ChatCompletionChunk, None]:
+        if not self._has_api_key:
+            raise RuntimeError("GEMINI_API_KEY not configured.")
         system_instruction, history = self._prepare_history(request.messages)
         
         model = genai.GenerativeModel(
@@ -124,3 +129,11 @@ class GeminiEnvoy(TitanEnvoy):
                     )
                 ]
             )
+
+    async def list_models(self) -> List[str]:
+        # Keep this static to avoid requiring network access at runtime.
+        return [
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ]

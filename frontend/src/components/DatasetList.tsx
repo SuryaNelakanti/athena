@@ -131,7 +131,7 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                             <div className="flex items-center gap-4 pt-4 border-t border-border-base/50">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Version</span>
-                                    <span className="text-sm font-mono text-text-main">v{ds.version}</span>
+                                    <span className="text-sm text-text-main tabular-nums">v{ds.version}</span>
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Created</span>

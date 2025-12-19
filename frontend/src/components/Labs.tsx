@@ -310,7 +310,7 @@ const Labs: React.FC = () => {
                         <div className="bg-app border border-border-base rounded-2xl p-4 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-70">Temperature</span>
-                                <span className="text-xs font-mono font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base">0.7</span>
+                                <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">0.7</span>
                             </div>
                             <div className="w-full bg-border-base/50 h-1.5 rounded-full overflow-hidden">
                                 <div className="bg-wispr-purple h-full w-[70%] shadow-[0_0_8px_rgba(141,124,228,0.4)]"></div>
@@ -347,7 +347,7 @@ const Labs: React.FC = () => {
                                 {msg.reasoning && (
                                     <div className="mt-3 pt-3 border-t border-dashed border-gray-400/30 text-xs">
                                         <div className="font-bold uppercase tracking-widest text-[9px] mb-2 opacity-60">Reasoning Process</div>
-                                        <div className="font-mono text-[11px] opacity-90 whitespace-pre-wrap bg-black/5 dark:bg-white/5 p-4 rounded-xl leading-relaxed border border-border-base/50">{msg.reasoning}</div>
+                                        <div className="text-[11px] opacity-90 whitespace-pre-wrap bg-black/5 dark:bg-white/5 p-4 rounded-xl leading-relaxed border border-border-base/50">{msg.reasoning}</div>
                                     </div>
                                 )}
                             </div>

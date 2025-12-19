@@ -8,6 +8,7 @@ import DatasetList from './components/DatasetList';
 import ExperimentList from './components/ExperimentList';
 import DatasetDetail from './components/DatasetDetail';
 import ExperimentDetail from './components/ExperimentDetail';
+import Settings from './components/Settings';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace } from './types';
 
@@ -26,6 +27,8 @@ const App: React.FC = () => {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{ status?: string, search?: string }>({});
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
 
   // Navigation Handler
   const navigate = (path: string) => {
@@ -34,9 +37,22 @@ const App: React.FC = () => {
 
   // Initialize Projects
   useEffect(() => {
-    fetchProjects().then(data => {
-      setProjects(data);
-      if (data.length > 0) {
+    fetchProjects().then(async data => {
+      if (data.length === 0) {
+        // No projects exist - auto-create a default one
+        setCreatingProject(true);
+        try {
+          const newProject = await api.createProject({ name: 'Default Project' });
+          setProjects([newProject]);
+          setCurrentProject(newProject);
+        } catch (err) {
+          console.error('Failed to create default project:', err);
+          setShowCreateProject(true);
+        } finally {
+          setCreatingProject(false);
+        }
+      } else {
+        setProjects(data);
         setCurrentProject(data[0]);
       }
     }).catch(err => console.error(err));
@@ -126,6 +142,9 @@ const App: React.FC = () => {
       }
       return <ExperimentList projectId={currentProject?.id || ''} onSelectExperiment={setSelectedExperiment} />;
     }
+    if (currentPath === '/settings') {
+      return <Settings />;
+    }
     return (
       <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
@@ -136,7 +155,70 @@ const App: React.FC = () => {
     );
   };
 
-  if (!currentProject) return <div className="flex items-center justify-center h-screen bg-black text-gray-500">Loading Athena...</div>;
+  // Handle creating project state
+  if (creatingProject) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-app text-text-main">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold animate-pulse">
+            <span className="text-2xl font-serif">A</span>
+          </div>
+          <p className="text-lg">Setting up your first project...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle no projects and show create dialog
+  if (showCreateProject || (!currentProject && projects.length === 0)) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-app text-text-main">
+        <div className="bg-panel p-8 rounded-2xl border border-border-base shadow-xl max-w-md w-full mx-4">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold">
+            <span className="text-2xl font-serif">A</span>
+          </div>
+          <h2 className="text-xl font-semibold text-center mb-2">Welcome to Athena</h2>
+          <p className="text-text-muted text-center mb-6">Create your first project to get started</p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const name = (form.elements.namedItem('projectName') as HTMLInputElement).value;
+              if (!name.trim()) return;
+              setCreatingProject(true);
+              try {
+                const newProject = await api.createProject({ name });
+                setProjects([newProject]);
+                setCurrentProject(newProject);
+                setShowCreateProject(false);
+              } catch (err) {
+                console.error('Failed to create project:', err);
+              } finally {
+                setCreatingProject(false);
+              }
+            }}
+          >
+            <input
+              type="text"
+              name="projectName"
+              placeholder="Project name"
+              className="w-full px-4 py-3 rounded-xl bg-app border border-border-base focus:border-wispr-purple focus:ring-2 focus:ring-wispr-purple/20 outline-none transition-all mb-4"
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={creatingProject}
+              className="w-full py-3 bg-wispr-purple text-white rounded-xl font-semibold hover:bg-wispr-purple/90 transition-all disabled:opacity-50"
+            >
+              {creatingProject ? 'Creating...' : 'Create Project'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) return <div className="flex items-center justify-center h-screen bg-app text-text-muted">Loading Athena...</div>;
 
   return (
     <Layout

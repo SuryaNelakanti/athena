@@ -151,7 +151,7 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                                             {exp.status}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-4 text-xs text-text-muted font-medium">
+                                <div className="flex items-center gap-4 text-xs text-text-muted font-medium">
                                         <span>Dataset: <span className="text-text-main">{exp.dataset_id}</span></span>
                                         <span className="w-1 h-1 rounded-full bg-border-base"></span>
                                         <span>Started {new Date(exp.created_at).toLocaleString()}</span>
@@ -161,8 +161,8 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
 
                             <div className="flex items-center gap-8">
                                 <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Avg Score</span>
-                                    <span className="text-lg font-mono font-bold text-text-main">{((exp.summary.avg_score || 0) * 100).toFixed(1)}%</span>
+                                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Main Version</span>
+                                    <span className="text-xs font-bold text-text-main">{(exp.summary as any)?.main_version_id ? 'SET' : '—'}</span>
                                 </div>
                                 <ChevronRightIcon className="w-5 h-5 text-border-base group-hover:text-text-muted transition-colors ml-4" />
                             </div>

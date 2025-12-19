@@ -1,14 +1,39 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from pydantic import BaseModel
 import uuid
 import time
 
 from ..database import get_session
-from ..models import ExperimentModel, ExperimentResultModel
+from ..models import ExperimentModel, ExperimentResultModel, ExperimentRunModel, ExperimentRunResultModel, ExperimentVersionModel, ModelRegistryModel
+from ..services.experiment_service import ExperimentService, RunConfig
+from ..services.experiment_v2_service import ExperimentV2Service, VersionConfig
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
+
+
+class RunExperimentRequest(BaseModel):
+    model: str
+    provider: Optional[str] = None
+    temperature: Optional[float] = 1.0
+    max_tokens: Optional[int] = None
+    system_prompt: Optional[str] = None
+    clear_existing: bool = True
+
+
+class CreateVersionRequest(BaseModel):
+    parent_version_id: Optional[str] = None
+    model_registry_id: str
+    temperature: Optional[float] = 1.0
+    max_tokens: Optional[int] = None
+    system_prompt: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+class CreateRunResponse(BaseModel):
+    run: ExperimentRunModel
 
 @router.get("/", response_model=List[ExperimentModel])
 async def list_experiments(
@@ -49,6 +74,158 @@ async def get_experiment(
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found")
     return exp
+
+@router.post("/{experiment_id}/run", response_model=ExperimentModel)
+async def run_experiment(
+    experiment_id: str,
+    request: RunExperimentRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    # Legacy endpoint (kept for backwards compatibility with the current UI).
+    service = ExperimentService(session)
+    try:
+        return await service.run_experiment(
+            experiment_id,
+            RunConfig(
+                model=request.model,
+                provider=request.provider,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                system_prompt=request.system_prompt,
+                clear_existing=request.clear_existing,
+            ),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{experiment_id}/versions", response_model=List[ExperimentVersionModel])
+async def list_versions(
+    experiment_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    service = ExperimentV2Service(session)
+    return await service.list_versions(experiment_id)
+
+
+@router.post("/{experiment_id}/versions", response_model=ExperimentVersionModel)
+async def create_version(
+    experiment_id: str,
+    request: CreateVersionRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    model_row = await session.get(ModelRegistryModel, request.model_registry_id)
+    if not model_row or not model_row.enabled:
+        raise HTTPException(status_code=400, detail="Invalid model_registry_id")
+
+    service = ExperimentV2Service(session)
+    try:
+        return await service.create_version(
+            experiment_id,
+            VersionConfig(
+                parent_version_id=request.parent_version_id,
+                model_registry_id=model_row.id,
+                provider=model_row.provider,
+                model_id=model_row.model_id,
+                temperature=float(request.temperature or 1.0),
+                max_tokens=request.max_tokens,
+                system_prompt=str(request.system_prompt or ""),
+                notes=str(request.notes or ""),
+            ),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{experiment_id}/main", response_model=ExperimentModel)
+async def set_main_version(
+    experiment_id: str,
+    version_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    service = ExperimentV2Service(session)
+    try:
+        return await service.set_main_version(experiment_id, version_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{experiment_id}/versions/{version_id}/runs", response_model=ExperimentRunModel)
+async def create_run(
+    experiment_id: str,
+    version_id: str,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    version = await session.get(ExperimentVersionModel, version_id)
+    if not version or version.experiment_id != experiment_id:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    service = ExperimentV2Service(session)
+    try:
+        run = await service.create_run(version_id)
+        background_tasks.add_task(ExperimentV2Service.execute_run, run.id)
+        return run
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{experiment_id}/versions/{version_id}/runs", response_model=List[ExperimentRunModel])
+async def list_runs(
+    experiment_id: str,
+    version_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    version = await session.get(ExperimentVersionModel, version_id)
+    if not version or version.experiment_id != experiment_id:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    service = ExperimentV2Service(session)
+    return await service.list_runs_for_version(version_id)
+
+
+@router.get("/runs/{run_id}", response_model=ExperimentRunModel)
+async def get_run(
+    run_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    service = ExperimentV2Service(session)
+    try:
+        return await service.get_run(run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/runs/{run_id}/cancel", response_model=ExperimentRunModel)
+async def cancel_run(
+    run_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    service = ExperimentV2Service(session)
+    try:
+        return await service.cancel_run(run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/runs/{run_id}/results", response_model=List[ExperimentRunResultModel])
+async def list_run_results(
+    run_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    service = ExperimentV2Service(session)
+    try:
+        return await service.list_run_results(run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/{experiment_id}/results", response_model=List[ExperimentResultModel])
 async def list_experiment_results(

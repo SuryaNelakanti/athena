@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .database import init_db, get_session
+from .database import init_db, get_session, AsyncSessionLocal
 from .models import (
     Trace, Span, Project, TraceModel, SpanModel, 
     SpanMetrics, SpanAttributes, SpanType
@@ -14,12 +14,30 @@ from .routers import proxy as proxy_router
 from .routers import views as views_router
 from .routers import datasets as datasets_router
 from .routers import experiments as experiments_router
+from .routers import model_registry as model_registry_router
+from .routers import providers as providers_router
+from .routers import projects as projects_router
+from .routers import logs as logs_router
 
 # --- Startup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DB (Async)
     await init_db()
+    
+    # Seed default project if none exist
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Project))
+        if not result.scalars().first():
+            default_project = Project(
+                id="proj_default",
+                name="Default Project",
+                org_id="org_default"
+            )
+            session.add(default_project)
+            await session.commit()
+            print("✓ Seeded default project: proj_default")
+    
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -35,6 +53,8 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(proxy_router.router)
+app.include_router(projects_router.router)
+app.include_router(logs_router.router)
 
 # --- Endpoints (Async) ---
 
@@ -56,6 +76,8 @@ from .routers import views as views_router
 app.include_router(views_router.router)
 app.include_router(datasets_router.router)
 app.include_router(experiments_router.router)
+app.include_router(model_registry_router.router)
+app.include_router(providers_router.router)
 
 @app.get("/projects/{project_id}/traces", response_model=List[Trace])
 async def get_project_traces(
@@ -147,9 +169,25 @@ async def get_project_traces(
 
 @app.post("/traces", response_model=Dict[str, str])
 async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session)):
-    # 1. Upsert Project? (Assumed to exist for now, or ignore)
+    # 1. Build span ID set for validation
+    span_ids = {span.id for span in trace.spans}
     
-    # 2. Create TraceModel
+    # 2. Validate parent pointers
+    root_span_id = None
+    for span in trace.spans:
+        if span.parent_id:
+            if span.parent_id not in span_ids:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Parent span '{span.parent_id}' not found in trace for span '{span.id}'"
+                )
+        else:
+            # This is a root span (no parent)
+            if root_span_id is None:
+                root_span_id = span.id
+    
+    # 3. Create TraceModel
     trace_model = TraceModel(
         id=trace.id,
         project_id=trace.project_id,
@@ -162,7 +200,7 @@ async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session
     )
     session.add(trace_model)
     
-    # 3. Create SpanModels
+    # 4. Create SpanModels
     for span in trace.spans:
         span_model = SpanModel(
             id=span.id,
@@ -183,4 +221,9 @@ async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session
         session.add(span_model)
     
     await session.commit()
-    return {"status": "success", "trace_id": trace.id}
+    return {
+        "status": "success", 
+        "trace_id": trace.id,
+        "root_span_id": root_span_id or trace.root_span.id
+    }
+

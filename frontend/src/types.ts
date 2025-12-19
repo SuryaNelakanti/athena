@@ -97,3 +97,60 @@ export interface ExperimentResult {
   latency_ms: number;
   created_at: number;
 }
+
+export interface ModelRegistry {
+  id: string;
+  provider: 'openai' | 'anthropic' | 'gemini' | 'mock' | string;
+  model_id: string;
+  display_name?: string | null;
+  enabled: boolean;
+  created_at: number;
+}
+
+export interface ExperimentVersion {
+  id: string;
+  experiment_id: string;
+  version_number: number;
+  parent_version_id?: string | null;
+  dataset_version_pinned: number;
+  config: Record<string, any>;
+  created_at: number;
+}
+
+export interface ExperimentRun {
+  id: string;
+  experiment_version_id: string;
+  status: 'queued' | 'running' | 'completed' | 'error' | 'canceled' | string;
+  summary: Record<string, any>;
+  created_at: number;
+  started_at?: number | null;
+  completed_at?: number | null;
+  cancel_requested_at?: number | null;
+}
+
+export interface ExperimentRunResult {
+  id: string;
+  run_id: string;
+  dataset_row_id: string;
+  output: any;
+  scores: Record<string, any>;
+  latency_ms: number;
+  created_at: number;
+}
+
+// --- Log types (first-class, separate from traces) ---
+
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+export interface Log {
+  id: string;
+  project_id: string;
+  trace_id?: string;
+  span_id?: string;
+  level: LogLevel;
+  message: string;
+  timestamp: number;
+  attributes: Record<string, any>;
+  metadata: Record<string, any>;
+  created_at: number;
+}

@@ -71,10 +71,21 @@ const Layout: React.FC<LayoutProps> = ({
 
         <div className="p-4">
           <div className="relative">
-            <button className="w-full flex items-center justify-between bg-app border border-border-base hover:border-border-hover rounded-xl px-4 py-2.5 text-sm text-text-muted transition-all shadow-sm">
-              <span className="truncate font-semibold uppercase tracking-wider text-[11px] opacity-80">{currentProject.name}</span>
-              <ChevronUpDownIcon className="w-4 h-4 text-text-muted" />
-            </button>
+            <select
+              value={currentProject.id}
+              onChange={(e) => {
+                const p = projects.find(proj => proj.id === e.target.value);
+                if (p) onProjectChange(p);
+              }}
+              className="w-full appearance-none bg-app border border-border-base hover:border-border-hover rounded-xl px-4 py-2.5 text-sm text-text-main transition-all shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-wispr-purple/50 font-semibold uppercase tracking-wider text-[11px]"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id} className="bg-panel text-text-main">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <ChevronUpDownIcon className="w-4 h-4 text-text-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 

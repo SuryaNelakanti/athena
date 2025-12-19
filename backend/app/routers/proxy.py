@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
-from typing import Annotated
+from typing import Annotated, Optional
 
 from sqlmodel import Session
 from app.database import get_session
 from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ModelListResponse
 from app.services.proxy_service import ProxyService
+from app.services.cache import get_cache
 
 router = APIRouter(prefix="/v1")
 
@@ -13,13 +14,19 @@ router = APIRouter(prefix="/v1")
 async def chat_completions(
     request: ChatCompletionRequest,
     session: Session = Depends(get_session),
-    authorization: Annotated[str | None, Header()] = None # We might need this for passing keys or auth later
-    # TODO: Auth Middleware to validate Athena API keys
+    authorization: Annotated[str | None, Header()] = None,
+    x_athena_project_id: Annotated[Optional[str], Header()] = None,
+    x_athena_trace_id: Annotated[Optional[str], Header()] = None,
+    x_athena_parent_span_id: Annotated[Optional[str], Header()] = None,
+    x_athena_cache_control: Annotated[Optional[str], Header()] = None  # "no-cache" to bypass
 ):
     service = ProxyService(session)
     
-    # Optional: Extract project_id from headers or token
-    project_id = "default_project" 
+    # Priority: header > request body > fallback
+    project_id = x_athena_project_id or getattr(request, 'project_id', None) or "proj_default"
+    
+    # Check cache bypass
+    bypass_cache = x_athena_cache_control == "no-cache"
     
     try:
         if request.stream:
@@ -28,7 +35,7 @@ async def chat_completions(
                 media_type="text/event-stream"
             )
         else:
-            return await service.chat_completion(request, project_id)
+            return await service.chat_completion(request, project_id, bypass_cache=bypass_cache)
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -41,3 +48,27 @@ async def list_models(session: Session = Depends(get_session)):
     service = ProxyService(session)
     models = await service.list_models()
     return ModelListResponse(data=models)
+
+@router.get("/cache/stats")
+async def get_cache_stats():
+    """Get cache statistics."""
+    cache = get_cache()
+    return cache.get_stats()
+
+@router.post("/cache/clear")
+async def clear_cache():
+    """Clear the cache."""
+    cache = get_cache()
+    await cache.clear()
+    return {"status": "success", "message": "Cache cleared"}
+
+@router.post("/cache/toggle")
+async def toggle_cache(enabled: bool = True):
+    """Enable or disable the cache."""
+    cache = get_cache()
+    if enabled:
+        cache.enable()
+    else:
+        cache.disable()
+    return {"status": "success", "enabled": cache.enabled}
+

@@ -63,14 +63,14 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         <div className="divide-y divide-border-base/50">
                             {rows.map((row, idx) => (
                                 <div key={row.id} className="grid grid-cols-12 gap-4 px-6 py-4 text-xs text-text-main hover:bg-panel-hover transition-colors">
-                                    <div className="col-span-1 font-mono opacity-50">{idx + 1}</div>
+                                    <div className="col-span-1 opacity-50 tabular-nums">{idx + 1}</div>
                                     <div className="col-span-5">
-                                        <div className="bg-app/50 p-2 rounded-lg border border-border-base/50 max-h-24 overflow-y-auto font-mono text-[10px]">
+                                        <div className="bg-app/50 p-2 rounded-lg border border-border-base/50 max-h-24 overflow-y-auto text-[10px]">
                                             {JSON.stringify(row.input, null, 2)}
                                         </div>
                                     </div>
                                     <div className="col-span-5">
-                                        <div className="bg-app/50 p-2 rounded-lg border border-border-base/50 max-h-24 overflow-y-auto font-mono text-[10px]">
+                                        <div className="bg-app/50 p-2 rounded-lg border border-border-base/50 max-h-24 overflow-y-auto text-[10px]">
                                             {JSON.stringify(row.expected, null, 2)}
                                         </div>
                                     </div>

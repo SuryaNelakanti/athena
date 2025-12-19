@@ -17,6 +17,37 @@ export const api = {
         return response.json();
     },
 
+    getProject: async (projectId: string): Promise<Project> => {
+        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch project');
+        return response.json();
+    },
+
+    createProject: async (project: { name: string; org_id?: string }): Promise<Project> => {
+        const response = await fetch(`${API_BASE_URL}/projects`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(project),
+        });
+        if (!response.ok) throw new Error('Failed to create project');
+        return response.json();
+    },
+
+    updateProject: async (projectId: string, project: { name?: string; org_id?: string }): Promise<Project> => {
+        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(project),
+        });
+        if (!response.ok) throw new Error('Failed to update project');
+        return response.json();
+    },
+
+    deleteProject: async (projectId: string): Promise<void> => {
+        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete project');
+    },
+
     getTraces: async (
         projectId: string,
         filters?: { status?: string, search?: string, limit?: number }
@@ -50,6 +81,66 @@ export const api = {
     deleteView: async (viewId: string): Promise<void> => {
         const response = await fetch(`${API_BASE_URL}/views/${viewId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete view');
+    },
+
+    // Logs (first-class, separate from traces)
+    getLogs: async (
+        projectId: string,
+        filters?: { level?: string; trace_id?: string; search?: string; limit?: number; offset?: number }
+    ): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters?.level) params.append('level', filters.level);
+        if (filters?.trace_id) params.append('trace_id', filters.trace_id);
+        if (filters?.search) params.append('search', filters.search);
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.offset) params.append('offset', filters.offset.toString());
+
+        const response = await fetch(`${API_BASE_URL}/logs/${projectId}?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch logs');
+        return response.json();
+    },
+
+    createLog: async (log: {
+        project_id: string;
+        level?: string;
+        message: string;
+        timestamp?: number;
+        trace_id?: string;
+        span_id?: string;
+        attributes?: Record<string, any>;
+        metadata?: Record<string, any>;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/logs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(log),
+        });
+        if (!response.ok) throw new Error('Failed to create log');
+        return response.json();
+    },
+
+    createLogsBatch: async (logs: Array<{
+        project_id: string;
+        level?: string;
+        message: string;
+        timestamp?: number;
+        trace_id?: string;
+        span_id?: string;
+        attributes?: Record<string, any>;
+        metadata?: Record<string, any>;
+    }>): Promise<{ status: string; count: number; log_ids: string[] }> => {
+        const response = await fetch(`${API_BASE_URL}/logs/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logs }),
+        });
+        if (!response.ok) throw new Error('Failed to create logs batch');
+        return response.json();
+    },
+
+    deleteLog: async (logId: string): Promise<void> => {
+        const response = await fetch(`${API_BASE_URL}/logs/id/${logId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete log');
     },
 
     // Datasets
@@ -103,6 +194,144 @@ export const api = {
     getExperimentResults: async (experimentId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/results`);
         if (!response.ok) throw new Error('Failed to fetch experiment results');
+        return response.json();
+    },
+
+    getExperiment: async (experimentId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}`);
+        if (!response.ok) throw new Error('Failed to fetch experiment');
+        return response.json();
+    },
+
+    runExperiment: async (
+        experimentId: string,
+        payload: { model: string; provider?: string; temperature?: number; max_tokens?: number; system_prompt?: string; clear_existing?: boolean }
+    ): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to run experiment');
+        return response.json();
+    },
+
+    // Models registry (curated list used by UI)
+    getModelRegistry: async (enabledOnly: boolean = true): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/models?enabled_only=${enabledOnly ? 'true' : 'false'}`);
+        if (!response.ok) throw new Error('Failed to fetch model registry');
+        return response.json();
+    },
+
+    createModelRegistryEntry: async (payload: { provider: string; model_id: string; display_name?: string; enabled?: boolean }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create model');
+        return response.json();
+    },
+
+    syncModelRegistry: async (payload: { provider?: string; enable_new?: boolean } = {}): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/models/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to sync models');
+        return response.json();
+    },
+
+    updateModelRegistryEntry: async (id: string, payload: { enabled?: boolean; display_name?: string }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/models/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update model');
+        return response.json();
+    },
+
+    getProviderStatuses: async (): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/providers`);
+        if (!response.ok) throw new Error('Failed to fetch providers');
+        return response.json();
+    },
+
+    setProviderApiKey: async (provider: string, api_key: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/providers/${provider}/apikey`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key }),
+        });
+        if (!response.ok) throw new Error('Failed to set api key');
+        return response.json();
+    },
+
+    clearProviderApiKey: async (provider: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/providers/${provider}/apikey`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to clear api key');
+        return response.json();
+    },
+
+    // Experiments v2 (versions + runs)
+    getExperimentVersions: async (experimentId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions`);
+        if (!response.ok) throw new Error('Failed to fetch experiment versions');
+        return response.json();
+    },
+
+    createExperimentVersion: async (
+        experimentId: string,
+        payload: { parent_version_id?: string; model_registry_id: string; temperature?: number; max_tokens?: number; system_prompt?: string; notes?: string }
+    ): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create experiment version');
+        return response.json();
+    },
+
+    setExperimentMainVersion: async (experimentId: string, versionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/main?version_id=${encodeURIComponent(versionId)}`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to set main version');
+        return response.json();
+    },
+
+    getVersionRuns: async (experimentId: string, versionId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions/${versionId}/runs`);
+        if (!response.ok) throw new Error('Failed to fetch runs');
+        return response.json();
+    },
+
+    createVersionRun: async (experimentId: string, versionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions/${versionId}/runs`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to create run');
+        return response.json();
+    },
+
+    getRun: async (runId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/runs/${runId}`);
+        if (!response.ok) throw new Error('Failed to fetch run');
+        return response.json();
+    },
+
+    cancelRun: async (runId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/runs/${runId}/cancel`, { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to cancel run');
+        return response.json();
+    },
+
+    getRunResults: async (runId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/runs/${runId}/results`);
+        if (!response.ok) throw new Error('Failed to fetch run results');
         return response.json();
     },
 };

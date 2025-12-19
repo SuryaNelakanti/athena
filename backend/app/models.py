@@ -3,6 +3,7 @@ from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship, JSON
 from sqlalchemy import Column
 from pydantic import BaseModel
+from sqlalchemy import UniqueConstraint
 
 # Enums
 class SpanType(str, Enum):
@@ -62,7 +63,34 @@ class ViewModel(SQLModel, table=True):
     id: str = Field(primary_key=True)
     project_id: str = Field(index=True)
     name: str
+    entity_type: str = Field(default="traces", index=True)  # traces, logs, datasets
     config: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+# --- Log Models (first-class, separate from traces) ---
+
+class LogLevel(str, Enum):
+    DEBUG = 'DEBUG'
+    INFO = 'INFO'
+    WARN = 'WARN'
+    ERROR = 'ERROR'
+
+class LogModel(SQLModel, table=True):
+    __tablename__ = "log"
+    
+    id: str = Field(primary_key=True)
+    project_id: str = Field(foreign_key="project.id", index=True)
+    trace_id: Optional[str] = Field(default=None, index=True)  # Optional link to trace
+    span_id: Optional[str] = Field(default=None, index=True)   # Optional link to span
+    
+    level: str = Field(default="INFO", index=True)  # DEBUG, INFO, WARN, ERROR
+    message: str
+    timestamp: int = Field(index=True)
+    
+    # Structured data
+    attributes: Dict = Field(sa_column=Column(JSON), default={})
+    log_metadata: Dict = Field(sa_column=Column(JSON), default={})
+    
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
 # --- Dataset Models ---
@@ -106,6 +134,58 @@ class ExperimentResultModel(SQLModel, table=True):
     scores: Dict = Field(sa_column=Column(JSON), default={})
     latency_ms: float = 0.0
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+# --- Experiment Versioning + Runs (vNext) ---
+
+class ExperimentVersionModel(SQLModel, table=True):
+    __tablename__ = "experiment_version"
+
+    id: str = Field(primary_key=True)
+    experiment_id: str = Field(foreign_key="experiment.id", index=True)
+    version_number: int = Field(index=True)
+    parent_version_id: Optional[str] = Field(default=None, index=True)
+    dataset_version_pinned: int = 1
+    config: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class ExperimentRunModel(SQLModel, table=True):
+    __tablename__ = "experiment_run"
+
+    id: str = Field(primary_key=True)
+    experiment_version_id: str = Field(foreign_key="experiment_version.id", index=True)
+    status: str = Field(default="queued", index=True)  # queued, running, completed, error, canceled
+    summary: Dict = Field(sa_column=Column(JSON), default={})
+
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    started_at: Optional[int] = None
+    completed_at: Optional[int] = None
+    cancel_requested_at: Optional[int] = None
+
+
+class ExperimentRunResultModel(SQLModel, table=True):
+    __tablename__ = "experiment_run_result"
+
+    id: str = Field(primary_key=True)
+    run_id: str = Field(foreign_key="experiment_run.id", index=True)
+    dataset_row_id: str = Field(foreign_key="dataset_row.id", index=True)
+    output: Dict = Field(sa_column=Column(JSON), default={})
+    scores: Dict = Field(sa_column=Column(JSON), default={})
+    latency_ms: float = 0.0
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+# --- Model registry (curated list used by UI) ---
+
+class ModelRegistryModel(SQLModel, table=True):
+    __tablename__ = "model_registry"
+    __table_args__ = (UniqueConstraint("provider", "model_id", name="uq_model_registry_provider_model_id"),)
+
+    id: str = Field(primary_key=True)
+    provider: str = Field(index=True)
+    model_id: str = Field(index=True)
+    display_name: Optional[str] = None
+    enabled: bool = Field(default=True, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
 # Pydantic Schemas for API (matching the Frontend types mostly)
 

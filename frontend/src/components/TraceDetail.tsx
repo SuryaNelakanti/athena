@@ -82,7 +82,7 @@ const SpanRow: React.FC<SpanRowProps> = ({
                 />
             </div>
 
-            <div className="w-16 text-right text-xs text-text-muted font-mono ml-4">
+            <div className="w-16 text-right text-xs text-text-muted ml-4 tabular-nums">
                 {span.metrics.latency_ms}ms
             </div>
         </div>
@@ -93,7 +93,7 @@ const JSONViewer = ({ data, label }: { data: any, label: string }) => (
     <div className="mb-8">
         <h4 className="text-[10px] uppercase tracking-widest text-text-muted font-bold mb-3 opacity-60">{label}</h4>
         <div className="bg-app border border-border-base rounded-2xl p-4 overflow-x-auto shadow-sm">
-            <pre className="text-[12px] font-mono text-text-main whitespace-pre-wrap leading-relaxed">
+            <pre className="text-[12px] text-text-main whitespace-pre-wrap leading-relaxed">
                 {JSON.stringify(data, null, 2)}
             </pre>
         </div>
@@ -129,8 +129,50 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
         setSelectedSpan(trace.root_span);
     }, [trace.id, trace.root_span]);
 
-    const sortedSpans = useMemo(() => {
-        return [...trace.spans].sort((a, b) => a.start_time - b.start_time);
+    // Build a proper tree structure for arbitrary depth nesting
+    interface SpanTreeNode {
+        span: Span;
+        children: SpanTreeNode[];
+        depth: number;
+    }
+
+    const { orderedSpans, depthMap } = useMemo(() => {
+        // Create a map for quick lookup
+        const spanMap = new Map<string, Span>();
+        trace.spans.forEach(s => spanMap.set(s.id, s));
+
+        // Build parent -> children mapping
+        const childrenMap = new Map<string | null, Span[]>();
+        trace.spans.forEach(s => {
+            const parentId = s.parent_id || null;
+            if (!childrenMap.has(parentId)) {
+                childrenMap.set(parentId, []);
+            }
+            childrenMap.get(parentId)!.push(s);
+        });
+
+        // Sort children by start_time at each level
+        childrenMap.forEach((children) => {
+            children.sort((a, b) => a.start_time - b.start_time);
+        });
+
+        // Build ordered list with depths using DFS
+        const orderedSpans: Span[] = [];
+        const depthMap = new Map<string, number>();
+
+        const traverse = (parentId: string | null, depth: number) => {
+            const children = childrenMap.get(parentId) || [];
+            for (const child of children) {
+                orderedSpans.push(child);
+                depthMap.set(child.id, depth);
+                traverse(child.id, depth + 1);
+            }
+        };
+
+        // Start from root spans (those with no parent)
+        traverse(null, 0);
+
+        return { orderedSpans, depthMap };
     }, [trace.spans]);
 
     const minStart = trace.root_span.start_time;
@@ -162,15 +204,15 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                 <div className="flex items-center gap-4 text-xs">
                     <div className="flex flex-col items-end">
                         <span className="text-text-muted">Latency</span>
-                        <span className="text-text-main font-mono font-medium">{trace.total_latency}ms</span>
+                        <span className="text-text-main font-medium tabular-nums">{trace.total_latency}ms</span>
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="text-text-muted">Tokens</span>
-                        <span className="text-text-main font-mono font-medium">{trace.total_tokens}</span>
+                        <span className="text-text-main font-medium tabular-nums">{trace.total_tokens}</span>
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="text-text-muted">Cost</span>
-                        <span className="text-text-main font-mono font-medium">${trace.total_cost.toFixed(4)}</span>
+                        <span className="text-text-main font-medium tabular-nums">${trace.total_cost.toFixed(4)}</span>
                     </div>
 
                     <div className="relative ml-4">
@@ -208,11 +250,11 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                 {/* Left: Span List */}
                 <div className="w-1/2 border-r border-border-base overflow-y-auto bg-app/50">
                     <div className="py-2">
-                        {sortedSpans.map(span => (
+                        {orderedSpans.map(span => (
                             <SpanRow
                                 key={span.id}
                                 span={span}
-                                depth={span.parent_id ? 1 : 0}
+                                depth={depthMap.get(span.id) || 0}
                                 isSelected={selectedSpan.id === span.id}
                                 onSelect={setSelectedSpan}
                                 minStart={minStart}
@@ -231,7 +273,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                                 <span className="px-2.5 py-1 rounded-lg text-[10px] bg-app text-text-muted border border-border-base font-bold uppercase tracking-widest">
                                     {selectedSpan.type}
                                 </span>
-                                <span className="px-2.5 py-1 rounded-lg text-[10px] bg-app text-text-muted border border-border-base font-mono opacity-60">
+                                <span className="px-2.5 py-1 rounded-lg text-[10px] bg-app text-text-muted border border-border-base opacity-60">
                                     {selectedSpan.id}
                                 </span>
                             </div>
@@ -262,6 +304,22 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     </div>
 
                     <JSONViewer data={selectedSpan.input} label="Input" />
+
+                    {/* Show reasoning separately if present */}
+                    {(selectedSpan.output?.athena_reasoning || selectedSpan.output?.reasoning) && (
+                        <div className="mb-8">
+                            <h4 className="text-[10px] uppercase tracking-widest text-amber-600 font-bold mb-3 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                Reasoning
+                            </h4>
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 overflow-x-auto shadow-sm">
+                                <pre className="text-[12px] text-amber-900 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
+                                    {selectedSpan.output.athena_reasoning || selectedSpan.output.reasoning}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+
                     <JSONViewer data={selectedSpan.output} label="Output" />
 
                     {selectedSpan.attributes.reasoning_enabled && (
