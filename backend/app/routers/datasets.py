@@ -77,11 +77,73 @@ async def add_dataset_row(
 async def promote_trace_to_dataset(
     trace_id: str,
     dataset_id: str,
+    corrected_expected: Optional[dict] = None,  # If provided, use this instead of trace output
+    example_type: str = "gold",  # "gold" or "anti_pattern"
     session: AsyncSession = Depends(get_session)
 ):
+    """
+    Promote a trace to a dataset row.
+    
+    - If corrected_expected is provided, use it as the expected output instead of the trace's actual output.
+    - If example_type is "anti_pattern", this marks the trace output as something to avoid.
+    """
     from ..services.proxy_service import ProxyService
-    service = ProxyService(session)
-    try:
-        return await service.promote_to_dataset(trace_id, dataset_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    from ..models import TraceModel, SpanModel
+    
+    # Get the trace
+    trace = await session.get(TraceModel, trace_id)
+    if not trace:
+        raise HTTPException(status_code=404, detail=f"Trace {trace_id} not found")
+    
+    # Get the dataset
+    dataset = await session.get(DatasetModel, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found")
+    
+    # Get spans to extract input/output
+    stmt = select(SpanModel).where(SpanModel.trace_id == trace_id).order_by(SpanModel.start_time)
+    result = await session.execute(stmt)
+    spans = result.scalars().all()
+    
+    if not spans:
+        raise HTTPException(status_code=400, detail="Trace has no spans")
+    
+    # Extract input from first span, output from last span
+    first_span = spans[0]
+    last_span = spans[-1]
+    
+    input_data = first_span.input or {}
+    
+    # For expected: use corrected_expected if provided, otherwise use last span's output
+    if corrected_expected is not None:
+        expected_data = corrected_expected
+    else:
+        output = last_span.output or {}
+        # Try to extract the text output
+        if isinstance(output, dict):
+            if "output_text" in output:
+                expected_data = {"answer": output["output_text"]}
+            elif "value" in output:
+                expected_data = {"answer": output["value"]}
+            else:
+                expected_data = output
+        else:
+            expected_data = {"answer": str(output)}
+    
+    # Create the dataset row
+    row = DatasetRowModel(
+        id=f"dr_{uuid.uuid4().hex[:8]}",
+        dataset_id=dataset_id,
+        input=input_data,
+        expected=expected_data,
+        meta={"promoted_from_trace": True},
+        example_type=example_type,
+        source_trace_id=trace_id,
+        created_at=int(time.time() * 1000)
+    )
+    
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+

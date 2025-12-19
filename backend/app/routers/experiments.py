@@ -26,9 +26,23 @@ class RunExperimentRequest(BaseModel):
 class CreateVersionRequest(BaseModel):
     parent_version_id: Optional[str] = None
     model_registry_id: str
+    # Core inference params
     temperature: Optional[float] = 1.0
     max_tokens: Optional[int] = None
+    top_p: Optional[float] = None  # NEW
+    frequency_penalty: Optional[float] = None  # NEW
+    presence_penalty: Optional[float] = None  # NEW
+    stop_sequences: Optional[List[str]] = None  # NEW
+    # Prompt config
     system_prompt: Optional[str] = ""
+    prompt_template: Optional[str] = None  # NEW - e.g. "Answer the following: {{input}}"
+    # Advanced
+    reasoning_effort: Optional[str] = None  # NEW - for o1/o3 models: "low" | "medium" | "high"
+    json_mode: Optional[bool] = None  # NEW
+    seed: Optional[int] = None  # NEW - for reproducibility
+    # Scorers
+    scorers: Optional[List[str]] = None  # NEW - list of scorer names e.g. ["exact_match", "contains"]
+    # Metadata
     notes: Optional[str] = ""
 
 
@@ -120,6 +134,11 @@ async def create_version(
     if not model_row or not model_row.enabled:
         raise HTTPException(status_code=400, detail="Invalid model_registry_id")
 
+    # Convert stop_sequences list to tuple for frozen dataclass
+    stop_seq = tuple(request.stop_sequences) if request.stop_sequences else None
+    # Convert scorers list to tuple, default to exact_match
+    scorers = tuple(request.scorers) if request.scorers else ("exact_match",)
+
     service = ExperimentV2Service(session)
     try:
         return await service.create_version(
@@ -131,7 +150,16 @@ async def create_version(
                 model_id=model_row.model_id,
                 temperature=float(request.temperature or 1.0),
                 max_tokens=request.max_tokens,
+                top_p=request.top_p,
+                frequency_penalty=request.frequency_penalty,
+                presence_penalty=request.presence_penalty,
+                stop_sequences=stop_seq,
                 system_prompt=str(request.system_prompt or ""),
+                prompt_template=request.prompt_template,
+                reasoning_effort=request.reasoning_effort,
+                json_mode=request.json_mode,
+                seed=request.seed,
+                scorers=scorers,
                 notes=str(request.notes or ""),
             ),
         )

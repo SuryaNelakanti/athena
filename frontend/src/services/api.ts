@@ -166,9 +166,36 @@ export const api = {
         return response.json();
     },
 
-    promoteToDataset: async (traceId: string, datasetId: string): Promise<any> => {
-        const response = await fetch(`${API_BASE_URL}/datasets/promote?trace_id=${traceId}&dataset_id=${datasetId}`, {
+    addDatasetRow: async (datasetId: string, row: {
+        input: any;
+        expected: any;
+        example_type?: string;  // "gold" or "anti_pattern"
+        meta?: any;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(row),
+        });
+        if (!response.ok) throw new Error('Failed to add dataset row');
+        return response.json();
+    },
+
+    promoteToDataset: async (
+        traceId: string,
+        datasetId: string,
+        options?: {
+            corrected_expected?: any;
+            example_type?: string;  // "gold" or "anti_pattern"
+        }
+    ): Promise<any> => {
+        const params = new URLSearchParams({ trace_id: traceId, dataset_id: datasetId });
+        if (options?.example_type) params.append('example_type', options.example_type);
+
+        const response = await fetch(`${API_BASE_URL}/datasets/promote?${params.toString()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: options?.corrected_expected ? JSON.stringify({ corrected_expected: options.corrected_expected }) : undefined,
         });
         if (!response.ok) throw new Error('Failed to promote trace to dataset');
         return response.json();
@@ -284,7 +311,28 @@ export const api = {
 
     createExperimentVersion: async (
         experimentId: string,
-        payload: { parent_version_id?: string; model_registry_id: string; temperature?: number; max_tokens?: number; system_prompt?: string; notes?: string }
+        payload: {
+            parent_version_id?: string;
+            model_registry_id: string;
+            // Core inference params
+            temperature?: number;
+            max_tokens?: number;
+            top_p?: number;
+            frequency_penalty?: number;
+            presence_penalty?: number;
+            stop_sequences?: string[];
+            // Prompt config
+            system_prompt?: string;
+            prompt_template?: string;
+            // Advanced
+            reasoning_effort?: string;
+            json_mode?: boolean;
+            seed?: number;
+            // Scorers
+            scorers?: string[];
+            // Metadata
+            notes?: string;
+        }
     ): Promise<any> => {
         const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions`, {
             method: 'POST',
@@ -332,6 +380,74 @@ export const api = {
     getRunResults: async (runId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/experiments/runs/${runId}/results`);
         if (!response.ok) throw new Error('Failed to fetch run results');
+        return response.json();
+    },
+
+    // Functions/Scorers Registry
+    getScorers: async (projectId?: string): Promise<any[]> => {
+        const params = projectId ? `?project_id=${projectId}` : '';
+        const response = await fetch(`${API_BASE_URL}/functions/scorers${params}`);
+        if (!response.ok) throw new Error('Failed to fetch scorers');
+        return response.json();
+    },
+
+    seedBuiltinScorers: async (): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/functions/seed-builtins`, { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to seed builtin scorers');
+        return response.json();
+    },
+
+    // Guardrails
+    getGuardrails: async (projectId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/guardrails/?project_id=${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch guardrails');
+        return response.json();
+    },
+
+    createGuardrail: async (guardrail: any): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/guardrails/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(guardrail),
+        });
+        if (!response.ok) throw new Error('Failed to create guardrail');
+        return response.json();
+    },
+
+    updateGuardrail: async (guardrailId: string, updates: { enabled?: boolean; action?: string }): Promise<any> => {
+        const params = new URLSearchParams();
+        if (updates.enabled !== undefined) params.append('enabled', String(updates.enabled));
+        if (updates.action) params.append('action', updates.action);
+
+        const response = await fetch(`${API_BASE_URL}/guardrails/${guardrailId}?${params.toString()}`, {
+            method: 'PATCH',
+        });
+        if (!response.ok) throw new Error('Failed to update guardrail');
+        return response.json();
+    },
+
+    deleteGuardrail: async (guardrailId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/guardrails/${guardrailId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete guardrail');
+        return response.json();
+    },
+
+    createGuardrailFromAntiPattern: async (
+        projectId: string,
+        patternId: string,
+        name: string,
+        action: string = "warn"
+    ): Promise<any> => {
+        const params = new URLSearchParams({
+            project_id: projectId,
+            pattern_id: patternId,
+            name,
+            action,
+        });
+        const response = await fetch(`${API_BASE_URL}/guardrails/from-anti-pattern?${params.toString()}`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to create guardrail from anti-pattern');
         return response.json();
     },
 };

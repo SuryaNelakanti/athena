@@ -75,6 +75,8 @@ export interface DatasetRow {
   input: any;
   expected?: any;
   metadata: Record<string, any>;
+  example_type: 'gold' | 'anti_pattern';  // "gold" (positive example) or "anti_pattern" (negative example)
+  source_trace_id?: string;  // If promoted from a trace
   created_at: number;
 }
 
@@ -135,6 +137,22 @@ export interface ExperimentRunResult {
   output: any;
   scores: Record<string, any>;
   latency_ms: number;
+  created_at: number;
+}
+
+// --- Function/Scorer types ---
+
+export interface Function {
+  id: string;
+  project_id?: string | null;  // null = builtin/global
+  name: string;
+  display_name?: string | null;
+  description?: string | null;
+  type: 'scorer' | 'tool';
+  runtime: 'builtin' | 'python' | 'llm_judge';
+  config: Record<string, any>;
+  code?: string | null;
+  enabled: boolean;
   created_at: number;
 }
 

@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.schemas.proxy import ChatCompletionRequest, ChatMessage
 from app.services.proxy_service import ProxyService
+from app.services.scorer_service import ScorerService
 
 
 @dataclass(frozen=True)
@@ -28,10 +29,23 @@ class VersionConfig:
     model_registry_id: str
     provider: str
     model_id: str
+    # Core inference params
     temperature: float = 1.0
     max_tokens: Optional[int] = None
+    top_p: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    stop_sequences: Optional[tuple] = None  # tuple for frozen dataclass
+    # Prompt config
     system_prompt: str = ""
-    scorer: str = "exact_match"
+    prompt_template: Optional[str] = None
+    # Advanced
+    reasoning_effort: Optional[str] = None  # "low" | "medium" | "high"
+    json_mode: Optional[bool] = None
+    seed: Optional[int] = None
+    # Scorers
+    scorers: tuple = ("exact_match",)  # tuple for frozen dataclass
+    # Metadata
     notes: str = ""
 
 
@@ -75,6 +89,7 @@ class ExperimentV2Service:
                     "type": "chat",
                     "input_mode": "auto",
                     "system_prompt": config.system_prompt,
+                    "prompt_template": config.prompt_template,
                 },
                 "model": {
                     "registry_id": config.model_registry_id,
@@ -82,8 +97,15 @@ class ExperimentV2Service:
                     "id": config.model_id,
                     "temperature": config.temperature,
                     "max_tokens": config.max_tokens,
+                    "top_p": config.top_p,
+                    "frequency_penalty": config.frequency_penalty,
+                    "presence_penalty": config.presence_penalty,
+                    "stop_sequences": list(config.stop_sequences) if config.stop_sequences else None,
+                    "reasoning_effort": config.reasoning_effort,
+                    "json_mode": config.json_mode,
+                    "seed": config.seed,
                 },
-                "scorers": [{"type": config.scorer}],
+                "scorers": [{"type": s} for s in config.scorers],
                 "notes": config.notes,
             },
         )
@@ -278,12 +300,18 @@ class ExperimentV2Service:
 
             model_cfg = (version.config or {}).get("model", {})
             task_cfg = (version.config or {}).get("task", {})
+            scorers_cfg = (version.config or {}).get("scorers", [{"type": "exact_match"}])
             system_prompt = str(task_cfg.get("system_prompt") or "")
 
             provider = str(model_cfg.get("provider") or "")
             model_id = str(model_cfg.get("id") or "")
             temperature = float(model_cfg.get("temperature") or 1.0)
             max_tokens = model_cfg.get("max_tokens")
+            top_p = model_cfg.get("top_p")
+            frequency_penalty = model_cfg.get("frequency_penalty")
+            presence_penalty = model_cfg.get("presence_penalty")
+            stop_sequences = model_cfg.get("stop_sequences")
+            seed = model_cfg.get("seed")
 
             if not provider or not model_id:
                 run.status = "error"
@@ -304,7 +332,9 @@ class ExperimentV2Service:
             await session.commit()
 
             proxy_service = ProxyService(session)
-            scored_values: list[float] = []
+            scorer_service = ScorerService(session, project_id=experiment.project_id)
+            scored_values: dict[str, list[float]] = {}  # Track per-scorer values for averaging
+
 
             for row in rows:
                 # Best-effort cancel: stop processing future rows.
@@ -321,6 +351,11 @@ class ExperimentV2Service:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                    stop=stop_sequences,
+                    seed=seed,
                     stream=False,
                     trace_id=trace_id,
                 )
@@ -333,12 +368,30 @@ class ExperimentV2Service:
                 if response.choices and response.choices[0].message and response.choices[0].message.content:
                     actual_text = response.choices[0].message.content
 
-                expected_text = service._extract_expected_text(row.expected)
-                score = service._score_exact_match(expected_text, actual_text)
-                scores: dict[str, Any] = {}
-                if score is not None:
-                    scores["exact_match"] = score
-                    scored_values.append(score)
+                # Extract input text for LLM judge context
+                input_text = ""
+                if isinstance(row.input, dict):
+                    for key in ("prompt", "input", "text", "query"):
+                        if isinstance(row.input.get(key), str):
+                            input_text = row.input[key]
+                            break
+                elif isinstance(row.input, str):
+                    input_text = row.input
+
+                # Run all configured scorers
+                scores = await scorer_service.run_scorers(
+                    scorers=scorers_cfg,
+                    expected=row.expected,
+                    actual_text=actual_text,
+                    input_text=input_text
+                )
+
+                # Track scores for averaging (use first scorer for main avg_score)
+                for scorer_name, score_value in scores.items():
+                    if not scorer_name.endswith("_details") and isinstance(score_value, (int, float)):
+                        if scorer_name not in scored_values:
+                            scored_values[scorer_name] = []
+                        scored_values[scorer_name].append(float(score_value))
 
                 usage = response.usage
                 prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
@@ -365,19 +418,30 @@ class ExperimentV2Service:
                 # Update progress + aggregates.
                 summary = run.summary or {}
                 rows_done = int(summary.get("rows_done", 0) or 0) + 1
-                rows_scored = int(summary.get("rows_scored", 0) or 0) + (1 if score is not None else 0)
+                rows_scored = int(summary.get("rows_scored", 0) or 0) + (1 if scores else 0)
                 tokens_prompt = int(summary.get("tokens_prompt", 0) or 0) + prompt_tokens
                 tokens_completion = int(summary.get("tokens_completion", 0) or 0) + completion_tokens
                 tokens_total = int(summary.get("tokens_total", 0) or 0) + total_tokens
                 cost_total = float(summary.get("cost_total", 0.0) or 0.0) + cost
                 latency_total = float(summary.get("latency_ms_total", 0.0) or 0.0) + latency_ms
 
-                avg_score = float(sum(scored_values) / len(scored_values)) if scored_values else 0.0
+                # Calculate avg_score from first scorer (primary metric)
+                primary_scorer = scorers_cfg[0].get("type", "exact_match") if scorers_cfg else "exact_match"
+                primary_scores = scored_values.get(primary_scorer, [])
+                avg_score = float(sum(primary_scores) / len(primary_scores)) if primary_scores else 0.0
+
+                # Also track per-scorer averages
+                scorer_avgs = {}
+                for scorer_name, values in scored_values.items():
+                    if values:
+                        scorer_avgs[f"avg_{scorer_name}"] = sum(values) / len(values)
+
                 run.summary = {
                     **summary,
                     "rows_done": rows_done,
                     "rows_scored": rows_scored,
                     "avg_score": avg_score,
+                    **scorer_avgs,
                     "tokens_prompt": tokens_prompt,
                     "tokens_completion": tokens_completion,
                     "tokens_total": tokens_total,

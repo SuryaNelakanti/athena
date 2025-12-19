@@ -18,6 +18,8 @@ from .routers import model_registry as model_registry_router
 from .routers import providers as providers_router
 from .routers import projects as projects_router
 from .routers import logs as logs_router
+from .routers import functions as functions_router
+from .routers import guardrails as guardrails_router
 
 # --- Startup ---
 @asynccontextmanager
@@ -78,6 +80,8 @@ app.include_router(datasets_router.router)
 app.include_router(experiments_router.router)
 app.include_router(model_registry_router.router)
 app.include_router(providers_router.router)
+app.include_router(functions_router.router)
+app.include_router(guardrails_router.router)
 
 @app.get("/projects/{project_id}/traces", response_model=List[Trace])
 async def get_project_traces(

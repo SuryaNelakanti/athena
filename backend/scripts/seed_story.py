@@ -19,6 +19,7 @@ from app.models import (
     ExperimentModel,
     ExperimentRunModel,
     ExperimentRunResultModel,
+    FunctionModel,
     ModelRegistryModel,
     Project,
     SpanModel,
@@ -27,6 +28,7 @@ from app.models import (
     ViewModel,
 )
 from app.services.experiment_v2_service import ExperimentV2Service, VersionConfig
+from app.services.scorer_service import BUILTIN_SCORERS
 
 
 def now_ms() -> int:
@@ -125,7 +127,22 @@ async def seed_core(session: AsyncSession) -> None:
     ]
     base = now_ms()
     for idx, (pid, name, cfg) in enumerate(views, start=1):
-        session.add(ViewModel(id=f"view_seed_{idx:02d}", project_id=pid, name=name, config=cfg, created_at=base - idx * 1000))
+        session.add(ViewModel(id=f"view_seed_{idx:02d}", project_id=pid, name=name, config=cfg, entity_type="traces", created_at=base - idx * 1000))
+
+    # Seed built-in scorers
+    for scorer in BUILTIN_SCORERS:
+        func = FunctionModel(
+            id=f"fn_builtin_{scorer['name']}",
+            project_id=None,  # Global/builtin
+            name=scorer["name"],
+            display_name=scorer["display_name"],
+            description=scorer["description"],
+            type="scorer",
+            runtime=scorer["runtime"],
+            config=scorer["config"],
+            enabled=True,
+        )
+        session.add(func)
 
     await session.commit()
 
@@ -505,6 +522,7 @@ async def seed_experiments(session: AsyncSession) -> None:
     async def build_versions(exp_id: str, base_model: tuple[str, str], alt_model: tuple[str, str]):
         bp, bm = base_model
         ap, am = alt_model
+        # V1: Baseline with basic scorers
         v1 = await v2.create_version(
             exp_id,
             VersionConfig(
@@ -515,10 +533,11 @@ async def seed_experiments(session: AsyncSession) -> None:
                 temperature=1.0,
                 max_tokens=256,
                 system_prompt="You are a helpful assistant. Answer clearly and concisely.",
-                scorer="exact_match",
+                scorers=("exact_match",),
                 notes="Baseline",
             ),
         )
+        # V2: Improved prompt with multiple scorers
         v2_prompt = await v2.create_version(
             exp_id,
             VersionConfig(
@@ -529,10 +548,11 @@ async def seed_experiments(session: AsyncSession) -> None:
                 temperature=0.7,
                 max_tokens=256,
                 system_prompt="Answer using grounded policy language. Include citations. Do not invent facts.",
-                scorer="exact_match",
+                scorers=("exact_match", "contains"),  # Demo: multiple scorers
                 notes="Prompt: citations + anti-hallucination constraints",
             ),
         )
+        # V3: Model swap
         v3_model = await v2.create_version(
             exp_id,
             VersionConfig(
@@ -543,10 +563,11 @@ async def seed_experiments(session: AsyncSession) -> None:
                 temperature=1.0,
                 max_tokens=256,
                 system_prompt="You are a helpful assistant. Answer clearly and concisely.",
-                scorer="exact_match",
+                scorers=("exact_match",),
                 notes=f"Model swap: {ap}:{am}",
             ),
         )
+        # V4: Best config - improved prompt + better model + multiple scorers
         v4 = await v2.create_version(
             exp_id,
             VersionConfig(
@@ -556,9 +577,10 @@ async def seed_experiments(session: AsyncSession) -> None:
                 model_id=am,
                 temperature=0.7,
                 max_tokens=256,
+                top_p=0.95,  # Demo: additional inference params
                 system_prompt="Answer using grounded policy language. Include citations. Do not invent facts.",
-                scorer="exact_match",
-                notes=f"Combine: citations prompt + {ap}:{am}",
+                scorers=("exact_match", "contains", "llm_judge"),  # Demo: 3 scorers including LLM judge
+                notes=f"Best: citations prompt + {ap}:{am} + multi-scorer eval",
             ),
         )
         await v2.set_main_version(exp_id, v4.id)
@@ -587,7 +609,6 @@ async def seed_experiments(session: AsyncSession) -> None:
             expected = str(row.expected.get("answer")) if isinstance(row.expected, dict) else ""
             is_good = (idx / max(1, cap - 1)) < good_rate
             output_text = expected if is_good else f"{expected} (incorrect)"
-            score = 1.0 if output_text == expected else 0.0
 
             prompt_tokens = 120 + (idx % 4) * 15
             completion_tokens = 90 + (idx % 3) * 12
@@ -608,13 +629,27 @@ async def seed_experiments(session: AsyncSession) -> None:
                 "model": version.config.get("model", {}).get("id"),
                 "athena_trace_id": f"trace_eval_{run.id}_{row.id}",
             }
+            # Generate multiple scorer results for demo purposes
+            exact_match_score = 1.0 if output_text == expected else 0.0
+            contains_score = 1.0 if expected.lower() in output_text.lower() else 0.0
+            # Simulate LLM judge scores (varies based on quality)
+            llm_judge_score = 0.95 if is_good else (0.4 + (idx % 3) * 0.1)
+            
+            scores_dict = {
+                "exact_match": exact_match_score,
+                "contains": contains_score,
+            }
+            # Only add llm_judge to the "best" version runs (simulated)
+            if "llm_judge" in [s.get("type") for s in version.config.get("scorers", [])]:
+                scores_dict["llm_judge"] = llm_judge_score
+            
             session.add(
                 ExperimentRunResultModel(
                     id=f"rr_{run.id}_{idx:02d}",
                     run_id=run.id,
                     dataset_row_id=row.id,
                     output=out,
-                    scores={"exact_match": score},
+                    scores=scores_dict,
                     latency_ms=float(latency_ms),
                     created_at=base - 200_000 + idx * 250,
                 )
@@ -630,7 +665,7 @@ async def seed_experiments(session: AsyncSession) -> None:
                 type_=SpanType.LLM,
                 start_ms=t0,
                 end_ms=t0 + int(latency_ms),
-                status="success" if score == 1.0 else "error",
+                status="success" if exact_match_score == 1.0 else "error",
                 input_={"prompt": row.input, "system_prompt": version.config.get("task", {}).get("system_prompt")},
                 output=out,
                 metrics={
@@ -646,12 +681,12 @@ async def seed_experiments(session: AsyncSession) -> None:
                     "temperature": version.config.get("model", {}).get("temperature"),
                 },
                 tags=["env:eval", f"experiment:{exp.id}", f"run:{run.id}"],
-                error_message=None if score == 1.0 else "Mismatch vs expected",
+                error_message=None if exact_match_score == 1.0 else "Mismatch vs expected",
             )
             session.add(make_trace(trace_id=trace_id, project_id=exp.project_id, timestamp_ms=t0, status=s.status, tags=["env:eval", f"experiment:{exp.id}", f"run:{run.id}"], spans=[s]))
             session.add(s)
 
-            scored_values.append(score)
+            scored_values.append(exact_match_score)
             tokens_total += total_tokens
             cost_total += cost
             latency_total += latency_ms

@@ -162,17 +162,72 @@ Support:
 - Filter/sort/limit via query clauses (AQL/BTQL-compatible filtering semantics)
 - Multimodal via URLs/base64/attachments/external attachments
 
-### 7.2 Experiments
+### 7.2 Experiments & Scoring Philosophy
+
 An experiment is:
-- **Data** (dataset rows)
+- **Data** (dataset rows with input + expected behaviors)
 - **Task** (the function/prompt/agent being evaluated)
-- **Scores** (scorers, including LLM-judge or code-based)
+- **Scorers** (evaluation functions that assess output quality)
+
+#### 7.2.1 Semantic-First Scoring (Core Principle)
+
+> **GenAI outputs are non-deterministic.** The same prompt can produce semantically equivalent but textually different outputs. Traditional string-matching scorers (exact match, regex) are insufficient for most real-world AI evaluation.
+
+Athena's scoring philosophy prioritizes **semantic evaluation** over string matching:
+
+| Priority | Scorer Type | Use Case |
+|----------|-------------|----------|
+| **Primary** | LLM Judge | Semantic evaluation of quality, correctness, tone |
+| **Primary** | Criteria-Based | Checklist of specific requirements (did it cite policy? polite tone?) |
+| **Secondary** | Outcome/Decision Match | Was the final decision/action correct? |
+| **Secondary** | Tool Correctness | For agents: Were the right tools called with correct parameters? |
+| **Tertiary** | Deterministic | Regression testing, factual Q&A, code presence checks |
+
+#### 7.2.2 Scorer Types (Required)
+
+**1. LLM Judge (Default)**
+- Uses an LLM to semantically evaluate output quality
+- User-configurable criteria (e.g., "accuracy, helpfulness, policy compliance")
+- Returns normalized score (0-1) with optional reasoning
+- Supports custom evaluation prompts
+
+**2. Criteria-Based Scorer**
+- User defines a checklist of requirements (each yes/no)
+- Example criteria for customer support:
+  - ✓ "Correctly identified customer intent"
+  - ✓ "Cited relevant policy by name"
+  - ✓ "Tone was polite and professional"
+  - ✓ "Offered alternative solutions"
+- Returns aggregate score + per-criterion breakdown
+
+**3. Outcome/Decision Scorer**
+- Evaluates whether the final decision/outcome was correct
+- For agents: Did it reach the right conclusion? (refund approved/denied, question answered)
+- Ignores the path, focuses on the result
+- Useful for agentic workflows where the "how" varies
+
+**4. Tool Correctness Scorer**
+- For agentic systems with tool use
+- Evaluates: Were the right tools called? With correct parameters?
+- Can check: tool selection, parameter accuracy, call sequence
+- Returns breakdown by tool call
+
+**5. Deterministic Scorers (Secondary)**
+- `exact_match`: Normalized string equality (for factual Q&A, regression)
+- `contains`: Checks if expected substring appears in output
+- `regex`: Pattern matching for structured outputs
+- `anti_pattern`: Ensures output doesn't resemble known-bad patterns
+
+#### 7.2.3 Experiment Capabilities (Required)
 
 Must support:
 - Batch execution with concurrency controls
 - Persist per-row outputs + per-row scores + aggregate summaries
-- Compare against baselines
+- **Multi-scorer per experiment** (run LLM Judge + Criteria + Tool Correctness together)
+- **Weighted score aggregation** (configure importance of each scorer)
+- Compare against baselines (version vs version)
 - Online scoring for production logs (near-real-time drift signals)
+- Cost tracking per run (especially for LLM Judge costs)
 
 ### 7.3 Playgrounds
 Playgrounds are an editor-like workspace to:

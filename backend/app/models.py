@@ -111,6 +111,8 @@ class DatasetRowModel(SQLModel, table=True):
     input: Dict = Field(sa_column=Column(JSON), default={})
     expected: Optional[Dict] = Field(sa_column=Column(JSON), default={})
     meta: Dict = Field(sa_column=Column(JSON), default={})
+    example_type: str = Field(default="gold")  # "gold" (positive example) or "anti_pattern" (negative example)
+    source_trace_id: Optional[str] = Field(default=None)  # If promoted from a trace
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
 # --- Experiment Models ---
@@ -187,6 +189,35 @@ class ModelRegistryModel(SQLModel, table=True):
     enabled: bool = Field(default=True, index=True)
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
+
+# --- Function/Scorer Registry ---
+
+class FunctionType(str, Enum):
+    SCORER = 'scorer'
+    TOOL = 'tool'
+
+class FunctionRuntime(str, Enum):
+    BUILTIN = 'builtin'
+    PYTHON = 'python'
+    LLM_JUDGE = 'llm_judge'
+
+class FunctionModel(SQLModel, table=True):
+    __tablename__ = "function"
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_function_project_name"),)
+
+    id: str = Field(primary_key=True)
+    project_id: Optional[str] = Field(default=None, foreign_key="project.id", index=True)  # None = global/builtin
+    name: str = Field(index=True)  # e.g., "exact_match", "contains", "llm_judge"
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    type: str = Field(default="scorer", index=True)  # scorer | tool
+    runtime: str = Field(default="builtin", index=True)  # builtin | python | llm_judge
+    config: Dict = Field(sa_column=Column(JSON), default={})  # scorer-specific configuration
+    code: Optional[str] = None  # For custom Python scorers (future)
+    enabled: bool = Field(default=True, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
 # Pydantic Schemas for API (matching the Frontend types mostly)
 
 class SpanMetrics(BaseModel):
@@ -234,3 +265,24 @@ class Trace(BaseModel):
     total_tokens: int
     status: str
     tags: List[str] = []
+
+
+# --- Guardrail Model ---
+
+class GuardrailModel(SQLModel, table=True):
+    """
+    Guardrails are runtime protection rules that check outputs before returning to users.
+    They can block, warn, or flag responses based on anti-patterns or other conditions.
+    """
+    __tablename__ = "guardrail"
+    id: str = Field(primary_key=True)
+    project_id: str = Field(foreign_key="project.id")
+    name: str
+    description: Optional[str] = None
+    action: str = Field(default="warn")  # "block", "warn", "flag_for_review"
+    condition_type: str = Field(default="anti_pattern")  # "anti_pattern", "regex", "keyword"
+    condition_config: Dict = Field(sa_column=Column(JSON), default={})  # e.g. {"pattern_ids": [...], "keywords": [...]}
+    enabled: bool = Field(default=True)
+    priority: int = Field(default=0)  # Higher priority runs first
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+

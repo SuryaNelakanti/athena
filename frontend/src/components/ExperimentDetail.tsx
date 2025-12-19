@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
-import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry } from '../types';
-import { ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon } from '@heroicons/react/24/outline';
+import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../types';
+import {
+  ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon,
+  BeakerIcon, ChevronDownIcon, ChevronRightIcon,
+  CheckCircleIcon, XCircleIcon, ClockIcon
+} from '@heroicons/react/24/outline';
 
 interface ExperimentDetailProps {
   experiment: Experiment;
@@ -13,15 +17,30 @@ function formatDateTime(ms?: number | null) {
   return new Date(ms).toLocaleString();
 }
 
+// Default descriptions for scorers when not provided by backend
+function getDefaultScorerDescription(name: string): string {
+  const descriptions: Record<string, string> = {
+    'exact_match': 'Checks if the AI output exactly matches the expected answer (case-insensitive, normalized whitespace).',
+    'contains': 'Checks if the expected answer appears somewhere within the AI output.',
+    'regex_match': 'Matches the AI output against a regular expression pattern.',
+    'llm_judge': 'Uses an LLM to evaluate the quality and correctness of the output on a scale of 1-5.',
+    'anti_pattern_check': 'Checks if the output resembles any known bad patterns or anti-examples.',
+  };
+  return descriptions[name] || 'Evaluates the AI output.';
+}
+
 const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack }) => {
   const [exp, setExp] = useState<Experiment>(experiment);
   const [models, setModels] = useState<ModelRegistry[]>([]);
+  const [scorers, setScorers] = useState<Function[]>([]);
   const [versions, setVersions] = useState<ExperimentVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [datasetRows, setDatasetRows] = useState<DatasetRow[]>([]);
 
   const [runs, setRuns] = useState<ExperimentRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [results, setResults] = useState<ExperimentRunResult[]>([]);
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +51,12 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     model_registry_id: '',
     temperature: 1.0,
     max_tokens: '',
+    top_p: '',
+    frequency_penalty: '',
+    presence_penalty: '',
     system_prompt: '',
     notes: '',
+    scorers: ['exact_match'] as string[],
   });
 
   const mainVersionId = (exp.summary as any)?.main_version_id as string | undefined;
@@ -44,12 +67,20 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     setLoading(true);
     setError(null);
     try {
-      const [modelsData, versionsData] = await Promise.all([
+      const [modelsData, versionsData, scorersData] = await Promise.all([
         api.getModelRegistry(true),
         api.getExperimentVersions(exp.id),
+        api.getScorers(),
       ]);
       setModels(modelsData);
       setVersions(versionsData);
+      setScorers(scorersData.filter((s: Function) => s.type === 'scorer' && s.enabled));
+
+      // Load dataset rows for context
+      if (exp.dataset_id) {
+        const rows = await api.getDatasetRows(exp.dataset_id);
+        setDatasetRows(rows);
+      }
 
       const initialVersionId = mainVersionId || versionsData[0]?.id || null;
       setSelectedVersionId((prev) => prev || initialVersionId);
@@ -68,7 +99,6 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
 
   useEffect(() => {
     refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exp.id]);
 
   const refreshRuns = async (versionId: string) => {
@@ -87,10 +117,14 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     refreshRuns(selectedVersionId)
       .catch((e: any) => setError(e?.message || 'Failed to load runs'))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersionId]);
 
   const selectedRun = useMemo(() => runs.find((r) => r.id === selectedRunId) || null, [runs, selectedRunId]);
+  const selectedVersion = useMemo(() => versions.find((v) => v.id === selectedVersionId) || null, [versions, selectedVersionId]);
+  const selectedModel = useMemo(() => {
+    const regId = (selectedVersion?.config as any)?.model?.registry_id;
+    return models.find((m) => m.id === regId) || null;
+  }, [selectedVersion, models]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -104,6 +138,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
       .finally(() => setLoading(false));
   }, [selectedRunId]);
 
+  // Polling for running experiments
   useEffect(() => {
     if (!selectedRunId || !selectedRun) return;
     if (!(selectedRun.status === 'queued' || selectedRun.status === 'running')) return;
@@ -135,8 +170,12 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
         model_registry_id: newVersion.model_registry_id,
         temperature: Number(newVersion.temperature) || 1.0,
         max_tokens: newVersion.max_tokens ? Number(newVersion.max_tokens) : undefined,
+        top_p: newVersion.top_p ? Number(newVersion.top_p) : undefined,
+        frequency_penalty: newVersion.frequency_penalty ? Number(newVersion.frequency_penalty) : undefined,
+        presence_penalty: newVersion.presence_penalty ? Number(newVersion.presence_penalty) : undefined,
         system_prompt: newVersion.system_prompt || '',
         notes: newVersion.notes || '',
+        scorers: newVersion.scorers.length > 0 ? newVersion.scorers : ['exact_match'],
       });
       const refreshedVersions = await api.getExperimentVersions(exp.id);
       setVersions(refreshedVersions);
@@ -188,298 +227,498 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     }
   };
 
-  const selectedVersion = versions.find((v) => v.id === selectedVersionId) || null;
-  const selectedModel = selectedVersion ? (selectedVersion.config as any)?.model : null;
+  // Helper to extract text from input/expected
+  const extractText = (obj: any): string => {
+    if (typeof obj === 'string') return obj;
+    if (!obj || typeof obj !== 'object') return '';
+    for (const key of ['prompt', 'input', 'text', 'query', 'question', 'content']) {
+      if (typeof obj[key] === 'string') return obj[key];
+    }
+    if (Array.isArray(obj.messages)) {
+      const userMsg = obj.messages.find((m: any) => m.role === 'user');
+      if (userMsg?.content) return userMsg.content;
+    }
+    return JSON.stringify(obj);
+  };
+
+  const extractExpected = (obj: any): string => {
+    if (typeof obj === 'string') return obj;
+    if (!obj || typeof obj !== 'object') return '';
+    for (const key of ['answer', 'expected', 'text', 'content', 'response']) {
+      if (typeof obj[key] === 'string') return obj[key];
+    }
+    return JSON.stringify(obj);
+  };
+
+  // Get dataset row for a result
+  const getRowForResult = (result: ExperimentRunResult): DatasetRow | null => {
+    return datasetRows.find(r => r.id === result.dataset_row_id) || null;
+  };
+
+  // Calculate score color
+  const getScoreColor = (score: number | undefined): string => {
+    if (score === undefined) return 'text-text-muted';
+    if (score >= 0.8) return 'text-emerald-500';
+    if (score >= 0.5) return 'text-amber-500';
+    return 'text-rose-500';
+  };
+
+  const getScoreBg = (score: number | undefined): string => {
+    if (score === undefined) return 'bg-text-muted/10';
+    if (score >= 0.8) return 'bg-emerald-500/10 border-emerald-500/20';
+    if (score >= 0.5) return 'bg-amber-500/10 border-amber-500/20';
+    return 'bg-rose-500/10 border-rose-500/20';
+  };
 
   return (
     <div className="h-full flex flex-col bg-app transition-colors duration-300">
-      <div className="h-20 border-b border-border-base flex items-center justify-between px-8 bg-app shrink-0">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 -ml-2 rounded-xl text-text-muted hover:text-text-main hover:bg-panel-hover transition-all">
-            <ChevronLeftIcon className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="text-xl font-serif font-black text-text-main">{exp.name}</div>
-            <div className="text-xs text-text-muted">Dataset: {exp.dataset_id}</div>
+      {/* Header */}
+      <div className="border-b border-border-base bg-panel shrink-0">
+        <div className="px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={onBack} className="p-2 -ml-2 rounded-xl text-text-muted hover:text-text-main hover:bg-panel-hover transition-all">
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                  <BeakerIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-serif font-black text-text-main leading-tight">{exp.name}</h2>
+                  <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
+                    <span>{versions.length} versions</span>
+                    <span>•</span>
+                    <span>{datasetRows.length} test cases</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowCreateVersion(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-panel border border-border-base rounded-xl text-sm font-bold text-text-main hover:bg-panel-hover transition-all"
+              >
+                <PlusIcon className="w-4 h-4" /> New Version
+              </button>
+              <button
+                onClick={runVersion}
+                disabled={!selectedVersionId}
+                className="flex items-center gap-2 px-4 py-2.5 bg-wispr-purple text-white rounded-xl text-sm font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all disabled:opacity-50"
+              >
+                <PlayIcon className="w-4 h-4" /> Run Experiment
+              </button>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowCreateVersion(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-panel border border-border-base rounded-xl text-xs font-bold text-text-muted hover:text-text-main hover:border-border-hover transition-all"
-          >
-            <PlusIcon className="w-4 h-4" />
-            NEW VERSION
-          </button>
-          <button
-            onClick={runVersion}
-            disabled={!selectedVersionId || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-wispr-purple text-white rounded-xl text-xs font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            <PlayIcon className="w-4 h-4" />
-            RUN
-          </button>
+
+        {/* Explanation Banner */}
+        <div className="px-8 pb-4">
+          <div className="bg-gradient-to-r from-amber-500/5 to-transparent border border-amber-500/20 rounded-xl p-4">
+            <h4 className="text-sm font-bold text-text-main mb-1">🧪 What is an Experiment?</h4>
+            <p className="text-xs text-text-muted leading-relaxed">
+              An experiment tests your AI by running it against a <strong className="text-text-main">dataset</strong>.
+              For each test case, the AI receives the <strong className="text-wispr-purple">Input</strong>, generates an <strong className="text-amber-500">Actual Output</strong>,
+              which is then compared against the <strong className="text-emerald-500">Expected Output</strong> using scorers.
+              Create different versions to try different models, prompts, or parameters.
+            </p>
+          </div>
         </div>
       </div>
 
-      {showCreateVersion && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-panel border border-border-base rounded-3xl p-8 max-w-xl w-full shadow-2xl">
-            <h2 className="text-2xl font-serif font-black text-text-main mb-6">New Version</h2>
-            {models.length === 0 ? (
-              <div className="text-sm text-text-muted">No models registered yet. Add models in Settings first.</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Parent</label>
-                    <select
-                      value={newVersion.parent_version_id}
-                      onChange={(e) => setNewVersion((p) => ({ ...p, parent_version_id: e.target.value }))}
-                      className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                    >
-                      <option value="">None</option>
-                      {versions
-                        .slice()
-                        .sort((a, b) => b.version_number - a.version_number)
-                        .map((v) => (
-                          <option key={v.id} value={v.id}>
-                            v{v.version_number}{v.id === mainVersionId ? ' (main)' : ''}
-                          </option>
-                        ))}
-                    </select>
+      {error && <div className="px-8 py-3 bg-rose-500/10 border-b border-rose-500/20 text-xs text-rose-500 font-bold">{error}</div>}
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Versions */}
+        <div className="w-64 border-r border-border-base bg-panel overflow-y-auto shrink-0">
+          <div className="p-4 border-b border-border-base">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Versions</h3>
+          </div>
+          <div className="p-2 space-y-1">
+            {versions.map((v) => {
+              const model = models.find((m) => m.id === (v.config as any)?.model?.registry_id);
+              const isMain = v.id === mainVersionId;
+              const isSelected = v.id === selectedVersionId;
+
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => setSelectedVersionId(v.id)}
+                  className={`w-full text-left p-3 rounded-xl transition-all ${isSelected ? 'bg-wispr-purple/10 border border-wispr-purple/30' : 'hover:bg-panel-hover border border-transparent'
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-bold ${isSelected ? 'text-wispr-purple' : 'text-text-main'}`}>
+                      v{v.version_number}
+                    </span>
+                    {isMain && (
+                      <span className="flex items-center gap-1 text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded-full font-bold">
+                        <StarIcon className="w-3 h-3" /> Main
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Model</label>
-                    <select
-                      value={newVersion.model_registry_id}
-                      onChange={(e) => setNewVersion((p) => ({ ...p, model_registry_id: e.target.value }))}
-                      className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                    >
-                      {models.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.provider}: {m.display_name || m.model_id}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="text-[10px] text-text-muted truncate mt-1">
+                    {model ? `${model.provider}:${model.model_id}` : '—'}
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Temperature</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="2"
-                      value={newVersion.temperature}
-                      onChange={(e) => setNewVersion((p) => ({ ...p, temperature: Number(e.target.value) }))}
-                      className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                    />
+                  <div className="text-[10px] text-text-muted opacity-60 truncate mt-0.5">
+                    {(v.config as any)?.notes || 'No notes'}
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Max Tokens</label>
-                    <input
-                      type="number"
-                      value={newVersion.max_tokens}
-                      onChange={(e) => setNewVersion((p) => ({ ...p, max_tokens: e.target.value }))}
-                      className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                      placeholder="(optional)"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">System Prompt</label>
-                  <textarea
-                    value={newVersion.system_prompt}
-                    onChange={(e) => setNewVersion((p) => ({ ...p, system_prompt: e.target.value }))}
-                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main h-24 resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Notes</label>
-                  <input
-                    value={newVersion.notes}
-                    onChange={(e) => setNewVersion((p) => ({ ...p, notes: e.target.value }))}
-                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                    placeholder="What changed?"
-                  />
-                </div>
-                {error && <div className="text-xs text-rose-500 font-bold">{error}</div>}
-                <div className="flex gap-4 pt-2">
-                  <button
-                    onClick={() => setShowCreateVersion(false)}
-                    className="flex-1 px-4 py-3 bg-app border border-border-base rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    onClick={createVersion}
-                    className="flex-1 px-4 py-3 bg-wispr-purple text-white rounded-xl text-sm font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
-                  >
-                    CREATE
-                  </button>
-                </div>
-              </div>
-            )}
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="w-80 border-r border-border-base overflow-y-auto bg-app/50">
-          <div className="px-5 py-4 border-b border-border-base bg-app/70 sticky top-0 backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold opacity-60">Versions</div>
-          </div>
-          {versions.length === 0 && !loading && <div className="p-5 text-sm text-text-muted italic">No versions yet.</div>}
-          <div className="divide-y divide-border-base/50">
-            {versions
-              .slice()
-              .sort((a, b) => b.version_number - a.version_number)
-              .map((v) => {
-                const isSelected = v.id === selectedVersionId;
-                const isMain = v.id === mainVersionId;
-                const model = (v.config as any)?.model;
+        {/* Main Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Selected Version Info */}
+          {selectedVersion && (
+            <div className="bg-panel border border-border-base rounded-2xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-text-main">v{selectedVersion.version_number}</span>
+                  <span className="text-xs text-text-muted">{selectedModel?.display_name || selectedModel?.model_id}</span>
+                </div>
+                {selectedVersionId !== mainVersionId && (
+                  <button
+                    onClick={() => setMain(selectedVersionId!)}
+                    className="text-xs text-wispr-purple hover:text-wispr-purple-dark font-bold"
+                  >
+                    Set as Main
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-xs">
+                <div>
+                  <span className="text-text-muted">Temperature:</span>
+                  <span className="ml-1 text-text-main font-medium">{(selectedVersion.config as any)?.model?.temperature || 1.0}</span>
+                </div>
+                <div>
+                  <span className="text-text-muted">Scorers:</span>
+                  <span className="ml-1 text-text-main font-medium">
+                    {((selectedVersion.config as any)?.scorers || []).map((s: any) => s.type).join(', ') || 'exact_match'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-muted">System Prompt:</span>
+                  <span className="ml-1 text-text-main font-medium truncate">
+                    {((selectedVersion.config as any)?.task?.system_prompt || '').substring(0, 50) || 'None'}...
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Runs */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-text-main">Runs</h3>
+              {selectedRun && (selectedRun.status === 'running' || selectedRun.status === 'queued') && (
+                <div className="flex items-center gap-2 text-xs text-amber-500">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  Running... {selectedRun.summary?.rows_done || 0}/{selectedRun.summary?.rows_total || 0}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {runs.map((r) => {
+                const avgScore = Number(r.summary?.avg_score || 0);
+                const isSelected = r.id === selectedRunId;
+
                 return (
                   <button
-                    key={v.id}
-                    onClick={() => setSelectedVersionId(v.id)}
-                    className={`w-full text-left px-5 py-4 hover:bg-panel-hover transition-colors ${isSelected ? 'bg-wispr-purple/10' : ''}`}
+                    key={r.id}
+                    onClick={() => setSelectedRunId(r.id)}
+                    className={`flex-shrink-0 p-3 rounded-xl border transition-all ${isSelected
+                      ? 'bg-wispr-purple/10 border-wispr-purple/30'
+                      : 'bg-panel border-border-base hover:border-border-hover'
+                      }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-text-main">v{v.version_number}</span>
-                        {isMain && <StarIcon className="w-4 h-4 text-amber-400" />}
-                      </div>
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMain(v.id);
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-widest text-wispr-purple hover:text-wispr-purple-dark"
-                      >
-                        Set Main
+                    <div className="flex items-center gap-2 mb-1">
+                      {r.status === 'completed' && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
+                      {r.status === 'error' && <XCircleIcon className="w-4 h-4 text-rose-500" />}
+                      {r.status === 'running' && <ClockIcon className="w-4 h-4 text-amber-500 animate-spin" />}
+                      {r.status === 'queued' && <ClockIcon className="w-4 h-4 text-text-muted" />}
+                      {r.status === 'canceled' && <StopIcon className="w-4 h-4 text-text-muted" />}
+                      <span className={`text-xs font-bold ${isSelected ? 'text-wispr-purple' : 'text-text-main'}`}>
+                        {new Date(r.created_at).toLocaleTimeString()}
                       </span>
                     </div>
-                    <div className="text-[11px] text-text-muted truncate mt-1">
-                      {model ? `${model.provider}:${model.id}` : '—'}
+                    <div className="text-lg font-black text-text-main tabular-nums">
+                      {(avgScore * 100).toFixed(0)}%
                     </div>
-                    <div className="text-[10px] text-text-muted opacity-60 mt-1">Pinned dataset v{v.dataset_version_pinned}</div>
+                    <div className="text-[10px] text-text-muted mt-0.5">
+                      {r.summary?.rows_done || 0} results
+                    </div>
                   </button>
                 );
               })}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8">
-          {error && <div className="mb-4 text-xs text-rose-500 font-bold">{error}</div>}
-
-          <div className="bg-panel border border-border-base rounded-2xl p-6 mb-6">
-            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold opacity-60">Selected Version</div>
-            {selectedVersion ? (
-              <div className="mt-2">
-                <div className="text-xl font-serif font-black text-text-main">v{selectedVersion.version_number}</div>
-                <div className="text-xs text-text-muted mt-1">
-                  Model: <span className="text-text-main">{selectedModel?.provider}:{selectedModel?.id}</span>
-                </div>
-                <div className="text-xs text-text-muted mt-1">Created: {formatDateTime(selectedVersion.created_at)}</div>
-                <div className="text-xs text-text-muted mt-1">Notes: <span className="text-text-main">{(selectedVersion.config as any)?.notes || '—'}</span></div>
-              </div>
-            ) : (
-              <div className="mt-2 text-sm text-text-muted italic">Select a version to run.</div>
-            )}
-          </div>
-
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold opacity-60">Runs</div>
-            {selectedRun && (
-              <div className="text-xs text-text-muted tabular-nums">
-                Progress {Number(selectedRun.summary?.rows_done || 0)}/{Number(selectedRun.summary?.rows_total || 0)}
-              </div>
-            )}
-          </div>
-
-          <div className="border border-border-base rounded-2xl overflow-hidden bg-panel shadow-sm mb-8">
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-text-muted border-b border-border-base bg-app/50">
-              <div className="col-span-5">Run</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-2 text-right">Avg</div>
-              <div className="col-span-2 text-right">Tokens</div>
-              <div className="col-span-1 text-right">Cancel</div>
+              {runs.length === 0 && (
+                <div className="text-sm text-text-muted italic py-4">No runs yet. Click "Run Experiment" to start.</div>
+              )}
             </div>
-            {runs.length === 0 && !loading ? (
-              <div className="px-6 py-10 text-center text-text-muted italic text-sm">No runs yet.</div>
+          </div>
+
+          {/* Results */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-text-main">Results</h3>
+              {results.length > 0 && (
+                <span className="text-xs text-text-muted">
+                  {results.filter(r => (r.scores?.exact_match || 0) >= 0.8).length}/{results.length} passing
+                </span>
+              )}
+            </div>
+
+            {results.length === 0 ? (
+              <div className="bg-panel border border-border-base rounded-2xl p-10 text-center">
+                <BeakerIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
+                <p className="text-text-muted italic">
+                  {selectedRunId ? 'No results yet.' : 'Select a run to view results.'}
+                </p>
+              </div>
             ) : (
-              <div className="divide-y divide-border-base/50">
-                {runs.map((r) => (
-                  <div
-                    key={r.id}
-                    onClick={() => setSelectedRunId(r.id)}
-                    className={`grid grid-cols-12 gap-4 px-6 py-4 text-xs cursor-pointer hover:bg-panel-hover transition-colors ${r.id === selectedRunId ? 'bg-wispr-purple/10' : ''}`}
-                  >
-                    <div className="col-span-5 text-[11px] truncate" title={r.id}>
-                      {r.id}
-                      <div className="text-[10px] text-text-muted opacity-70 mt-1">{formatDateTime(r.created_at)}</div>
-                    </div>
-                    <div className="col-span-2 font-bold uppercase tracking-widest text-[10px] opacity-70">{r.status}</div>
-                    <div className="col-span-2 text-right tabular-nums">{(Number(r.summary?.avg_score || 0) * 100).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right tabular-nums">{Number(r.summary?.tokens_total || 0).toLocaleString()}</div>
-                    <div className="col-span-1 text-right">
-                      {(r.status === 'queued' || r.status === 'running') ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            cancelRun(r.id);
-                          }}
-                          className="inline-flex items-center gap-1 text-rose-500 hover:text-rose-400 font-bold text-[10px] uppercase tracking-widest"
-                        >
-                          <StopIcon className="w-4 h-4" /> Cancel
-                        </button>
-                      ) : (
-                        <span className="text-text-muted text-[10px] uppercase tracking-widest opacity-50">—</span>
+              <div className="space-y-3">
+                {results.map((res, idx) => {
+                  const row = getRowForResult(res);
+                  const inputText = row ? extractText(row.input) : 'Unknown input';
+                  const expectedText = row ? extractExpected(row.expected) : 'Unknown expected';
+                  const actualText = res.output?.output_text || JSON.stringify(res.output);
+                  const isExpanded = expandedResultId === res.id;
+                  const exactMatch = res.scores?.exact_match;
+                  const containsScore = res.scores?.contains;
+                  const llmJudge = res.scores?.llm_judge;
+
+                  return (
+                    <div
+                      key={res.id}
+                      className={`bg-panel border rounded-2xl overflow-hidden transition-all ${getScoreBg(exactMatch)}`}
+                    >
+                      {/* Result Header */}
+                      <button
+                        onClick={() => setExpandedResultId(isExpanded ? null : res.id)}
+                        className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-black/5 transition-colors"
+                      >
+                        <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-wispr-purple/10 text-wispr-purple flex items-center justify-center text-xs font-bold">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-text-main line-clamp-1 font-medium">{inputText}</p>
+                          <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
+                            <span className="text-amber-500 font-medium">Output:</span> {actualText}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {/* Scores */}
+                          <div className={`text-lg font-black tabular-nums ${getScoreColor(exactMatch)}`}>
+                            {exactMatch !== undefined ? `${(exactMatch * 100).toFixed(0)}%` : '—'}
+                          </div>
+                          <div className="text-xs text-text-muted tabular-nums">
+                            {res.latency_ms?.toFixed(0)}ms
+                          </div>
+                          {isExpanded ? (
+                            <ChevronDownIcon className="w-5 h-5 text-text-muted" />
+                          ) : (
+                            <ChevronRightIcon className="w-5 h-5 text-text-muted" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Expanded Comparison View */}
+                      {isExpanded && (
+                        <div className="px-5 pb-5 pt-2 border-t border-border-base/50">
+                          {/* All Scores */}
+                          <div className="flex gap-3 mb-4">
+                            <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(exactMatch)}`}>
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Exact Match</span>
+                              <span className={`ml-2 font-bold ${getScoreColor(exactMatch)}`}>
+                                {exactMatch !== undefined ? (exactMatch * 100).toFixed(0) : '—'}%
+                              </span>
+                            </div>
+                            {containsScore !== undefined && (
+                              <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(containsScore)}`}>
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Contains</span>
+                                <span className={`ml-2 font-bold ${getScoreColor(containsScore)}`}>
+                                  {(containsScore * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            )}
+                            {llmJudge !== undefined && (
+                              <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(llmJudge)}`}>
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">LLM Judge</span>
+                                <span className={`ml-2 font-bold ${getScoreColor(llmJudge)}`}>
+                                  {(llmJudge * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Input / Expected / Actual Comparison */}
+                          <div className="grid md:grid-cols-3 gap-4">
+                            {/* Input */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-wispr-purple">📥 Input</span>
+                              </div>
+                              <div className="bg-app rounded-xl border border-border-base p-3 h-32 overflow-y-auto">
+                                <p className="text-xs text-text-main whitespace-pre-wrap">{inputText}</p>
+                              </div>
+                            </div>
+
+                            {/* Expected */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">✓ Expected</span>
+                              </div>
+                              <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 p-3 h-32 overflow-y-auto">
+                                <p className="text-xs text-text-main whitespace-pre-wrap">{expectedText}</p>
+                              </div>
+                            </div>
+
+                            {/* Actual */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">🤖 Actual Output</span>
+                              </div>
+                              <div className="bg-amber-500/5 rounded-xl border border-amber-500/20 p-3 h-32 overflow-y-auto">
+                                <p className="text-xs text-text-main whitespace-pre-wrap">{actualText}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold opacity-60">Results</div>
-          </div>
-
-          <div className="border border-border-base rounded-2xl overflow-hidden bg-panel shadow-sm">
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-text-muted border-b border-border-base bg-app/50">
-              <div className="col-span-3">Row</div>
-              <div className="col-span-6">Output</div>
-              <div className="col-span-1 text-right">Score</div>
-              <div className="col-span-2 text-right">Latency</div>
-            </div>
-            {selectedRunId && results.length === 0 && !loading ? (
-              <div className="px-6 py-10 text-center text-text-muted italic text-sm">No results yet.</div>
-            ) : (
-              <div className="divide-y divide-border-base/50">
-                {results.map((res) => (
-                  <div key={res.id} className="grid grid-cols-12 gap-4 px-6 py-4 text-xs hover:bg-panel-hover transition-colors">
-                    <div className="col-span-3 text-[11px] truncate" title={res.dataset_row_id}>
-                      {res.dataset_row_id}
-                      {res.output?.athena_trace_id && <div className="text-[10px] text-text-muted opacity-70 mt-1">Trace {res.output.athena_trace_id}</div>}
-                    </div>
-                    <div className="col-span-6">
-                      <div className="bg-app/50 p-2 rounded-lg border border-border-base/50 max-h-24 overflow-y-auto text-[10px] whitespace-pre-wrap">
-                        {res.output?.output_text || JSON.stringify(res.output, null, 2)}
-                      </div>
-                    </div>
-                    <div className="col-span-1 text-right tabular-nums">{res.scores?.exact_match !== undefined ? Number(res.scores.exact_match).toFixed(2) : '—'}</div>
-                    <div className="col-span-2 text-right tabular-nums text-text-muted">{res.latency_ms.toFixed(0)}ms</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Create Version Modal */}
+      {showCreateVersion && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-panel border border-border-base rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-border-base">
+              <h3 className="text-lg font-serif font-black text-text-main">New Experiment Version</h3>
+              <p className="text-xs text-text-muted mt-1">Test a different model, prompt, or parameters</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Model</label>
+                <select
+                  value={newVersion.model_registry_id}
+                  onChange={(e) => setNewVersion((p) => ({ ...p, model_registry_id: e.target.value }))}
+                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
+                >
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>{m.display_name || `${m.provider}:${m.model_id}`}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Temperature</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="2"
+                    value={newVersion.temperature}
+                    onChange={(e) => setNewVersion((p) => ({ ...p, temperature: Number(e.target.value) }))}
+                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Max Tokens</label>
+                  <input
+                    type="number"
+                    value={newVersion.max_tokens}
+                    onChange={(e) => setNewVersion((p) => ({ ...p, max_tokens: e.target.value }))}
+                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
+                    placeholder="(optional)"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">System Prompt</label>
+                <textarea
+                  value={newVersion.system_prompt}
+                  onChange={(e) => setNewVersion((p) => ({ ...p, system_prompt: e.target.value }))}
+                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main h-24 resize-none"
+                  placeholder="Instructions for the AI..."
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Scorers</label>
+                <p className="text-xs text-text-muted mb-3">Select how to evaluate the AI's output against the expected answer:</p>
+                <div className="space-y-2">
+                  {scorers.map((scorer) => (
+                    <label key={scorer.id} className="flex items-start gap-3 p-3 rounded-xl border border-border-base hover:border-border-hover hover:bg-app/30 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        checked={newVersion.scorers.includes(scorer.name)}
+                        onChange={(e) => {
+                          setNewVersion((p) => ({
+                            ...p,
+                            scorers: e.target.checked
+                              ? [...p.scorers, scorer.name]
+                              : p.scorers.filter((s) => s !== scorer.name)
+                          }));
+                        }}
+                        className="w-4 h-4 mt-0.5 rounded border-border-base text-wispr-purple flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-text-main">{scorer.display_name || scorer.name}</span>
+                          {scorer.runtime === 'llm_judge' && (
+                            <span className="text-[9px] bg-wispr-purple/20 text-wispr-purple px-1.5 py-0.5 rounded-full font-medium">Uses LLM</span>
+                          )}
+                          {scorer.runtime === 'builtin' && (
+                            <span className="text-[9px] bg-emerald-500/20 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">Fast</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
+                          {scorer.description || getDefaultScorerDescription(scorer.name)}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {scorers.length === 0 && (
+                  <div className="text-xs text-text-muted italic p-4 border border-dashed border-border-base rounded-xl text-center">
+                    No scorers available. Run seed-builtins to add default scorers.
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Notes</label>
+                <input
+                  value={newVersion.notes}
+                  onChange={(e) => setNewVersion((p) => ({ ...p, notes: e.target.value }))}
+                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
+                  placeholder="What are you testing?"
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button
+                  onClick={() => setShowCreateVersion(false)}
+                  className="flex-1 px-4 py-3 bg-app border border-border-base rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createVersion}
+                  className="flex-1 px-4 py-3 bg-wispr-purple text-white rounded-xl text-sm font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
+                >
+                  Create Version
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

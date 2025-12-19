@@ -10,7 +10,11 @@ import {
     ChevronRightIcon,
     CubeIcon,
     ChatBubbleLeftRightIcon,
-    PlusCircleIcon
+    PlusCircleIcon,
+    PencilSquareIcon,
+    XMarkIcon,
+    HandThumbUpIcon,
+    HandThumbDownIcon
 } from '@heroicons/react/24/outline';
 import { Tooltip } from './Tooltip';
 import { api } from '../services/api';
@@ -38,7 +42,6 @@ const SpanRow: React.FC<SpanRowProps> = ({
     minStart,
     totalDuration
 }) => {
-    // Calculate waterfall bar position
     const leftPercent = ((span.start_time - minStart) / totalDuration) * 100;
     const widthPercent = Math.max(((span.end_time - span.start_time) / totalDuration) * 100, 1);
 
@@ -74,7 +77,6 @@ const SpanRow: React.FC<SpanRowProps> = ({
                 </div>
             </div>
 
-            {/* Waterfall visualization */}
             <div className="w-36 h-2 relative bg-border-base/40 rounded-full overflow-hidden flex-shrink-0">
                 <div
                     className={`absolute top-0 bottom-0 rounded-full transition-all duration-300 ${span.status === 'error' ? 'bg-rose-500' : 'bg-wispr-purple'}`}
@@ -100,48 +102,100 @@ const JSONViewer = ({ data, label }: { data: any, label: string }) => (
     </div>
 );
 
+// Extract readable output from span
+const extractSpanOutput = (span: Span): string => {
+    const output = span.output;
+    if (typeof output === 'string') return output;
+    if (!output || typeof output !== 'object') return '';
+    for (const key of ['output_text', 'text', 'content', 'value', 'response', 'answer']) {
+        if (typeof output[key] === 'string') return output[key];
+    }
+    return JSON.stringify(output);
+};
+
 const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [selectedSpan, setSelectedSpan] = useState<Span>(trace.root_span);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [isPromoting, setIsPromoting] = useState(false);
-    const [showDatasetPicker, setShowDatasetPicker] = useState(false);
+    const [showActionMenu, setShowActionMenu] = useState(false);
+
+    // Correct & Add Modal State
+    const [showCorrectModal, setShowCorrectModal] = useState(false);
+    const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
+    const [correctedOutput, setCorrectedOutput] = useState('');
+    const [actionType, setActionType] = useState<'good' | 'correct' | 'bad'>('good');
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
     useEffect(() => {
         api.getDatasets(trace.project_id).then(setDatasets).catch(console.error);
     }, [trace.project_id]);
 
-    const handlePromote = async (datasetId: string) => {
+    // Get the output text for editing
+    const currentOutput = useMemo(() => {
+        const lastSpan = trace.spans[trace.spans.length - 1] || trace.root_span;
+        return extractSpanOutput(lastSpan);
+    }, [trace.spans, trace.root_span]);
+
+    const handleActionClick = (type: 'good' | 'correct' | 'bad') => {
+        setActionType(type);
+        setShowActionMenu(false);
+        setActionError(null);
+        setActionSuccess(null);
+
+        if (type === 'correct') {
+            setCorrectedOutput(currentOutput);
+            setShowCorrectModal(true);
+        } else {
+            setShowCorrectModal(true);
+        }
+    };
+
+    const handlePromote = async () => {
+        if (!selectedDatasetId) {
+            setActionError('Please select a dataset');
+            return;
+        }
+
         setIsPromoting(true);
+        setActionError(null);
+
         try {
-            await api.promoteToDataset(trace.id, datasetId);
-            alert("Successfully added to dataset!");
-            setShowDatasetPicker(false);
-        } catch (e) {
-            console.error(e);
-            alert("Failed to add to dataset.");
+            if (actionType === 'correct' || actionType === 'bad') {
+                await api.promoteToDataset(trace.id, selectedDatasetId, {
+                    corrected_expected: actionType === 'correct' ? { answer: correctedOutput } : undefined,
+                    example_type: actionType === 'bad' ? 'anti_pattern' : 'gold'
+                });
+            } else {
+                await api.promoteToDataset(trace.id, selectedDatasetId);
+            }
+
+            const successMsg = actionType === 'good'
+                ? 'Added as gold example!'
+                : actionType === 'correct'
+                    ? 'Added with correction!'
+                    : 'Added as anti-pattern!';
+            setActionSuccess(successMsg);
+
+            setTimeout(() => {
+                setShowCorrectModal(false);
+                setActionSuccess(null);
+            }, 1500);
+        } catch (e: any) {
+            setActionError(e?.message || 'Failed to add to dataset');
         } finally {
             setIsPromoting(false);
         }
     };
 
-    // Update selected span when the trace changes (e.g. user clicks a different row)
     useEffect(() => {
         setSelectedSpan(trace.root_span);
     }, [trace.id, trace.root_span]);
 
-    // Build a proper tree structure for arbitrary depth nesting
-    interface SpanTreeNode {
-        span: Span;
-        children: SpanTreeNode[];
-        depth: number;
-    }
-
     const { orderedSpans, depthMap } = useMemo(() => {
-        // Create a map for quick lookup
         const spanMap = new Map<string, Span>();
         trace.spans.forEach(s => spanMap.set(s.id, s));
 
-        // Build parent -> children mapping
         const childrenMap = new Map<string | null, Span[]>();
         trace.spans.forEach(s => {
             const parentId = s.parent_id || null;
@@ -151,12 +205,10 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
             childrenMap.get(parentId)!.push(s);
         });
 
-        // Sort children by start_time at each level
         childrenMap.forEach((children) => {
             children.sort((a, b) => a.start_time - b.start_time);
         });
 
-        // Build ordered list with depths using DFS
         const orderedSpans: Span[] = [];
         const depthMap = new Map<string, number>();
 
@@ -169,7 +221,6 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
             }
         };
 
-        // Start from root spans (those with no parent)
         traverse(null, 0);
 
         return { orderedSpans, depthMap };
@@ -215,31 +266,55 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         <span className="text-text-main font-medium tabular-nums">${trace.total_cost.toFixed(4)}</span>
                     </div>
 
+                    {/* Actions Menu */}
                     <div className="relative ml-4">
                         <button
-                            onClick={() => setShowDatasetPicker(!showDatasetPicker)}
-                            className="flex items-center gap-2 px-4 py-2 bg-wispr-purple/10 text-wispr-purple border border-wispr-purple/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple hover:text-white transition-all shadow-sm"
+                            onClick={() => setShowActionMenu(!showActionMenu)}
+                            className="flex items-center gap-2 px-4 py-2 bg-wispr-purple text-white rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple-dark transition-all shadow-lg shadow-wispr-purple/20"
                         >
                             <PlusCircleIcon className="w-4 h-4" />
                             ADD TO DATASET
+                            <ChevronDownIcon className="w-3 h-3" />
                         </button>
 
-                        {showDatasetPicker && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-panel border border-border-base rounded-xl shadow-xl z-50 py-1 overflow-hidden">
-                                <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-text-muted font-bold border-b border-border-base/50">Select Dataset</div>
-                                {datasets.length === 0 && (
-                                    <div className="px-3 py-4 text-xs text-text-muted italic text-center">No datasets found for this project</div>
-                                )}
-                                {datasets.map(ds => (
-                                    <button
-                                        key={ds.id}
-                                        onClick={() => handlePromote(ds.id)}
-                                        disabled={isPromoting}
-                                        className="w-full text-left px-3 py-2 hover:bg-wispr-purple/10 hover:text-wispr-purple text-xs font-medium transition-colors disabled:opacity-50"
-                                    >
-                                        {ds.name}
-                                    </button>
-                                ))}
+                        {showActionMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-64 bg-panel border border-border-base rounded-2xl shadow-xl z-50 overflow-hidden">
+                                <div className="px-4 py-3 border-b border-border-base bg-app/50">
+                                    <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Choose Action</span>
+                                </div>
+
+                                <button
+                                    onClick={() => handleActionClick('good')}
+                                    className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 transition-colors flex items-start gap-3 border-b border-border-base/50"
+                                >
+                                    <HandThumbUpIcon className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <div className="text-sm font-bold text-text-main">👍 Good Example</div>
+                                        <div className="text-[11px] text-text-muted mt-0.5">Add as-is to gold examples</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => handleActionClick('correct')}
+                                    className="w-full text-left px-4 py-3 hover:bg-amber-500/10 transition-colors flex items-start gap-3 border-b border-border-base/50"
+                                >
+                                    <PencilSquareIcon className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <div className="text-sm font-bold text-text-main">✏️ Correct & Add</div>
+                                        <div className="text-[11px] text-text-muted mt-0.5">Edit the output, then add to dataset</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => handleActionClick('bad')}
+                                    className="w-full text-left px-4 py-3 hover:bg-rose-500/10 transition-colors flex items-start gap-3"
+                                >
+                                    <HandThumbDownIcon className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <div className="text-sm font-bold text-text-main">👎 Bad Example</div>
+                                        <div className="text-[11px] text-text-muted mt-0.5">Add as anti-pattern to avoid</div>
+                                    </div>
+                                </button>
                             </div>
                         )}
                     </div>
@@ -305,7 +380,6 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
 
                     <JSONViewer data={selectedSpan.input} label="Input" />
 
-                    {/* Show reasoning separately if present */}
                     {(selectedSpan.output?.athena_reasoning || selectedSpan.output?.reasoning) && (
                         <div className="mb-8">
                             <h4 className="text-[10px] uppercase tracking-widest text-amber-600 font-bold mb-3 flex items-center gap-2">
@@ -321,21 +395,102 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     )}
 
                     <JSONViewer data={selectedSpan.output} label="Output" />
-
-                    {selectedSpan.attributes.reasoning_enabled && (
-                        <div className="mt-6 pt-6 border-t border-border-base">
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                                <h4 className="text-sm font-semibold text-purple-600 dark:text-purple-400">Reasoning Details</h4>
-                            </div>
-                            <p className="text-xs text-text-muted mb-3">
-                                This model used <span className="text-text-main font-medium">{selectedSpan.attributes.reasoning_effort}</span> effort.
-                                Reasoning deltas are captured and stored in attributes.
-                            </p>
-                        </div>
-                    )}
                 </div>
             </div>
+
+            {/* Promote Modal */}
+            {showCorrectModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-panel border border-border-base rounded-3xl shadow-2xl w-full max-w-lg">
+                        <div className={`p-6 border-b rounded-t-3xl ${actionType === 'good' ? 'border-emerald-500/30 bg-emerald-500/5' :
+                                actionType === 'correct' ? 'border-amber-500/30 bg-amber-500/5' :
+                                    'border-rose-500/30 bg-rose-500/5'
+                            }`}>
+                            <h3 className="text-lg font-serif font-black text-text-main flex items-center gap-2">
+                                {actionType === 'good' && <><HandThumbUpIcon className="w-5 h-5 text-emerald-500" /> Add as Good Example</>}
+                                {actionType === 'correct' && <><PencilSquareIcon className="w-5 h-5 text-amber-500" /> Correct & Add</>}
+                                {actionType === 'bad' && <><HandThumbDownIcon className="w-5 h-5 text-rose-500" /> Mark as Bad Example</>}
+                            </h3>
+                            <p className="text-xs text-text-muted mt-1">
+                                {actionType === 'good' && 'This trace will be added as a gold example (correct behavior).'}
+                                {actionType === 'correct' && 'Edit the expected output before adding to the dataset.'}
+                                {actionType === 'bad' && 'This trace will be added as an anti-pattern (behavior to avoid).'}
+                            </p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {actionError && (
+                                <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3">{actionError}</div>
+                            )}
+                            {actionSuccess && (
+                                <div className="text-xs text-emerald-500 font-bold bg-emerald-500/10 rounded-xl p-3 flex items-center gap-2">
+                                    <CheckCircleIcon className="w-4 h-4" /> {actionSuccess}
+                                </div>
+                            )}
+
+                            {/* Dataset Selection */}
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Select Dataset</label>
+                                <select
+                                    value={selectedDatasetId || ''}
+                                    onChange={(e) => setSelectedDatasetId(e.target.value)}
+                                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
+                                >
+                                    <option value="">Choose a dataset...</option>
+                                    {datasets.map(ds => (
+                                        <option key={ds.id} value={ds.id}>{ds.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Show current output preview */}
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Current Output</label>
+                                <div className="bg-app border border-border-base rounded-xl p-3 text-xs text-text-main max-h-24 overflow-y-auto">
+                                    {currentOutput || '(No output)'}
+                                </div>
+                            </div>
+
+                            {/* Correction textarea (only for correct action) */}
+                            {actionType === 'correct' && (
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2">
+                                        ✓ Corrected Expected Output
+                                    </label>
+                                    <textarea
+                                        value={correctedOutput}
+                                        onChange={(e) => setCorrectedOutput(e.target.value)}
+                                        className="w-full bg-emerald-500/5 border border-emerald-500/30 rounded-xl px-4 py-3 text-sm text-text-main h-32 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        placeholder="Enter the correct expected output..."
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex gap-4 pt-2">
+                                <button
+                                    onClick={() => setShowCorrectModal(false)}
+                                    className="flex-1 px-4 py-3 bg-app border border-border-base rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handlePromote}
+                                    disabled={isPromoting || !selectedDatasetId}
+                                    className={`flex-1 px-4 py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all disabled:opacity-50 ${actionType === 'good' ? 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600' :
+                                            actionType === 'correct' ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' :
+                                                'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
+                                        }`}
+                                >
+                                    {isPromoting ? 'Adding...' :
+                                        actionType === 'good' ? '👍 Add as Gold' :
+                                            actionType === 'correct' ? '✏️ Add Corrected' :
+                                                '👎 Add as Anti-Pattern'
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
