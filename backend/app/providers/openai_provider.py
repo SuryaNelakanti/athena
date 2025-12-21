@@ -44,13 +44,20 @@ class OpenAIEnvoy(TitanEnvoy):
 
         # Map Response
         choices = []
+        reasoning_content = None
+        
         for c in response.choices:
+            # Extract reasoning content for o1/o3 models if present
+            # OpenAI returns this as a separate field on the message for reasoning models
+            if hasattr(c.message, 'reasoning_content') and c.message.reasoning_content:
+                reasoning_content = c.message.reasoning_content
+            
             choices.append(ChatCompletionChoice(
                 index=c.index,
                 message=ChatMessage(
                     role=c.message.role,
                     content=c.message.content or "",
-                    name=None # OpenAI struct doesn't strictly have name in response usually
+                    name=None
                 ),
                 finish_reason=c.finish_reason
             ))
@@ -65,10 +72,10 @@ class OpenAIEnvoy(TitanEnvoy):
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
                 latency_ms=latency
-                # Cost calculation to be added later based on model
             ),
             system_fingerprint=response.system_fingerprint,
-            provider="openai"
+            provider="openai",
+            athena_reasoning=reasoning_content  # Pass through reasoning for o1/o3 models
         )
 
     async def stream_chat_completion(self, request: ChatCompletionRequest) -> AsyncGenerator[ChatCompletionChunk, None]:
@@ -95,9 +102,15 @@ class OpenAIEnvoy(TitanEnvoy):
         async for chunk in stream:
             choices = []
             for c in chunk.choices:
+                # Extract reasoning_content delta for o1/o3 models if present
+                reasoning_delta = None
+                if hasattr(c.delta, 'reasoning_content'):
+                    reasoning_delta = c.delta.reasoning_content
+                
                 delta = ChatCompletionChunkDelta(
                     role=c.delta.role,
-                    content=c.delta.content
+                    content=c.delta.content,
+                    reasoning_content=reasoning_delta  # Pass through reasoning delta
                 )
                 choices.append(ChatCompletionChunkChoice(
                     index=c.index,
@@ -110,7 +123,6 @@ class OpenAIEnvoy(TitanEnvoy):
                 model=chunk.model,
                 created=chunk.created,
                 choices=choices,
-                # system_fingerprint=chunk.system_fingerprint # Pydantic warning if not in schema? It's optional in schema.
             )
     
     async def list_models(self) -> List[str]:

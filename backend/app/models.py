@@ -14,6 +14,38 @@ class SpanType(str, Enum):
 
 # Database Models
 
+# --- Organization Model ---
+class OrganizationModel(SQLModel, table=True):
+    """Organizations are the top-level container for projects and users."""
+    __tablename__ = "organization"
+    
+    id: str = Field(primary_key=True)
+    name: str
+    description: Optional[str] = None
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+
+# --- Audit Log Model ---
+class AuditLogModel(SQLModel, table=True):
+    """
+    Audit logs record who-did-what for compliance and debugging.
+    Every mutating action should create an audit log entry.
+    """
+    __tablename__ = "audit_log"
+    
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    actor_id: Optional[str] = Field(default=None, index=True)  # user or service account ID
+    action: str = Field(index=True)  # CREATE, UPDATE, DELETE, RUN, etc.
+    entity_type: str = Field(index=True)  # project, dataset, experiment, trace, function, etc.
+    entity_id: str = Field(index=True)
+    changes: Dict = Field(sa_column=Column(JSON), default={})  # {field: {old, new}}
+    audit_metadata: Dict = Field(sa_column=Column(JSON), default={})  # Additional context
+    timestamp: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
 class Project(SQLModel, table=True):
     id: str = Field(primary_key=True)
     name: str
@@ -103,6 +135,29 @@ class LogModel(SQLModel, table=True):
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
 
+# --- Review Queue Models ---
+
+class ReviewItemModel(SQLModel, table=True):
+    __tablename__ = "review_item"
+
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: str = Field(index=True)
+    source_type: str = Field(index=True)  # trace | log | experiment_result | dataset_row
+    source_id: str = Field(index=True)
+    status: str = Field(default="open", index=True)  # open | in_review | resolved | dismissed
+    priority: int = Field(default=0, index=True)
+    labels: List[str] = Field(sa_column=Column(JSON), default=[])
+    score: Optional[float] = Field(default=None)
+    notes: Optional[str] = Field(default=None)
+    dataset_id: Optional[str] = Field(default=None, index=True)
+    dataset_row_id: Optional[str] = Field(default=None, index=True)
+    meta: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    resolved_at: Optional[int] = Field(default=None, index=True)
+
+
 
 # --- Dataset Models ---
 
@@ -123,6 +178,7 @@ class DatasetRowModel(SQLModel, table=True):
     # Append-only versioning fields
     logical_id: str = Field(index=True)  # Groups revisions of the same logical row
     version: int = Field(default=1)  # Revision number for this logical row
+    dataset_version: int = Field(default=1, index=True)  # Dataset version when this revision was added
     is_deleted: bool = Field(default=False)  # Tombstone marker for soft deletes
     
     # Content fields
@@ -132,6 +188,102 @@ class DatasetRowModel(SQLModel, table=True):
     example_type: str = Field(default="gold")  # "gold" (positive example) or "anti_pattern" (negative example)
     source_trace_id: Optional[str] = Field(default=None)  # If promoted from a trace
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
+
+class DatasetVersionModel(SQLModel, table=True):
+    __tablename__ = "dataset_version"
+    __table_args__ = (UniqueConstraint("dataset_id", "version", name="uq_dataset_version"),)
+
+    id: str = Field(primary_key=True)
+    dataset_id: str = Field(foreign_key="dataset.id", index=True)
+    version: int = Field(index=True)
+    action: str = Field(index=True)  # insert, update, delete, flush
+    logical_id: Optional[str] = Field(default=None, index=True)
+    row_id: Optional[str] = Field(default=None, index=True)
+    meta: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+# --- Collaboration Primitives ---
+
+class AttachmentModel(SQLModel, table=True):
+    __tablename__ = "attachment"
+
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    object_type: str = Field(index=True)
+    object_id: str = Field(index=True)
+    kind: str = Field(default="external", index=True)  # external | internal
+    url: str
+    content_type: Optional[str] = Field(default=None)
+    size_bytes: Optional[int] = Field(default=None)
+    label: Optional[str] = Field(default=None)
+    meta: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class AssignmentModel(SQLModel, table=True):
+    __tablename__ = "assignment"
+
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    object_type: str = Field(index=True)
+    object_id: str = Field(index=True)
+    assignee: str = Field(index=True)  # email or user id
+    status: str = Field(default="open", index=True)  # open | resolved
+    note: Optional[str] = Field(default=None)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class MentionModel(SQLModel, table=True):
+    __tablename__ = "mention"
+
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    object_type: str = Field(index=True)
+    object_id: str = Field(index=True)
+    mentioned: str = Field(index=True)  # email or user id
+    note: Optional[str] = Field(default=None)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class ShareLinkModel(SQLModel, table=True):
+    __tablename__ = "share_link"
+    __table_args__ = (UniqueConstraint("token", name="uq_share_link_token"),)
+
+    id: str = Field(primary_key=True)
+    token: str = Field(index=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    object_type: str = Field(index=True)
+    object_id: str = Field(index=True)
+    expires_at: Optional[int] = Field(default=None, index=True)
+    revoked_at: Optional[int] = Field(default=None, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+# --- Job Model ---
+
+class JobModel(SQLModel, table=True):
+    __tablename__ = "job"
+
+    id: str = Field(primary_key=True)
+    kind: str = Field(index=True)  # e.g. experiment_run
+    ref_id: str = Field(index=True)
+    status: str = Field(default="queued", index=True)  # queued | running | completed | error
+    attempts: int = Field(default=0)
+    max_attempts: int = Field(default=3)
+    locked_at: Optional[int] = Field(default=None, index=True)
+    started_at: Optional[int] = Field(default=None, index=True)
+    completed_at: Optional[int] = Field(default=None, index=True)
+    last_error: Optional[str] = Field(default=None)
+    payload: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
 
 

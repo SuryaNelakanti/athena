@@ -9,6 +9,7 @@ import ExperimentList from './components/ExperimentList';
 import DatasetDetail from './components/DatasetDetail';
 import ExperimentDetail from './components/ExperimentDetail';
 import Settings from './components/Settings';
+import ReviewQueue from './components/ReviewQueue';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace, Log } from './types';
 
@@ -106,6 +107,9 @@ const App: React.FC = () => {
     }
     if (currentPath === '/labs') {
       return <Labs />;
+    }
+    if (currentPath === '/review') {
+      return <ReviewQueue projectId={currentProject?.id || ''} />;
     }
     if (currentPath.startsWith('/logs')) {
       return (

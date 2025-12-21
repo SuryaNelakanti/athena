@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Dataset, DatasetRow } from '../types';
+import { Dataset, DatasetRow, DatasetVersion } from '../types';
 import {
     ChevronLeftIcon,
     CircleStackIcon,
@@ -25,6 +25,11 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'gold' | 'anti_pattern'>('all');
+    const [activeTab, setActiveTab] = useState<'examples' | 'history'>('examples');
+    const [history, setHistory] = useState<DatasetVersion[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+    const [rowHistory, setRowHistory] = useState<Record<string, DatasetRow[]>>({});
 
     // Add Example Modal State
     const [showAddModal, setShowAddModal] = useState(false);
@@ -45,9 +50,30 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
         }
     };
 
+    const loadHistory = async () => {
+        setHistoryLoading(true);
+        try {
+            const data = await api.getDatasetHistory(dataset.id);
+            setHistory(data);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadRows();
     }, [dataset.id]);
+
+    useEffect(() => {
+        setRowHistory({});
+        setExpandedHistoryId(null);
+    }, [dataset.id]);
+
+    useEffect(() => {
+        if (activeTab === 'history') {
+            loadHistory();
+        }
+    }, [dataset.id, activeTab]);
 
     // Extract human-readable text from input/expected objects
     const extractText = (obj: any): string => {
@@ -70,6 +96,22 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
             if (typeof obj[key] === 'string') return obj[key];
         }
         return JSON.stringify(obj);
+    };
+
+    const handleToggleHistory = async (entry: DatasetVersion) => {
+        if (expandedHistoryId === entry.id) {
+            setExpandedHistoryId(null);
+            return;
+        }
+        setExpandedHistoryId(entry.id);
+        if (entry.logical_id && !rowHistory[entry.logical_id]) {
+            try {
+                const rows = await api.getDatasetRowHistory(dataset.id, entry.logical_id);
+                setRowHistory((prev) => ({ ...prev, [entry.logical_id as string]: rows }));
+            } catch {
+                // ignore history load errors
+            }
+        }
     };
 
     // Filter rows
@@ -165,151 +207,242 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     </div>
                 </div>
 
-                {/* Search & Filter */}
-                <div className="px-8 pb-4 flex gap-4">
-                    <div className="relative flex-1">
-                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                        <input
-                            type="text"
-                            placeholder="Search examples..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-app border border-border-base rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple/50"
-                        />
-                    </div>
-                    <div className="flex rounded-xl border border-border-base overflow-hidden">
+                <div className="px-8 pb-4">
+                    <div className="flex rounded-xl border border-border-base overflow-hidden w-max">
                         <button
-                            onClick={() => setFilterType('all')}
-                            className={`px-4 py-2 text-xs font-bold ${filterType === 'all' ? 'bg-wispr-purple text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
+                            onClick={() => setActiveTab('examples')}
+                            className={`px-4 py-2 text-xs font-bold ${activeTab === 'examples' ? 'bg-wispr-purple text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
                         >
-                            All
+                            Examples
                         </button>
                         <button
-                            onClick={() => setFilterType('gold')}
-                            className={`px-4 py-2 text-xs font-bold ${filterType === 'gold' ? 'bg-emerald-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
+                            onClick={() => setActiveTab('history')}
+                            className={`px-4 py-2 text-xs font-bold ${activeTab === 'history' ? 'bg-wispr-purple text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
                         >
-                            ✓ Gold
-                        </button>
-                        <button
-                            onClick={() => setFilterType('anti_pattern')}
-                            className={`px-4 py-2 text-xs font-bold ${filterType === 'anti_pattern' ? 'bg-rose-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
-                        >
-                            ✗ Anti
+                            History
                         </button>
                     </div>
                 </div>
+
+                {activeTab === 'examples' && (
+                    <div className="px-8 pb-4 flex gap-4">
+                        <div className="relative flex-1">
+                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                            <input
+                                type="text"
+                                placeholder="Search examples..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-app border border-border-base rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple/50"
+                            />
+                        </div>
+                        <div className="flex rounded-xl border border-border-base overflow-hidden">
+                            <button
+                                onClick={() => setFilterType('all')}
+                                className={`px-4 py-2 text-xs font-bold ${filterType === 'all' ? 'bg-wispr-purple text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
+                            >
+                                All
+                            </button>
+                            <button
+                                onClick={() => setFilterType('gold')}
+                                className={`px-4 py-2 text-xs font-bold ${filterType === 'gold' ? 'bg-emerald-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
+                            >
+                                ✓ Gold
+                            </button>
+                            <button
+                                onClick={() => setFilterType('anti_pattern')}
+                                className={`px-4 py-2 text-xs font-bold ${filterType === 'anti_pattern' ? 'bg-rose-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
+                            >
+                                ✗ Anti
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Examples List */}
             <div className="flex-1 overflow-y-auto p-8">
-                {loading ? (
-                    <div className="py-20 text-center text-text-muted italic">Loading examples...</div>
-                ) : filteredRows.length === 0 ? (
-                    <div className="py-20 text-center">
-                        <CircleStackIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
-                        <p className="text-text-muted italic mb-4">
-                            {searchQuery ? 'No examples match your search.' : 'No examples in this dataset yet.'}
-                        </p>
-                        <button
-                            onClick={() => setShowAddModal(true)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-wispr-purple/10 text-wispr-purple rounded-xl text-sm font-bold hover:bg-wispr-purple/20 transition-all"
-                        >
-                            <PlusIcon className="w-4 h-4" /> Add Your First Example
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {filteredRows.map((row, idx) => {
-                            const isExpanded = expandedRowId === row.id;
-                            const inputText = extractText(row.input);
-                            const expectedText = extractExpected(row.expected);
-                            const isAntiPattern = row.example_type === 'anti_pattern';
-
-                            return (
-                                <div
-                                    key={row.id}
-                                    className={`bg-panel border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all ${isAntiPattern ? 'border-rose-500/30' : 'border-border-base'
-                                        }`}
+                {activeTab === 'examples' ? (
+                    <>
+                        {loading ? (
+                            <div className="py-20 text-center text-text-muted italic">Loading examples...</div>
+                        ) : filteredRows.length === 0 ? (
+                            <div className="py-20 text-center">
+                                <CircleStackIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
+                                <p className="text-text-muted italic mb-4">
+                                    {searchQuery ? 'No examples match your search.' : 'No examples in this dataset yet.'}
+                                </p>
+                                <button
+                                    onClick={() => setShowAddModal(true)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-wispr-purple/10 text-wispr-purple rounded-xl text-sm font-bold hover:bg-wispr-purple/20 transition-all"
                                 >
-                                    {/* Row Header */}
-                                    <button
-                                        onClick={() => setExpandedRowId(isExpanded ? null : row.id)}
-                                        className="w-full px-6 py-4 flex items-start gap-4 text-left hover:bg-panel-hover transition-colors"
-                                    >
-                                        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isAntiPattern
-                                                ? 'bg-rose-500/10 text-rose-500'
-                                                : 'bg-wispr-purple/10 text-wispr-purple'
-                                            }`}>
-                                            {isAntiPattern ? <XMarkIcon className="w-4 h-4" /> : idx + 1}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                {isAntiPattern && (
-                                                    <span className="text-[9px] bg-rose-500/20 text-rose-500 px-1.5 py-0.5 rounded-full font-bold uppercase">Anti-Pattern</span>
-                                                )}
-                                                {row.source_trace_id && (
-                                                    <span className="text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">From Trace</span>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-text-main line-clamp-2 font-medium">{inputText}</p>
-                                            <p className="text-xs text-text-muted mt-1 line-clamp-1">
-                                                <span className={isAntiPattern ? 'text-rose-500 font-medium' : 'text-emerald-500 font-medium'}>
-                                                    {isAntiPattern ? 'Avoid:' : 'Expected:'}
-                                                </span> {expectedText}
-                                            </p>
-                                        </div>
-                                        <div className="flex-shrink-0">
-                                            {isExpanded ? (
-                                                <ChevronDownIcon className="w-5 h-5 text-text-muted" />
-                                            ) : (
-                                                <ChevronRightIcon className="w-5 h-5 text-text-muted" />
-                                            )}
-                                        </div>
-                                    </button>
+                                    <PlusIcon className="w-4 h-4" /> Add Your First Example
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {filteredRows.map((row, idx) => {
+                                    const isExpanded = expandedRowId === row.id;
+                                    const inputText = extractText(row.input);
+                                    const expectedText = extractExpected(row.expected);
+                                    const isAntiPattern = row.example_type === 'anti_pattern';
 
-                                    {/* Expanded Content */}
-                                    {isExpanded && (
-                                        <div className="px-6 pb-6 pt-2 border-t border-border-base/50">
-                                            <div className="grid md:grid-cols-2 gap-4">
-                                                {/* Input */}
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <DocumentTextIcon className="w-4 h-4 text-wispr-purple" />
-                                                        <span className="text-xs font-bold uppercase tracking-wider text-wispr-purple">Input (Prompt)</span>
-                                                    </div>
-                                                    <div className="bg-app rounded-xl border border-border-base p-4">
-                                                        <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
-                                                    </div>
+                                    return (
+                                        <div
+                                            key={row.id}
+                                            className={`bg-panel border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all ${isAntiPattern ? 'border-rose-500/30' : 'border-border-base'
+                                                }`}
+                                        >
+                                            {/* Row Header */}
+                                            <button
+                                                onClick={() => setExpandedRowId(isExpanded ? null : row.id)}
+                                                className="w-full px-6 py-4 flex items-start gap-4 text-left hover:bg-panel-hover transition-colors"
+                                            >
+                                                <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isAntiPattern
+                                                    ? 'bg-rose-500/10 text-rose-500'
+                                                    : 'bg-wispr-purple/10 text-wispr-purple'
+                                                    }`}>
+                                                    {isAntiPattern ? <XMarkIcon className="w-4 h-4" /> : idx + 1}
                                                 </div>
-
-                                                {/* Expected */}
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        {isAntiPattern ? (
-                                                            <>
-                                                                <ExclamationTriangleIcon className="w-4 h-4 text-rose-500" />
-                                                                <span className="text-xs font-bold uppercase tracking-wider text-rose-500">Anti-Pattern (Avoid This)</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
-                                                                <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Expected Output</span>
-                                                            </>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {isAntiPattern && (
+                                                            <span className="text-[9px] bg-rose-500/20 text-rose-500 px-1.5 py-0.5 rounded-full font-bold uppercase">Anti-Pattern</span>
+                                                        )}
+                                                        {row.source_trace_id && (
+                                                            <span className="text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded-full font-medium">From Trace</span>
                                                         )}
                                                     </div>
-                                                    <div className={`rounded-xl p-4 ${isAntiPattern
-                                                            ? 'bg-rose-500/5 border border-rose-500/20'
-                                                            : 'bg-emerald-500/5 border border-emerald-500/20'
-                                                        }`}>
-                                                        <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
+                                                    <p className="text-sm text-text-main line-clamp-2 font-medium">{inputText}</p>
+                                                    <p className="text-xs text-text-muted mt-1 line-clamp-1">
+                                                        <span className={isAntiPattern ? 'text-rose-500 font-medium' : 'text-emerald-500 font-medium'}>
+                                                            {isAntiPattern ? 'Avoid:' : 'Expected:'}
+                                                        </span> {expectedText}
+                                                    </p>
+                                                </div>
+                                                <div className="flex-shrink-0">
+                                                    {isExpanded ? (
+                                                        <ChevronDownIcon className="w-5 h-5 text-text-muted" />
+                                                    ) : (
+                                                        <ChevronRightIcon className="w-5 h-5 text-text-muted" />
+                                                    )}
+                                                </div>
+                                            </button>
+
+                                            {/* Expanded Content */}
+                                            {isExpanded && (
+                                                <div className="px-6 pb-6 pt-2 border-t border-border-base/50">
+                                                    <div className="grid md:grid-cols-2 gap-4">
+                                                        {/* Input */}
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <DocumentTextIcon className="w-4 h-4 text-wispr-purple" />
+                                                                <span className="text-xs font-bold uppercase tracking-wider text-wispr-purple">Input (Prompt)</span>
+                                                            </div>
+                                                            <div className="bg-app rounded-xl border border-border-base p-4">
+                                                                <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Expected */}
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                {isAntiPattern ? (
+                                                                    <>
+                                                                        <ExclamationTriangleIcon className="w-4 h-4 text-rose-500" />
+                                                                        <span className="text-xs font-bold uppercase tracking-wider text-rose-500">Anti-Pattern (Avoid This)</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Expected Output</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                            <div className={`rounded-xl p-4 ${isAntiPattern
+                                                                ? 'bg-rose-500/5 border border-rose-500/20'
+                                                                : 'bg-emerald-500/5 border border-emerald-500/20'
+                                                                }`}>
+                                                                <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div>
+                        {historyLoading ? (
+                            <div className="py-20 text-center text-text-muted italic">Loading history...</div>
+                        ) : history.length === 0 ? (
+                            <div className="py-20 text-center text-text-muted italic">No history yet.</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {history.map((entry) => {
+                                    const isExpanded = expandedHistoryId === entry.id;
+                                    const rowsForLogical = entry.logical_id ? rowHistory[entry.logical_id] : undefined;
+                                    const currentRow = rowsForLogical?.find((r) => r.id === entry.row_id) || rowsForLogical?.[rowsForLogical.length - 1];
+                                    const currentIndex = currentRow && rowsForLogical ? rowsForLogical.findIndex((r) => r.id === currentRow.id) : -1;
+                                    const previousRow = currentIndex > 0 && rowsForLogical ? rowsForLogical[currentIndex - 1] : null;
+
+                                    return (
+                                        <div key={entry.id} className="bg-panel border border-border-base rounded-2xl overflow-hidden">
+                                            <button
+                                                onClick={() => handleToggleHistory(entry)}
+                                                className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-panel-hover transition-colors"
+                                            >
+                                                <div>
+                                                    <div className="text-xs text-text-muted uppercase tracking-wider">Version {entry.version}</div>
+                                                    <div className="text-sm font-bold text-text-main">{entry.action}</div>
+                                                    <div className="text-[10px] text-text-muted mt-1">{new Date(entry.created_at).toLocaleString()}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {entry.action === 'flush' && (
+                                                        <span className="text-[10px] text-amber-500 font-bold">Flush</span>
+                                                    )}
+                                                    {isExpanded ? (
+                                                        <ChevronDownIcon className="w-5 h-5 text-text-muted" />
+                                                    ) : (
+                                                        <ChevronRightIcon className="w-5 h-5 text-text-muted" />
+                                                    )}
+                                                </div>
+                                            </button>
+                                            {isExpanded && entry.logical_id && (
+                                                <div className="px-5 pb-5 pt-2 border-t border-border-base/50">
+                                                    {!rowsForLogical ? (
+                                                        <div className="text-xs text-text-muted italic">Loading row history...</div>
+                                                    ) : (
+                                                        <div className="grid md:grid-cols-2 gap-4">
+                                                            {previousRow && (
+                                                                <div>
+                                                                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Previous</div>
+                                                                    <div className="bg-app border border-border-base rounded-xl p-3 text-xs text-text-main whitespace-pre-wrap">
+                                                                        {`${extractText(previousRow.input)}\n\nExpected: ${extractExpected(previousRow.expected)}`}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {currentRow && (
+                                                                <div>
+                                                                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Current</div>
+                                                                    <div className="bg-app border border-border-base rounded-xl p-3 text-xs text-text-main whitespace-pre-wrap">
+                                                                        {`${extractText(currentRow.input)}\n\nExpected: ${extractExpected(currentRow.expected)}`}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -335,8 +468,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                         type="button"
                                         onClick={() => setNewExample(p => ({ ...p, example_type: 'gold' }))}
                                         className={`flex-1 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${newExample.example_type === 'gold'
-                                                ? 'bg-emerald-500 text-white'
-                                                : 'bg-app text-text-muted hover:bg-panel-hover'
+                                            ? 'bg-emerald-500 text-white'
+                                            : 'bg-app text-text-muted hover:bg-panel-hover'
                                             }`}
                                     >
                                         <CheckCircleIcon className="w-4 h-4" /> Gold Example
@@ -345,8 +478,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                         type="button"
                                         onClick={() => setNewExample(p => ({ ...p, example_type: 'anti_pattern' }))}
                                         className={`flex-1 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${newExample.example_type === 'anti_pattern'
-                                                ? 'bg-rose-500 text-white'
-                                                : 'bg-app text-text-muted hover:bg-panel-hover'
+                                            ? 'bg-rose-500 text-white'
+                                            : 'bg-app text-text-muted hover:bg-panel-hover'
                                             }`}
                                     >
                                         <XMarkIcon className="w-4 h-4" /> Anti-Pattern
@@ -379,8 +512,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     value={newExample.expected}
                                     onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
                                     className={`w-full border rounded-xl px-4 py-3 text-sm text-text-main h-28 resize-none focus:outline-none focus:ring-2 ${newExample.example_type === 'gold'
-                                            ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
-                                            : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
+                                        ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
+                                        : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
                                         }`}
                                     placeholder={newExample.example_type === 'gold'
                                         ? "What's the correct response?"
@@ -398,8 +531,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                 <button
                                     onClick={handleAddExample}
                                     className={`flex-1 px-4 py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all ${newExample.example_type === 'gold'
-                                            ? 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600'
-                                            : 'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
+                                        ? 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600'
+                                        : 'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
                                         }`}
                                 >
                                     {newExample.example_type === 'gold' ? '✓ Add Gold Example' : '✗ Add Anti-Pattern'}

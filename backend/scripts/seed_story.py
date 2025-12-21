@@ -22,6 +22,7 @@ from app.models import (
     FunctionModel,
     LogModel,
     ModelRegistryModel,
+    OrganizationModel,
     Project,
     SpanModel,
     SpanType,
@@ -101,6 +102,26 @@ async def wipe_and_init(engine) -> None:
 
 async def seed_core(session: AsyncSession) -> None:
     org_id = "org_octoworks"
+    base = now_ms()
+    
+    # Seed organization first
+    session.add(OrganizationModel(
+        id=org_id,
+        name="OctoWorks Inc.",
+        description="Enterprise AI platform for support, legal, and GTM teams",
+        created_at=base - 30_000_000,
+        updated_at=base - 1_000_000
+    ))
+    
+    # Also seed a default organization
+    session.add(OrganizationModel(
+        id="org_default",
+        name="Default Organization",
+        description="Auto-created default organization",
+        created_at=base - 30_000_000,
+        updated_at=base - 30_000_000
+    ))
+    
     projects = [
         ("proj_support", "OctoWorks - Support"),
         ("proj_legal", "OctoWorks - Legal"),

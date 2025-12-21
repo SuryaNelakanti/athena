@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict
+from typing import List, Dict, Any
 from contextlib import asynccontextmanager
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .database import init_db, get_session, AsyncSessionLocal
 from .models import (
     Trace, Span, Project, TraceModel, SpanModel, 
-    SpanMetrics, SpanAttributes, SpanType
+    SpanMetrics, SpanAttributes, SpanType, OrganizationModel
 )
 from .routers import proxy as proxy_router
 from .routers import views as views_router
@@ -20,6 +20,13 @@ from .routers import projects as projects_router
 from .routers import logs as logs_router
 from .routers import functions as functions_router
 from .routers import guardrails as guardrails_router
+from .routers import organizations as organizations_router
+from .routers import audit as audit_router
+from .routers import attachments as attachments_router
+from .routers import assignments as assignments_router
+from .routers import mentions as mentions_router
+from .routers import share_links as share_links_router
+from .routers import reviews as reviews_router
 
 # --- Startup ---
 @asynccontextmanager
@@ -27,10 +34,26 @@ async def lifespan(app: FastAPI):
     # Initialize DB (Async)
     await init_db()
     
-    # Seed default project if none exist
+    # Seed default organization and project if none exist
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Project))
-        if not result.scalars().first():
+        # Check and seed default organization
+        org_result = await session.execute(select(OrganizationModel))
+        if not org_result.scalars().first():
+            import time
+            default_org = OrganizationModel(
+                id="org_default",
+                name="Default Organization",
+                description="Auto-created default organization",
+                created_at=int(time.time() * 1000),
+                updated_at=int(time.time() * 1000)
+            )
+            session.add(default_org)
+            await session.commit()
+            print("✓ Seeded default organization: org_default")
+        
+        # Check and seed default project
+        project_result = await session.execute(select(Project))
+        if not project_result.scalars().first():
             default_project = Project(
                 id="proj_default",
                 name="Default Project",
@@ -55,6 +78,7 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(proxy_router.router)
+app.include_router(organizations_router.router)
 app.include_router(projects_router.router)
 app.include_router(logs_router.router)
 app.include_router(views_router.router)
@@ -64,6 +88,12 @@ app.include_router(model_registry_router.router)
 app.include_router(providers_router.router)
 app.include_router(functions_router.router)
 app.include_router(guardrails_router.router)
+app.include_router(audit_router.router)
+app.include_router(attachments_router.router)
+app.include_router(assignments_router.router)
+app.include_router(mentions_router.router)
+app.include_router(share_links_router.router)
+app.include_router(reviews_router.router)
 
 from sqlalchemy import func
 
@@ -225,5 +255,90 @@ async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session
         "status": "success", 
         "trace_id": trace.id,
         "root_span_id": root_span_id or trace.root_span.id
+    }
+
+
+@app.post("/traces/batch", response_model=Dict[str, Any])
+async def create_traces_batch(
+    traces: List[Trace], 
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Create multiple traces in a single request.
+    
+    Max batch size: 10 traces.
+    """
+    if len(traces) > 10:
+        raise HTTPException(
+            status_code=400, 
+            detail="Batch size cannot exceed 10 traces"
+        )
+    
+    if len(traces) == 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="Batch must contain at least one trace"
+        )
+    
+    created_traces = []
+    
+    for trace in traces:
+        # Validate span parent pointers
+        span_ids = {span.id for span in trace.spans}
+        root_span_id = None
+        
+        for span in trace.spans:
+            if span.parent_id and span.parent_id not in span_ids:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Parent span '{span.parent_id}' not found in trace '{trace.id}' for span '{span.id}'"
+                )
+            if not span.parent_id and root_span_id is None:
+                root_span_id = span.id
+        
+        # Create TraceModel
+        trace_model = TraceModel(
+            id=trace.id,
+            project_id=trace.project_id,
+            timestamp=trace.timestamp,
+            total_latency=trace.total_latency,
+            total_cost=trace.total_cost,
+            total_tokens=trace.total_tokens,
+            status=trace.status,
+            tags=trace.tags
+        )
+        session.add(trace_model)
+        
+        # Create SpanModels
+        for span in trace.spans:
+            span_model = SpanModel(
+                id=span.id,
+                trace_id=trace.id,
+                parent_id=span.parent_id,
+                name=span.name,
+                type=span.type,
+                start_time=span.start_time,
+                end_time=span.end_time,
+                status=span.status,
+                input=span.input,
+                output=span.output,
+                metrics=span.metrics.dict(),
+                attributes=span.attributes.dict(),
+                tags=span.tags,
+                error_message=span.error_message
+            )
+            session.add(span_model)
+        
+        created_traces.append({
+            "trace_id": trace.id,
+            "root_span_id": root_span_id or trace.root_span.id
+        })
+    
+    await session.commit()
+    
+    return {
+        "status": "success",
+        "count": len(created_traces),
+        "traces": created_traces
     }
 

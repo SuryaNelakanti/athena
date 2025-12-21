@@ -168,6 +168,15 @@ class ExperimentV2Service:
         self.session.add(run)
         await self.session.commit()
         await self.session.refresh(run)
+
+        from app.services.job_service import JobService
+
+        job_service = JobService(self.session)
+        job = await job_service.create_job(kind="experiment_run", ref_id=run.id)
+        run.summary = {**(run.summary or {}), "job_id": job.id}
+        self.session.add(run)
+        await self.session.commit()
+        await self.session.refresh(run)
         return run
 
     async def list_runs_for_version(self, version_id: str) -> list[ExperimentRunModel]:
@@ -321,9 +330,9 @@ class ExperimentV2Service:
                 await session.commit()
                 return
 
-            rows_stmt = select(DatasetRowModel).where(DatasetRowModel.dataset_id == experiment.dataset_id)
-            rows_res = await session.execute(rows_stmt)
-            rows = rows_res.scalars().all()
+            from app.services.dataset_service import DatasetService
+            dataset_service = DatasetService(session)
+            rows = await dataset_service.list_rows(experiment.dataset_id, at_version=version.dataset_version_pinned)
 
             run.status = "running"
             run.started_at = int(time.time() * 1000)

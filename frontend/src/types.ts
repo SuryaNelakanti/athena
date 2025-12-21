@@ -75,6 +75,7 @@ export interface DatasetRow {
   // Versioning fields
   logical_id: string;  // Groups revisions of the same logical row
   version: number;  // Revision number
+  dataset_version?: number; // Dataset version when this revision was added
   is_deleted: boolean;  // Tombstone marker
   // Content fields
   input: any;
@@ -82,6 +83,17 @@ export interface DatasetRow {
   meta: Record<string, any>;
   example_type: 'gold' | 'anti_pattern';  // "gold" (positive example) or "anti_pattern" (negative example)
   source_trace_id?: string;  // If promoted from a trace
+  created_at: number;
+}
+
+export interface DatasetVersion {
+  id: string;
+  dataset_id: string;
+  version: number;
+  action: 'insert' | 'update' | 'delete' | 'flush' | string;
+  logical_id?: string | null;
+  row_id?: string | null;
+  meta: Record<string, any>;
   created_at: number;
 }
 
@@ -162,6 +174,80 @@ export interface Function {
   created_at: number;
 }
 
+// --- Collaboration primitives ---
+
+export interface Attachment {
+  id: string;
+  org_id?: string | null;
+  project_id?: string | null;
+  object_type: string;
+  object_id: string;
+  kind: 'external' | 'internal' | string;
+  url: string;
+  content_type?: string | null;
+  size_bytes?: number | null;
+  label?: string | null;
+  meta: Record<string, any>;
+  created_at: number;
+}
+
+export interface Assignment {
+  id: string;
+  org_id?: string | null;
+  project_id?: string | null;
+  object_type: string;
+  object_id: string;
+  assignee: string;
+  status: 'open' | 'resolved' | string;
+  note?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Mention {
+  id: string;
+  org_id?: string | null;
+  project_id?: string | null;
+  object_type: string;
+  object_id: string;
+  mentioned: string;
+  note?: string | null;
+  created_at: number;
+}
+
+export interface ShareLink {
+  id: string;
+  token: string;
+  org_id?: string | null;
+  project_id?: string | null;
+  object_type: string;
+  object_id: string;
+  expires_at?: number | null;
+  revoked_at?: number | null;
+  created_at: number;
+}
+
+// --- Review queue ---
+
+export interface ReviewItem {
+  id: string;
+  org_id?: string | null;
+  project_id: string;
+  source_type: string;
+  source_id: string;
+  status: 'open' | 'in_review' | 'resolved' | 'dismissed' | string;
+  priority: number;
+  labels: string[];
+  score?: number | null;
+  notes?: string | null;
+  dataset_id?: string | null;
+  dataset_row_id?: string | null;
+  meta: Record<string, any>;
+  created_at: number;
+  updated_at: number;
+  resolved_at?: number | null;
+}
+
 // --- Log types (first-class, separate from traces) ---
 
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
@@ -187,4 +273,3 @@ export interface Log {
   log_metadata: Record<string, any>;
   created_at: number;
 }
-

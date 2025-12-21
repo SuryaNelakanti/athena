@@ -166,6 +166,18 @@ export const api = {
         return response.json();
     },
 
+    getDatasetHistory: async (datasetId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/history`);
+        if (!response.ok) throw new Error('Failed to fetch dataset history');
+        return response.json();
+    },
+
+    getDatasetRowHistory: async (datasetId: string, logicalId: string): Promise<any[]> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows/${logicalId}/history`);
+        if (!response.ok) throw new Error('Failed to fetch dataset row history');
+        return response.json();
+    },
+
     addDatasetRow: async (datasetId: string, row: {
         input: any;
         expected: any;
@@ -178,6 +190,45 @@ export const api = {
             body: JSON.stringify(row),
         });
         if (!response.ok) throw new Error('Failed to add dataset row');
+        return response.json();
+    },
+
+    updateDatasetRow: async (
+        datasetId: string,
+        rowId: string,
+        updates: {
+            input?: any;
+            expected?: any;
+            example_type?: string;
+            meta?: any;
+            is_deleted?: boolean;
+            reason?: string;
+        }
+    ): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows/${rowId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+        });
+        if (!response.ok) throw new Error('Failed to update dataset row');
+        return response.json();
+    },
+
+    deleteDatasetRow: async (datasetId: string, rowId: string, reason?: string): Promise<any> => {
+        const params = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows/${rowId}${params}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete dataset row');
+        return response.json();
+    },
+
+    flushDataset: async (datasetId: string, reason?: string): Promise<any> => {
+        const params = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/flush${params}`, {
+            method: 'POST',
+        });
+        if (!response.ok) throw new Error('Failed to flush dataset');
         return response.json();
     },
 
@@ -201,6 +252,221 @@ export const api = {
         return response.json();
     },
 
+    // Attachments
+    listAttachments: async (filters: { object_type?: string; object_id?: string; project_id?: string }): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters.object_type) params.append('object_type', filters.object_type);
+        if (filters.object_id) params.append('object_id', filters.object_id);
+        if (filters.project_id) params.append('project_id', filters.project_id);
+        const response = await fetch(`${API_BASE_URL}/attachments?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch attachments');
+        return response.json();
+    },
+
+    createAttachment: async (payload: {
+        org_id?: string;
+        project_id?: string;
+        object_type: string;
+        object_id: string;
+        kind?: string;
+        url: string;
+        content_type?: string;
+        size_bytes?: number;
+        label?: string;
+        meta?: any;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/attachments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create attachment');
+        return response.json();
+    },
+
+    deleteAttachment: async (attachmentId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/attachments/${attachmentId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete attachment');
+        return response.json();
+    },
+
+    // Assignments
+    listAssignments: async (filters: { object_type?: string; object_id?: string; project_id?: string; assignee?: string; status?: string }): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters.object_type) params.append('object_type', filters.object_type);
+        if (filters.object_id) params.append('object_id', filters.object_id);
+        if (filters.project_id) params.append('project_id', filters.project_id);
+        if (filters.assignee) params.append('assignee', filters.assignee);
+        if (filters.status) params.append('status', filters.status);
+        const response = await fetch(`${API_BASE_URL}/assignments?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch assignments');
+        return response.json();
+    },
+
+    createAssignment: async (payload: {
+        org_id?: string;
+        project_id?: string;
+        object_type: string;
+        object_id: string;
+        assignee: string;
+        status?: string;
+        note?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/assignments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create assignment');
+        return response.json();
+    },
+
+    updateAssignment: async (assignmentId: string, payload: { assignee?: string; status?: string; note?: string }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/assignments/${assignmentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update assignment');
+        return response.json();
+    },
+
+    deleteAssignment: async (assignmentId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/assignments/${assignmentId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete assignment');
+        return response.json();
+    },
+
+    // Mentions
+    listMentions: async (filters: { object_type?: string; object_id?: string; project_id?: string; mentioned?: string }): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters.object_type) params.append('object_type', filters.object_type);
+        if (filters.object_id) params.append('object_id', filters.object_id);
+        if (filters.project_id) params.append('project_id', filters.project_id);
+        if (filters.mentioned) params.append('mentioned', filters.mentioned);
+        const response = await fetch(`${API_BASE_URL}/mentions?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch mentions');
+        return response.json();
+    },
+
+    createMention: async (payload: {
+        org_id?: string;
+        project_id?: string;
+        object_type: string;
+        object_id: string;
+        mentioned: string;
+        note?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/mentions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create mention');
+        return response.json();
+    },
+
+    deleteMention: async (mentionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/mentions/${mentionId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete mention');
+        return response.json();
+    },
+
+    // Share links
+    listShareLinks: async (filters: { object_type?: string; object_id?: string; project_id?: string }): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters.object_type) params.append('object_type', filters.object_type);
+        if (filters.object_id) params.append('object_id', filters.object_id);
+        if (filters.project_id) params.append('project_id', filters.project_id);
+        const response = await fetch(`${API_BASE_URL}/share-links?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch share links');
+        return response.json();
+    },
+
+    createShareLink: async (payload: { org_id?: string; project_id?: string; object_type: string; object_id: string; expires_at?: number }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/share-links`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create share link');
+        return response.json();
+    },
+
+    getShareLink: async (token: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/share-links/${token}`);
+        if (!response.ok) throw new Error('Failed to fetch share link');
+        return response.json();
+    },
+
+    revokeShareLink: async (token: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/share-links/${token}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to revoke share link');
+        return response.json();
+    },
+
+    // Review queue
+    getReviews: async (
+        projectId: string,
+        filters?: { status?: string; source_type?: string; limit?: number; offset?: number }
+    ): Promise<any[]> => {
+        const params = new URLSearchParams({ project_id: projectId });
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.source_type) params.append('source_type', filters.source_type);
+        if (filters?.limit !== undefined) params.append('limit', filters.limit.toString());
+        if (filters?.offset !== undefined) params.append('offset', filters.offset.toString());
+        const response = await fetch(`${API_BASE_URL}/reviews?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch reviews');
+        return response.json();
+    },
+
+    createReviewFromTrace: async (payload: {
+        trace_id: string;
+        project_id?: string;
+        priority?: number;
+        labels?: string[];
+        notes?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/reviews/from-trace`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create review from trace');
+        return response.json();
+    },
+
+    updateReview: async (reviewId: string, payload: {
+        status?: string;
+        priority?: number;
+        labels?: string[];
+        score?: number;
+        notes?: string;
+        meta?: any;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update review');
+        return response.json();
+    },
+
+    promoteReviewToDataset: async (reviewId: string, payload: {
+        dataset_id: string;
+        corrected_expected?: any;
+        example_type?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/promote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to promote review to dataset');
+        return response.json();
+    },
+
     // Experiments
     getExperiments: async (projectId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/experiments/?project_id=${projectId}`);
@@ -221,6 +487,20 @@ export const api = {
     getExperimentResults: async (experimentId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/results`);
         if (!response.ok) throw new Error('Failed to fetch experiment results');
+        return response.json();
+    },
+
+    compareExperimentRuns: async (
+        experimentId: string,
+        baselineRunId: string,
+        candidateRunId: string
+    ): Promise<any> => {
+        const params = new URLSearchParams({
+            baseline_run_id: baselineRunId,
+            candidate_run_id: candidateRunId,
+        });
+        const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/compare?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to compare runs');
         return response.json();
     },
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Annotated, Optional
 
 from sqlmodel import Session
@@ -25,17 +25,35 @@ async def chat_completions(
     # Priority: header > request body > fallback
     project_id = x_athena_project_id or getattr(request, 'project_id', None) or "proj_default"
     
+    # Pass trace_id from header to request if provided (for parent context)
+    if x_athena_trace_id and not request.trace_id:
+        request.trace_id = x_athena_trace_id
+    
     # Check cache bypass
     bypass_cache = x_athena_cache_control == "no-cache"
     
     try:
         if request.stream:
+            # For streaming, headers are sent with the SSE response
+            # The trace context will be in the first chunk or aggregated output
             return StreamingResponse(
                 service.stream_chat_completion(request, project_id),
                 media_type="text/event-stream"
             )
         else:
-            return await service.chat_completion(request, project_id, bypass_cache=bypass_cache)
+            response = await service.chat_completion(request, project_id, bypass_cache=bypass_cache)
+            
+            # Return response with trace context headers for client correlation
+            headers = {}
+            if response.trace_id:
+                headers["X-Athena-Trace-ID"] = response.trace_id
+            if response.span_id:
+                headers["X-Athena-Span-ID"] = response.span_id
+            
+            return JSONResponse(
+                content=response.model_dump(exclude_none=True),
+                headers=headers
+            )
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

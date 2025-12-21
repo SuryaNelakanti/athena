@@ -121,17 +121,24 @@ class ProxyService:
              span.status = "success"
              span.output = response.model_dump(exclude_none=True)
              
+             # Store reasoning content separately in attributes for UI rendering
+             if response.athena_reasoning:
+                 span.attributes = {
+                     **span.attributes,
+                     "reasoning_content": response.athena_reasoning,
+                     "reasoning_enabled": True,
+                 }
+             
              # Metrics
              if response.usage:
                 span.metrics = {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens,
-                    "latency_ms": latency # use measured latency or provider latency
+                    "latency_ms": latency
                 }
                 # Update Trace Aggregates
                 trace.total_tokens = response.usage.total_tokens
-                # trace.total_cost = ... (calculate cost)
              
              trace.total_latency = latency
              trace.status = "success"
@@ -152,7 +159,7 @@ class ProxyService:
                  cost=None,  # TODO: implement cost calculation
                  model=request.model,
                  provider=provider_name,
-                 attributes={},
+                 attributes={"has_reasoning": bool(response.athena_reasoning)},
                  log_metadata={},
                  created_at=end_time,
              )
@@ -162,6 +169,9 @@ class ProxyService:
              self.session.add(trace)
              await self.session.commit()
              
+             # Return response with trace context for client correlation
+             response.trace_id = trace_id
+             response.span_id = span_id
              return response
 
              
@@ -387,6 +397,7 @@ class ProxyService:
         Promotes the root span of a trace to a dataset row.
         """
         from sqlmodel import select
+        from app.services.dataset_service import DatasetService
         statement = select(SpanModel).where(
             SpanModel.trace_id == trace_id, 
             SpanModel.parent_id == None
@@ -397,14 +408,11 @@ class ProxyService:
         if not root_span:
             raise ValueError(f"Root span not found for trace {trace_id}")
             
-        row = DatasetRowModel(
-            id=f"dr_{uuid.uuid4().hex[:8]}",
+        service = DatasetService(self.session)
+        return await service.add_row(
             dataset_id=dataset_id,
-            input=root_span.input,
-            expected=root_span.output, # Output becomes the 'expected' value
-            meta={"source_trace_id": trace_id}
+            input_data=root_span.input,
+            expected_data=root_span.output,
+            meta={"source_trace_id": trace_id},
+            version_meta={"source": "trace", "trace_id": trace_id},
         )
-        self.session.add(row)
-        await self.session.commit()
-        await self.session.refresh(row)
-        return row

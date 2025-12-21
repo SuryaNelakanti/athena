@@ -14,7 +14,8 @@ import {
     PencilSquareIcon,
     XMarkIcon,
     HandThumbUpIcon,
-    HandThumbDownIcon
+    HandThumbDownIcon,
+    InboxArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { Tooltip } from './Tooltip';
 import { api } from '../services/api';
@@ -118,6 +119,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [isPromoting, setIsPromoting] = useState(false);
     const [showActionMenu, setShowActionMenu] = useState(false);
+    const [reviewNotice, setReviewNotice] = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
 
     // Correct & Add Modal State
     const [showCorrectModal, setShowCorrectModal] = useState(false);
@@ -185,6 +187,18 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
             setActionError(e?.message || 'Failed to add to dataset');
         } finally {
             setIsPromoting(false);
+        }
+    };
+
+    const handleSendToReview = async () => {
+        setReviewNotice(null);
+        try {
+            await api.createReviewFromTrace({ trace_id: trace.id, project_id: trace.project_id });
+            setReviewNotice({ message: 'Sent to review queue', kind: 'success' });
+            setTimeout(() => setReviewNotice(null), 2000);
+        } catch (e: any) {
+            setReviewNotice({ message: e?.message || 'Failed to send to review queue', kind: 'error' });
+            setTimeout(() => setReviewNotice(null), 3000);
         }
     };
 
@@ -267,16 +281,24 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     </div>
 
                     {/* Actions Menu */}
-                    <div className="relative ml-4">
+                    <div className="flex items-center gap-3 ml-4">
                         <button
-                            onClick={() => setShowActionMenu(!showActionMenu)}
-                            className="flex items-center gap-2 px-4 py-2 bg-wispr-purple text-white rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple-dark transition-all shadow-lg shadow-wispr-purple/20"
+                            onClick={handleSendToReview}
+                            className="flex items-center gap-2 px-4 py-2 bg-panel border border-border-base rounded-xl text-[10px] font-bold tracking-wider text-text-main hover:bg-panel-hover transition-all"
                         >
-                            <PlusCircleIcon className="w-4 h-4" />
-                            ADD TO DATASET
-                            <ChevronDownIcon className="w-3 h-3" />
+                            <InboxArrowDownIcon className="w-4 h-4 text-amber-500" />
+                            SEND TO REVIEW
                         </button>
 
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowActionMenu(!showActionMenu)}
+                                className="flex items-center gap-2 px-4 py-2 bg-wispr-purple text-white rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple-dark transition-all shadow-lg shadow-wispr-purple/20"
+                            >
+                                <PlusCircleIcon className="w-4 h-4" />
+                                ADD TO DATASET
+                                <ChevronDownIcon className="w-3 h-3" />
+                            </button>
                         {showActionMenu && (
                             <div className="absolute right-0 top-full mt-2 w-64 bg-panel border border-border-base rounded-2xl shadow-xl z-50 overflow-hidden">
                                 <div className="px-4 py-3 border-b border-border-base bg-app/50">
@@ -317,9 +339,22 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                                 </button>
                             </div>
                         )}
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {reviewNotice && (
+                <div
+                    className={`px-8 py-2 text-xs font-bold border-b ${
+                        reviewNotice.kind === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                            : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                    }`}
+                >
+                    {reviewNotice.message}
+                </div>
+            )}
 
             <div className="flex-1 flex min-h-0">
                 {/* Left: Span List */}
@@ -380,19 +415,29 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
 
                     <JSONViewer data={selectedSpan.input} label="Input" />
 
-                    {(selectedSpan.output?.athena_reasoning || selectedSpan.output?.reasoning) && (
-                        <div className="mb-8">
-                            <h4 className="text-[10px] uppercase tracking-widest text-amber-600 font-bold mb-3 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                Reasoning
-                            </h4>
-                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 overflow-x-auto shadow-sm">
-                                <pre className="text-[12px] text-amber-900 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
-                                    {selectedSpan.output.athena_reasoning || selectedSpan.output.reasoning}
-                                </pre>
+                    {/* Reasoning Section - Check both output and attributes for reasoning content */}
+                    {(selectedSpan.output?.athena_reasoning ||
+                        selectedSpan.output?.reasoning ||
+                        selectedSpan.attributes?.reasoning_content) && (
+                            <div className="mb-8">
+                                <h4 className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 font-bold mb-3 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                    🧠 Model Reasoning
+                                    {selectedSpan.attributes?.reasoning_enabled && (
+                                        <span className="text-[9px] px-2 py-0.5 bg-amber-500/20 rounded-lg ml-2">
+                                            Extended Thinking
+                                        </span>
+                                    )}
+                                </h4>
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 overflow-x-auto shadow-sm">
+                                    <pre className="text-[12px] text-amber-900 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
+                                        {selectedSpan.attributes?.reasoning_content ||
+                                            selectedSpan.output?.athena_reasoning ||
+                                            selectedSpan.output?.reasoning}
+                                    </pre>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
                     <JSONViewer data={selectedSpan.output} label="Output" />
                 </div>
@@ -403,8 +448,8 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-panel border border-border-base rounded-3xl shadow-2xl w-full max-w-lg">
                         <div className={`p-6 border-b rounded-t-3xl ${actionType === 'good' ? 'border-emerald-500/30 bg-emerald-500/5' :
-                                actionType === 'correct' ? 'border-amber-500/30 bg-amber-500/5' :
-                                    'border-rose-500/30 bg-rose-500/5'
+                            actionType === 'correct' ? 'border-amber-500/30 bg-amber-500/5' :
+                                'border-rose-500/30 bg-rose-500/5'
                             }`}>
                             <h3 className="text-lg font-serif font-black text-text-main flex items-center gap-2">
                                 {actionType === 'good' && <><HandThumbUpIcon className="w-5 h-5 text-emerald-500" /> Add as Good Example</>}
@@ -476,8 +521,8 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                                     onClick={handlePromote}
                                     disabled={isPromoting || !selectedDatasetId}
                                     className={`flex-1 px-4 py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all disabled:opacity-50 ${actionType === 'good' ? 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600' :
-                                            actionType === 'correct' ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' :
-                                                'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
+                                        actionType === 'correct' ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' :
+                                            'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
                                         }`}
                                 >
                                     {isPromoting ? 'Adding...' :

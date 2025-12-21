@@ -51,7 +51,14 @@ class ChatCompletionResponse(BaseModel):
     
     # Athena Extensions
     system_fingerprint: Optional[str] = None
-    provider: Optional[str] = None 
+    provider: Optional[str] = None
+    
+    # Trace Context (returned to client for correlation)
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+    
+    # Reasoning Normalization: Separate channel for model reasoning/thinking
+    athena_reasoning: Optional[str] = None
 
 class ProviderConfig(BaseModel):
     provider_name: str

@@ -53,6 +53,20 @@ class AnthropicEnvoy(TitanEnvoy):
         response = await self.client.messages.create(**params)
         latency = (time.time() - start_time) * 1000
 
+        # Extract content and thinking (Claude's extended thinking feature)
+        content_text = ""
+        thinking_text = None
+        
+        for block in response.content:
+            if hasattr(block, 'type'):
+                if block.type == 'text':
+                    content_text = block.text
+                elif block.type == 'thinking':
+                    # Claude's extended thinking returns a 'thinking' content block
+                    thinking_text = block.thinking if hasattr(block, 'thinking') else str(block)
+            elif hasattr(block, 'text'):
+                content_text = block.text
+
         # Map Response
         return ChatCompletionResponse(
             id=response.id,
@@ -63,7 +77,7 @@ class AnthropicEnvoy(TitanEnvoy):
                     index=0,
                     message=ChatMessage(
                         role=response.role,
-                        content=response.content[0].text if response.content else ""
+                        content=content_text
                     ),
                     finish_reason=response.stop_reason
                 )
@@ -74,7 +88,8 @@ class AnthropicEnvoy(TitanEnvoy):
                 total_tokens=response.usage.input_tokens + response.usage.output_tokens,
                 latency_ms=latency
             ),
-            provider="anthropic"
+            provider="anthropic",
+            athena_reasoning=thinking_text  # Pass through extended thinking
         )
 
     async def stream_chat_completion(self, request: ChatCompletionRequest) -> AsyncGenerator[ChatCompletionChunk, None]:
@@ -98,34 +113,49 @@ class AnthropicEnvoy(TitanEnvoy):
         stream = await self.client.messages.create(**params)
         
         async for event in stream:
-            # Anthropic stream events are different: MessageStart, ContentBlockDelta, etc.
+            # Anthropic stream events: MessageStart, ContentBlockDelta, ContentBlockStart, etc.
             if event.type == 'content_block_delta':
-                 yield ChatCompletionChunk(
-                    id="stream", # Anthropic doesn't send ID in delta?
-                    model=request.model, # Or from event?
+                # Check if this is a thinking delta or text delta
+                reasoning_delta = None
+                content_delta = None
+                
+                if hasattr(event.delta, 'type'):
+                    if event.delta.type == 'thinking_delta':
+                        reasoning_delta = event.delta.thinking
+                    elif event.delta.type == 'text_delta':
+                        content_delta = event.delta.text
+                    else:
+                        content_delta = getattr(event.delta, 'text', None)
+                else:
+                    content_delta = getattr(event.delta, 'text', None)
+                
+                yield ChatCompletionChunk(
+                    id="stream",
+                    model=request.model,
                     choices=[
                         ChatCompletionChunkChoice(
                             index=0,
                             delta=ChatCompletionChunkDelta(
-                                content=event.delta.text
+                                content=content_delta,
+                                reasoning_content=reasoning_delta
                             ),
                             finish_reason=None
                         )
                     ]
-                 )
+                )
             elif event.type == 'message_stop':
                 # End of stream
-                 yield ChatCompletionChunk(
+                yield ChatCompletionChunk(
                     id="stream",
                     model=request.model,
                     choices=[
                         ChatCompletionChunkChoice(
                             index=0,
                             delta=ChatCompletionChunkDelta(),
-                            finish_reason="stop" # or event.stop_reason
+                            finish_reason="stop"
                         )
                     ]
-                 )
+                )
     
     async def list_models(self) -> List[str]:
         return [

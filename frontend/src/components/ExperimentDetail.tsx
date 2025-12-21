@@ -41,6 +41,10 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [results, setResults] = useState<ExperimentRunResult[]>([]);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+  const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
+  const [compareCandidateId, setCompareCandidateId] = useState<string | null>(null);
+  const [compareResult, setCompareResult] = useState<any | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,12 +123,26 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
       .finally(() => setLoading(false));
   }, [selectedVersionId]);
 
+  useEffect(() => {
+    setCompareResult(null);
+  }, [selectedVersionId]);
+
   const selectedRun = useMemo(() => runs.find((r) => r.id === selectedRunId) || null, [runs, selectedRunId]);
   const selectedVersion = useMemo(() => versions.find((v) => v.id === selectedVersionId) || null, [versions, selectedVersionId]);
   const selectedModel = useMemo(() => {
     const regId = (selectedVersion?.config as any)?.model?.registry_id;
     return models.find((m) => m.id === regId) || null;
   }, [selectedVersion, models]);
+
+  useEffect(() => {
+    if (runs.length === 0) return;
+    const candidateId = selectedRunId || runs[0].id;
+    if (!compareCandidateId) setCompareCandidateId(candidateId);
+    if (!compareBaselineId) {
+      const other = runs.find((r) => r.id !== candidateId);
+      setCompareBaselineId(other ? other.id : candidateId);
+    }
+  }, [runs, selectedRunId, compareBaselineId, compareCandidateId]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -227,6 +245,20 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     }
   };
 
+  const runCompare = async () => {
+    if (!compareBaselineId || !compareCandidateId) return;
+    setCompareLoading(true);
+    setError(null);
+    try {
+      const data = await api.compareExperimentRuns(exp.id, compareBaselineId, compareCandidateId);
+      setCompareResult(data);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to compare runs');
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   // Helper to extract text from input/expected
   const extractText = (obj: any): string => {
     if (typeof obj === 'string') return obj;
@@ -268,6 +300,23 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     if (score >= 0.8) return 'bg-emerald-500/10 border-emerald-500/20';
     if (score >= 0.5) return 'bg-amber-500/10 border-amber-500/20';
     return 'bg-rose-500/10 border-rose-500/20';
+  };
+
+  const pickScore = (scores: Record<string, any> | undefined): number | undefined => {
+    if (!scores) return undefined;
+    const preferred = ['exact_match', 'llm_judge', 'contains'];
+    for (const key of preferred) {
+      const value = scores[key];
+      if (typeof value === 'number') return value;
+    }
+    const firstNumeric = Object.values(scores).find((v) => typeof v === 'number');
+    return typeof firstNumeric === 'number' ? firstNumeric : undefined;
+  };
+
+  const formatDelta = (value: number | undefined) => {
+    if (value === undefined) return '-';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(3)}`;
   };
 
   return (
@@ -457,6 +506,110 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                 <div className="text-sm text-text-muted italic py-4">No runs yet. Click "Run Experiment" to start.</div>
               )}
             </div>
+          </div>
+
+          {/* Compare */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-text-main">Compare</h3>
+              <button
+                onClick={runCompare}
+                disabled={!compareBaselineId || !compareCandidateId}
+                className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs font-bold text-text-muted hover:text-text-main hover:bg-panel-hover disabled:opacity-50"
+              >
+                Compare Runs
+              </button>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Baseline Run</label>
+                <select
+                  value={compareBaselineId || ''}
+                  onChange={(e) => setCompareBaselineId(e.target.value)}
+                  className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
+                >
+                  <option value="">Select baseline...</option>
+                  {runs.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {new Date(r.created_at).toLocaleString()} ({r.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Candidate Run</label>
+                <select
+                  value={compareCandidateId || ''}
+                  onChange={(e) => setCompareCandidateId(e.target.value)}
+                  className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
+                >
+                  <option value="">Select candidate...</option>
+                  {runs.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {new Date(r.created_at).toLocaleString()} ({r.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {compareLoading && (
+              <div className="mt-4 text-xs text-text-muted italic">Computing comparison...</div>
+            )}
+
+            {compareResult && (
+              <div className="mt-4 space-y-4">
+                <div className="grid md:grid-cols-4 gap-3">
+                  {['avg_score', 'cost_total', 'latency_ms_total', 'tokens_total'].map((key) => (
+                    <div key={key} className="bg-panel border border-border-base rounded-xl p-3">
+                      <div className="text-[10px] uppercase tracking-wider text-text-muted">{key}</div>
+                      <div className="text-sm font-bold text-text-main">
+                        {formatDelta(compareResult.delta_summary?.[key])}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-panel border border-border-base rounded-2xl overflow-hidden">
+                  <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-text-muted border-b border-border-base">
+                    <div className="col-span-5">Input</div>
+                    <div className="col-span-2 text-right">Baseline</div>
+                    <div className="col-span-2 text-right">Candidate</div>
+                    <div className="col-span-2 text-right">Delta</div>
+                    <div className="col-span-1 text-right">Row</div>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {(compareResult.rows || []).map((row: any, idx: number) => {
+                      const baseScore = pickScore(row.baseline?.scores);
+                      const candScore = pickScore(row.candidate?.scores);
+                      const deltaScore = (typeof baseScore === 'number' && typeof candScore === 'number')
+                        ? candScore - baseScore
+                        : undefined;
+
+                      return (
+                        <div key={`${row.dataset_row_id}-${idx}`} className="grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b border-border-base/60">
+                          <div className="col-span-5 text-text-main line-clamp-2">
+                            {row.input ? JSON.stringify(row.input) : 'Unknown input'}
+                          </div>
+                          <div className="col-span-2 text-right text-text-muted tabular-nums">
+                            {baseScore !== undefined ? (baseScore * 100).toFixed(0) + '%' : '-'}
+                          </div>
+                          <div className="col-span-2 text-right text-text-muted tabular-nums">
+                            {candScore !== undefined ? (candScore * 100).toFixed(0) + '%' : '-'}
+                          </div>
+                          <div className="col-span-2 text-right text-text-main tabular-nums">
+                            {deltaScore !== undefined ? formatDelta(deltaScore) : '-'}
+                          </div>
+                          <div className="col-span-1 text-right text-text-muted tabular-nums">
+                            {idx + 1}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Results */}
