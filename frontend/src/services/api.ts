@@ -87,9 +87,11 @@ export const api = {
     // Logs (first-class, separate from traces)
     getLogs: async (
         projectId: string,
-        filters?: { level?: string; trace_id?: string; search?: string; limit?: number; offset?: number }
+        filters?: { status?: string; event_type?: string; level?: string; trace_id?: string; search?: string; limit?: number; offset?: number }
     ): Promise<Log[]> => {
         const params = new URLSearchParams();
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.event_type) params.append('event_type', filters.event_type);
         if (filters?.level) params.append('level', filters.level);
         if (filters?.trace_id) params.append('trace_id', filters.trace_id);
         if (filters?.search) params.append('search', filters.search);
@@ -104,6 +106,8 @@ export const api = {
     createLog: async (log: {
         project_id: string;
         level?: string;
+        status?: string;
+        event_type?: string;
         message: string;
         timestamp?: number;
         trace_id?: string;
@@ -123,6 +127,8 @@ export const api = {
     createLogsBatch: async (logs: Array<{
         project_id: string;
         level?: string;
+        status?: string;
+        event_type?: string;
         message: string;
         timestamp?: number;
         trace_id?: string;

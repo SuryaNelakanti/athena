@@ -10,7 +10,7 @@ import uuid
 import time
 
 from app.database import get_session
-from app.models import LogModel, LogLevel
+from app.models import LogModel
 from app.services.job_service import JobService
 
 
@@ -22,7 +22,10 @@ router = APIRouter(prefix="/logs", tags=["logs"])
 class LogCreate(BaseModel):
     """Single log entry to create."""
     project_id: str
-    level: str = "INFO"  # DEBUG, INFO, WARN, ERROR
+    # Deprecated: level retained for backward compatibility.
+    level: Optional[str] = None  # DEBUG, INFO, WARN, ERROR
+    event_type: Optional[str] = None
+    status: Optional[str] = None  # success | error
     message: str
     timestamp: Optional[int] = None  # Unix ms, defaults to now
     trace_id: Optional[str] = None
@@ -39,7 +42,9 @@ class LogBatchCreate(BaseModel):
 class LogResponse(BaseModel):
     id: str
     project_id: str
-    level: str
+    level: Optional[str] = None
+    event_type: Optional[str] = None
+    status: Optional[str] = None
     message: str
     timestamp: int
     trace_id: Optional[str] = None
@@ -68,6 +73,22 @@ class LogBatchResponse(BaseModel):
     count: int
     log_ids: List[str]
 
+def _normalize_status(status: Optional[str], level: Optional[str]) -> str:
+    if status:
+        normalized = status.lower().strip()
+        if normalized not in {"success", "error"}:
+            raise HTTPException(status_code=400, detail="Invalid status. Must be success or error.")
+        return normalized
+    if level and level.upper() == "ERROR":
+        return "error"
+    return "success"
+
+
+def _normalize_level(level: Optional[str], status: str) -> str:
+    if level:
+        return level.upper()
+    return "ERROR" if status == "error" else "INFO"
+
 
 def _should_enqueue_score(
     trace_id: Optional[str],
@@ -93,10 +114,13 @@ async def create_log(
     """Create a single log entry."""
     log_id = f"log_{uuid.uuid4().hex[:16]}"
     timestamp = log.timestamp or int(time.time() * 1000)
+
+    status = _normalize_status(log.status, log.level)
+    level = _normalize_level(log.level, status)
+    event_type = (log.event_type or "custom").strip() or "custom"
     
-    # Validate log level
+    # Validate log level if provided (deprecated but supported)
     valid_levels = ["DEBUG", "INFO", "WARN", "ERROR"]
-    level = log.level.upper()
     if level not in valid_levels:
         raise HTTPException(status_code=400, detail=f"Invalid log level. Must be one of: {valid_levels}")
     
@@ -104,6 +128,8 @@ async def create_log(
         id=log_id,
         project_id=log.project_id,
         level=level,
+        event_type=event_type,
+        status=status,
         message=log.message,
         timestamp=timestamp,
         trace_id=log.trace_id,
@@ -138,17 +164,18 @@ async def create_logs_batch(
     if len(batch.logs) == 0:
         raise HTTPException(status_code=400, detail="Batch must contain at least one log")
     
-    valid_levels = ["DEBUG", "INFO", "WARN", "ERROR"]
     log_ids = []
     now = int(time.time() * 1000)
     
     for log in batch.logs:
         log_id = f"log_{uuid.uuid4().hex[:16]}"
-        level = log.level.upper()
-        
+        status = _normalize_status(log.status, log.level)
+        level = _normalize_level(log.level, status)
+        event_type = (log.event_type or "custom").strip() or "custom"
+        valid_levels = ["DEBUG", "INFO", "WARN", "ERROR"]
         if level not in valid_levels:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid log level '{log.level}'. Must be one of: {valid_levels}"
             )
         
@@ -156,6 +183,8 @@ async def create_logs_batch(
             id=log_id,
             project_id=log.project_id,
             level=level,
+            event_type=event_type,
+            status=status,
             message=log.message,
             timestamp=log.timestamp or now,
             trace_id=log.trace_id,
@@ -190,6 +219,8 @@ async def create_logs_batch(
 async def get_project_logs(
     project_id: str,
     level: Optional[str] = None,
+    status: Optional[str] = None,
+    event_type: Optional[str] = None,
     trace_id: Optional[str] = None,
     search: Optional[str] = None,
     start_time: Optional[int] = None,
@@ -203,6 +234,12 @@ async def get_project_logs(
     
     if level:
         query = query.where(LogModel.level == level.upper())
+
+    if status:
+        query = query.where(LogModel.status == status.lower())
+
+    if event_type:
+        query = query.where(LogModel.event_type == event_type)
     
     if trace_id:
         query = query.where(LogModel.trace_id == trace_id)

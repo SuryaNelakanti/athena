@@ -10,7 +10,7 @@ type LogRow = {
     timestamp?: number;
     latency_ms?: number | null;
     cost?: number | null;
-    level?: string;
+    status?: string;
 };
 
 const StatCard = ({ title, value, unit, change, loading }: { title: string, value: string, unit?: string, change?: string, loading?: boolean }) => (
@@ -45,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
             setLoading(true);
             try {
                 const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
-                const query = `from project_logs(project_id="${projectId}") select timestamp, latency_ms, cost, level filter timestamp >= ${sinceMs} sort timestamp asc limit 5000`;
+                const query = `from project_logs(project_id="${projectId}") select timestamp, latency_ms, cost, status filter timestamp >= ${sinceMs} sort timestamp asc limit 5000`;
                 const result = await api.runAqlQuery(query);
                 setLogs(result.data as LogRow[]);
             } catch {
@@ -61,7 +61,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         const totalRequests = logs.length;
         const latencies = logs.map(l => l.latency_ms).filter((v): v is number => typeof v === 'number');
         const costs = logs.map(l => l.cost).filter((v): v is number => typeof v === 'number');
-        const errorCount = logs.filter(l => l.level === 'ERROR').length;
+        const errorCount = logs.filter(l => l.status === 'error').length;
         const avgLatency = latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
         const totalCost = costs.length ? costs.reduce((a, b) => a + b, 0) : 0;
         const errorRate = totalRequests ? (errorCount / totalRequests) * 100 : 0;

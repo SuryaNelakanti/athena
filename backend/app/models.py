@@ -101,12 +101,6 @@ class ViewModel(SQLModel, table=True):
 
 # --- Log Models (first-class, separate from traces) ---
 
-class LogLevel(str, Enum):
-    DEBUG = 'DEBUG'
-    INFO = 'INFO'
-    WARN = 'WARN'
-    ERROR = 'ERROR'
-
 class LogModel(SQLModel, table=True):
     __tablename__ = "log"
     
@@ -115,7 +109,11 @@ class LogModel(SQLModel, table=True):
     trace_id: Optional[str] = Field(default=None, index=True)  # Optional link to trace
     span_id: Optional[str] = Field(default=None, index=True)   # Optional link to span
     
-    level: str = Field(default="INFO", index=True)  # DEBUG, INFO, WARN, ERROR
+    # Deprecated: level is kept for backward compatibility (INFO/ERROR).
+    level: str = Field(default="INFO", index=True)
+    # Event semantics
+    event_type: str = Field(default="custom", index=True)  # llm_call, llm_stream, guardrail, audit, etc.
+    status: str = Field(default="success", index=True)  # success | error
     message: str
     timestamp: int = Field(index=True)
     

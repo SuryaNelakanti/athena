@@ -31,7 +31,8 @@ const FIELD_TYPES: Record<string, 'string' | 'number'> = {
   id: 'string',
   trace_id: 'string',
   span_id: 'string',
-  level: 'string',
+  status: 'string',
+  event_type: 'string',
   message: 'string',
   model: 'string',
   provider: 'string',
@@ -45,7 +46,8 @@ const FIELD_TYPES: Record<string, 'string' | 'number'> = {
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  level: 'Level',
+  status: 'Status',
+  event_type: 'Event Type',
   message: 'Message',
   model: 'Model',
   provider: 'Provider',
@@ -66,7 +68,8 @@ const OP_BY_TYPE: Record<'string' | 'number', string[]> = {
 };
 
 const FILTER_FIELDS = [
-  'level',
+  'status',
+  'event_type',
   'message',
   'model',
   'provider',
@@ -82,7 +85,10 @@ const FILTER_FIELDS = [
 ];
 
 const QUICK_FILTERS = [
-  { label: 'Errors', field: 'level', op: '=', value: 'ERROR' },
+  { label: 'Errors', field: 'status', op: '=', value: 'error' },
+  { label: 'Compliance', field: 'event_type', op: '=', value: 'compliance' },
+  { label: 'Guardrails', field: 'event_type', op: '=', value: 'guardrail' },
+  { label: 'Alerts', field: 'event_type', op: '=', value: 'alert' },
   { label: 'Slow > 1500ms', field: 'latency_ms', op: '>', value: '1500' },
   { label: 'Cost > $0.01', field: 'cost', op: '>', value: '0.01' },
   { label: 'Tokens > 2k', field: 'total_tokens', op: '>', value: '2000' },
@@ -96,8 +102,26 @@ const TIME_RANGES = [
   { label: 'Custom', value: 'custom', ms: null },
 ];
 
-const makeId = () => `f_${Math.random().toString(36).slice(2, 9)}`;
+const EVENT_TYPE_PRESETS = [
+  'llm_call',
+  'llm_stream',
+  'compliance',
+  'guardrail',
+  'audit',
+  'alert',
+  'custom',
+];
 
+const makeId = () => `f_${Math.random().toString(36).slice(2, 9)}`;
+const normalizeViewFilters = (filters: Filter[]) => {
+  return filters.flatMap((filter) => {
+    if (filter.field === 'level' && filter.op === '=') {
+      const status = filter.value?.toUpperCase() === 'ERROR' ? 'error' : 'success';
+      return [{ ...filter, field: 'status', value: status }];
+    }
+    return [filter];
+  });
+};
 
 const LogTable: React.FC<LogTableProps> = ({
   projectId,
@@ -130,10 +154,28 @@ const LogTable: React.FC<LogTableProps> = ({
     value: '',
   });
 
-  const levelValue = useMemo(() => {
-    const levelFilter = filters.find((f) => f.field === 'level' && f.op === '=');
-    return levelFilter?.value || 'all';
+  const statusValue = useMemo(() => {
+    const statusFilter = filters.find((f) => f.field === 'status' && f.op === '=');
+    return statusFilter?.value || 'all';
   }, [filters]);
+
+  const eventTypeValue = useMemo(() => {
+    const eventFilter = filters.find((f) => f.field === 'event_type' && f.op === '=');
+    return eventFilter?.value || 'all';
+  }, [filters]);
+
+  const eventTypeOptions = useMemo(() => {
+    const types = new Set(EVENT_TYPE_PRESETS);
+    logs.forEach((log) => {
+      if (log.event_type) {
+        types.add(log.event_type);
+      }
+    });
+    if (eventTypeValue && eventTypeValue !== 'all') {
+      types.add(eventTypeValue);
+    }
+    return ['all', ...Array.from(types)];
+  }, [logs, eventTypeValue]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -162,7 +204,8 @@ const LogTable: React.FC<LogTableProps> = ({
       'project_id',
       'trace_id',
       'span_id',
-      'level',
+      'status',
+      'event_type',
       'message',
       'timestamp',
       'latency_ms',
@@ -214,6 +257,8 @@ const LogTable: React.FC<LogTableProps> = ({
           trace_id: row.trace_id,
           span_id: row.span_id,
           level: row.level,
+          status: row.status || (row.level === 'ERROR' ? 'error' : row.level ? 'success' : undefined),
+          event_type: row.event_type,
           message: row.message,
           timestamp: row.timestamp,
           latency_ms: row.latency_ms,
@@ -279,12 +324,20 @@ const LogTable: React.FC<LogTableProps> = ({
     }
   };
 
-  const handleLevelChange = (level: string) => {
-    if (level === 'all') {
-      upsertFilter('level', '=', '');
+  const handleStatusChange = (status: string) => {
+    if (status === 'all') {
+      upsertFilter('status', '=', '');
       return;
     }
-    upsertFilter('level', '=', level);
+    upsertFilter('status', '=', status.toLowerCase());
+  };
+
+  const handleEventTypeChange = (eventType: string) => {
+    if (eventType === 'all') {
+      upsertFilter('event_type', '=', '');
+      return;
+    }
+    upsertFilter('event_type', '=', eventType);
   };
 
   const handleTimeRangeChange = (range: string) => {
@@ -324,24 +377,29 @@ const LogTable: React.FC<LogTableProps> = ({
       setQueryMode('aql');
       setAqlQuery(cfg.query);
       setShowAql(true);
-      setFilters(cfg.filters || []);
-      const searchFilter = (cfg.filters || []).find((f: Filter) => f.field === 'message' && f.op === 'contains');
+      const normalizedFilters = normalizeViewFilters(cfg.filters || []);
+      setFilters(normalizedFilters);
+      const searchFilter = normalizedFilters.find((f: Filter) => f.field === 'message' && f.op === 'contains');
       setSearchInput(searchFilter?.value || '');
-      const timeFilter = (cfg.filters || []).find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
+      const timeFilter = normalizedFilters.find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
       setTimeRange(timeFilter ? 'custom' : 'all');
       loadLogs(cfg.query);
     } else if (cfg.filters) {
       setQueryMode('builder');
       setShowAql(false);
-      setFilters(cfg.filters || []);
-      const searchFilter = (cfg.filters || []).find((f: Filter) => f.field === 'message' && f.op === 'contains');
+      const normalizedFilters = normalizeViewFilters(cfg.filters || []);
+      setFilters(normalizedFilters);
+      const searchFilter = normalizedFilters.find((f: Filter) => f.field === 'message' && f.op === 'contains');
       setSearchInput(searchFilter?.value || '');
-      const timeFilter = (cfg.filters || []).find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
+      const timeFilter = normalizedFilters.find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
       setTimeRange(timeFilter ? 'custom' : 'all');
     } else {
       setQueryMode('builder');
       setShowAql(false);
-      if (cfg.level) upsertFilter('level', '=', cfg.level);
+      if (cfg.level) {
+        const status = cfg.level.toUpperCase() === 'ERROR' ? 'error' : 'success';
+        upsertFilter('status', '=', status);
+      }
       if (cfg.search) upsertFilter('message', 'contains', cfg.search);
       setSearchInput(cfg.search || '');
     }
@@ -388,14 +446,14 @@ const LogTable: React.FC<LogTableProps> = ({
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  const getLevelBadge = (level: string) => {
+  const getStatusBadge = (status: string) => {
+    const normalized = status?.toLowerCase();
     const colors: Record<string, string> = {
-      'DEBUG': 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-      'INFO': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      'WARN': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-      'ERROR': 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+      success: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+      error: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+      warning: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
     };
-    return colors[level] || colors['INFO'];
+    return colors[normalized] || 'bg-slate-500/10 text-slate-500 border-slate-500/20';
   };
 
   const activeFilters = filters.filter((f) => f.value.trim());
@@ -419,14 +477,24 @@ const LogTable: React.FC<LogTableProps> = ({
 
           <select
             className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
-            value={levelValue}
-            onChange={(e) => handleLevelChange(e.target.value)}
+            value={statusValue}
+            onChange={(e) => handleStatusChange(e.target.value)}
           >
-            <option value="all">LEVEL: ALL</option>
-            <option value="DEBUG">DEBUG</option>
-            <option value="INFO">INFO</option>
-            <option value="WARN">WARN</option>
-            <option value="ERROR">ERROR</option>
+            <option value="all">STATUS: ALL</option>
+            <option value="success">SUCCESS</option>
+            <option value="error">ERROR</option>
+          </select>
+
+          <select
+            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
+            value={eventTypeValue}
+            onChange={(e) => handleEventTypeChange(e.target.value)}
+          >
+            {eventTypeOptions.map((eventType) => (
+              <option key={eventType} value={eventType}>
+                {eventType === 'all' ? 'TYPE: ALL' : eventType.replace(/_/g, ' ').toUpperCase()}
+              </option>
+            ))}
           </select>
 
           <select
@@ -665,7 +733,7 @@ const LogTable: React.FC<LogTableProps> = ({
           <div className="col-span-1 text-right">Latency</div>
           <div className="col-span-2 text-right">Tokens</div>
           <div className="col-span-1 text-right">Cost</div>
-          <div className="col-span-1 text-center">Level</div>
+          <div className="col-span-1 text-center">Status</div>
         </div>
       )}
 
@@ -731,9 +799,16 @@ const LogTable: React.FC<LogTableProps> = ({
 
                 <div className="col-span-3 flex flex-col justify-center min-w-0">
                   <span className="font-medium text-text-main truncate" title={log.message}>{log.message}</span>
-                  {log.trace_id && (
-                    <span className="text-[10px] text-text-muted truncate">trace: {log.trace_id.substring(0, 8)}...</span>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    {log.event_type && (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold border border-border-base bg-app/70 text-text-muted font-mono">
+                        {log.event_type}
+                      </span>
+                    )}
+                    {log.trace_id && (
+                      <span className="text-[10px] text-text-muted truncate">trace: {log.trace_id.substring(0, 8)}...</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
@@ -754,8 +829,12 @@ const LogTable: React.FC<LogTableProps> = ({
                 </div>
 
                 <div className="col-span-1 flex items-center justify-center">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getLevelBadge(log.level)}`}>
-                    {log.level}
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusBadge(
+                      log.status || ''
+                    )}`}
+                  >
+                    {(log.status || 'unknown').toUpperCase()}
                   </span>
                 </div>
               </div>

@@ -1409,24 +1409,26 @@ async def seed_logs(session: AsyncSession) -> None:
     
     # Sample of logs from different traces
     logs = [
-        ("log_sup_001", "proj_support", "trace_sup_refund_good_001", "INFO", "Refund issued within policy window", "gpt-4o", "openai", 640, 220, 0.003),
-        ("log_sup_002", "proj_support", "trace_sup_refund_bad_001", "ERROR", "POLICY VIOLATION: Promised 3-month refund", "gpt-4o-mini", "openai", 780, 180, 0.002),
-        ("log_sup_003", "proj_support", "trace_sup_refund_triage_001", "WARN", "Refund leakage spike detected ($47k/24h)", "gpt-4o", "openai", 900, 260, 0.006),
-        ("log_sup_004", "proj_support", "trace_sup_refund_postfix_001", "INFO", "Guardrail blocked out-of-policy refund", "gpt-4o", "openai", 700, 210, 0.004),
-        ("log_sup_005", "proj_support", "trace_sup_refund_postfix_002", "INFO", "Refund issued after guardrail pass", "gpt-4o", "openai", 650, 200, 0.003),
-        ("log_legal_001", "proj_legal", "trace_legal_clause_good_001", "INFO", "Clause extraction completed with valid citations", "gpt-4o", "openai", 800, 320, 0.008),
-        ("log_legal_002", "proj_legal", "trace_legal_redline_bad_001", "ERROR", "HALLUCINATION: Referenced non-existent Section 19.4", "gpt-4o-mini", "openai", 1200, 400, 0.005),
-        ("log_legal_003", "proj_legal", "trace_legal_citation_audit_001", "WARN", "Citation audit flagged 2 invalid references", "gpt-4o", "openai", 950, 280, 0.007),
-        ("log_legal_004", "proj_legal", "trace_legal_redline_postfix_001", "INFO", "Redline drafted with verified section", "gpt-4o", "openai", 980, 350, 0.009),
-        ("log_gtm_001", "proj_gtm", "trace_gtm_email_good_001", "INFO", "Compliant outbound email generated", "claude-3-5-sonnet-20241022", "anthropic", 900, 280, 0.004),
-        ("log_gtm_002", "proj_gtm", "trace_gtm_email_bad_001", "ERROR", "COMPLIANCE: Email blocked by Gmail - no opt-out", "gpt-4o-mini", "openai", 600, 180, 0.002),
-        ("log_gtm_003", "proj_gtm", "trace_gtm_deliverability_triage_001", "WARN", "Domain deliverability degraded (Gmail block)", "gpt-4o", "openai", 700, 220, 0.005),
-        ("log_gtm_004", "proj_gtm", "trace_gtm_email_postfix_001", "INFO", "Recovery campaign passed compliance gate", "gpt-4o", "openai", 820, 260, 0.006),
+        ("log_sup_001", "proj_support", "trace_sup_refund_good_001", "llm_call", "success", "Refund issued within policy window", "gpt-4o", "openai", 640, 220, 0.003),
+        ("log_sup_002", "proj_support", "trace_sup_refund_bad_001", "compliance", "error", "POLICY VIOLATION: Promised 3-month refund", "gpt-4o-mini", "openai", 780, 180, 0.002),
+        ("log_sup_003", "proj_support", "trace_sup_refund_triage_001", "alert", "success", "Refund leakage spike detected ($47k/24h)", "gpt-4o", "openai", 900, 260, 0.006),
+        ("log_sup_004", "proj_support", "trace_sup_refund_postfix_001", "guardrail", "success", "Guardrail blocked out-of-policy refund", "gpt-4o", "openai", 700, 210, 0.004),
+        ("log_sup_005", "proj_support", "trace_sup_refund_postfix_002", "llm_call", "success", "Refund issued after guardrail pass", "gpt-4o", "openai", 650, 200, 0.003),
+        ("log_legal_001", "proj_legal", "trace_legal_clause_good_001", "audit", "success", "Clause extraction completed with valid citations", "gpt-4o", "openai", 800, 320, 0.008),
+        ("log_legal_002", "proj_legal", "trace_legal_redline_bad_001", "audit", "error", "HALLUCINATION: Referenced non-existent Section 19.4", "gpt-4o-mini", "openai", 1200, 400, 0.005),
+        ("log_legal_003", "proj_legal", "trace_legal_citation_audit_001", "audit", "success", "Citation audit flagged 2 invalid references", "gpt-4o", "openai", 950, 280, 0.007),
+        ("log_legal_004", "proj_legal", "trace_legal_redline_postfix_001", "compliance", "success", "Redline drafted with verified section", "gpt-4o", "openai", 980, 350, 0.009),
+        ("log_gtm_001", "proj_gtm", "trace_gtm_email_good_001", "compliance", "success", "Compliant outbound email generated", "claude-3-5-sonnet-20241022", "anthropic", 900, 280, 0.004),
+        ("log_gtm_002", "proj_gtm", "trace_gtm_email_bad_001", "compliance", "error", "COMPLIANCE: Email blocked by Gmail - no opt-out", "gpt-4o-mini", "openai", 600, 180, 0.002),
+        ("log_gtm_003", "proj_gtm", "trace_gtm_deliverability_triage_001", "alert", "success", "Domain deliverability degraded (Gmail block)", "gpt-4o", "openai", 700, 220, 0.005),
+        ("log_gtm_004", "proj_gtm", "trace_gtm_email_postfix_001", "compliance", "success", "Recovery campaign passed compliance gate", "gpt-4o", "openai", 820, 260, 0.006),
     ]
     
-    for log_id, proj, trace_id, level, msg, model, provider, latency, tokens, cost in logs:
+    for log_id, proj, trace_id, event_type, status, msg, model, provider, latency, tokens, cost in logs:
+        level = "ERROR" if status == "error" else "INFO"
         session.add(LogModel(
-            id=log_id, project_id=proj, trace_id=trace_id, level=level, message=msg,
+            id=log_id, project_id=proj, trace_id=trace_id, level=level,
+            event_type=event_type, status=status, message=msg,
             timestamp=base - 100_000, latency_ms=latency, total_tokens=tokens,
             prompt_tokens=int(tokens * 0.6), completion_tokens=int(tokens * 0.4),
             cost=cost, model=model, provider=provider,

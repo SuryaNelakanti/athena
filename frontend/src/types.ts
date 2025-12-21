@@ -250,14 +250,17 @@ export interface ReviewItem {
 
 // --- Log types (first-class, separate from traces) ---
 
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+export type LogStatus = 'success' | 'error' | string;
+export type LogEventType = 'llm_call' | 'llm_stream' | 'guardrail' | 'audit' | 'alert' | 'compliance' | 'custom' | string;
 
 export interface Log {
   id: string;
   project_id: string;
   trace_id?: string;
   span_id?: string;
-  level: LogLevel;
+  level?: string;
+  event_type?: LogEventType;
+  status?: LogStatus;
   message: string;
   timestamp: number;
   // Proxy call metrics
