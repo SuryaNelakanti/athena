@@ -103,7 +103,7 @@ const App: React.FC = () => {
     }
 
     if (currentPath === '/') {
-      return <Dashboard />;
+      return <Dashboard projectId={currentProject?.id || ''} />;
     }
     if (currentPath === '/labs') {
       return <Labs />;

@@ -1,4 +1,4 @@
-import { Project, Trace, Log } from '../types';
+import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -6,6 +6,7 @@ export interface View {
     id: string;
     project_id: string;
     name: string;
+    entity_type?: string;
     config: any;
     created_at: number;
 }
@@ -68,7 +69,7 @@ export const api = {
         return response.json();
     },
 
-    createView: async (view: { project_id: string, name: string, config: any }): Promise<View> => {
+    createView: async (view: { project_id: string, name: string, entity_type?: string, config: any }): Promise<View> => {
         const response = await fetch(`${API_BASE_URL}/views`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,6 +142,18 @@ export const api = {
     deleteLog: async (logId: string): Promise<void> => {
         const response = await fetch(`${API_BASE_URL}/logs/id/${logId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete log');
+    },
+
+    // AQL
+    runAqlQuery: async (payload: string | AqlQueryRequest): Promise<AqlQueryResponse> => {
+        const body = typeof payload === 'string' ? { query: payload } : payload;
+        const response = await fetch(`${API_BASE_URL}/aql/query`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) throw new Error('Failed to run AQL query');
+        return response.json();
     },
 
     // Datasets

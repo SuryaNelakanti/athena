@@ -11,6 +11,7 @@ import time
 
 from app.database import get_session
 from app.models import LogModel, LogLevel
+from app.services.job_service import JobService
 
 
 router = APIRouter(prefix="/logs", tags=["logs"])
@@ -68,6 +69,20 @@ class LogBatchResponse(BaseModel):
     log_ids: List[str]
 
 
+def _should_enqueue_score(
+    trace_id: Optional[str],
+    span_id: Optional[str],
+    metadata: Optional[Dict[str, Any]],
+) -> bool:
+    if not trace_id and not span_id:
+        return False
+    if isinstance(metadata, dict):
+        cfg = metadata.get("online_scoring")
+        if isinstance(cfg, dict) and cfg.get("enabled") is False:
+            return False
+    return True
+
+
 # --- Endpoints ---
 
 @router.post("", response_model=LogResponse, status_code=201)
@@ -101,6 +116,13 @@ async def create_log(
     session.add(db_log)
     await session.commit()
     await session.refresh(db_log)
+
+    if _should_enqueue_score(db_log.trace_id, db_log.span_id, db_log.log_metadata):
+        try:
+            job_service = JobService(session)
+            await job_service.create_job(kind="log_score", ref_id=db_log.id, payload={"source": "logs"})
+        except Exception:
+            pass
     return db_log
 
 
@@ -146,6 +168,16 @@ async def create_logs_batch(
         log_ids.append(log_id)
     
     await session.commit()
+
+    for idx, log_id in enumerate(log_ids):
+        log = batch.logs[idx]
+        if not _should_enqueue_score(log.trace_id, log.span_id, log.metadata):
+            continue
+        try:
+            job_service = JobService(session)
+            await job_service.create_job(kind="log_score", ref_id=log_id, payload={"source": "logs"})
+        except Exception:
+            pass
     
     return LogBatchResponse(
         status="success",

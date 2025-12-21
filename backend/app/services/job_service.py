@@ -46,8 +46,13 @@ class JobService:
         lock_expired_before = now_ms - lock_timeout_ms
 
         stmt = select(JobModel).where(
-            JobModel.status == "queued",
-            (JobModel.locked_at == None) | (JobModel.locked_at < lock_expired_before),
+            (
+                (JobModel.status == "queued")
+                | (
+                    (JobModel.status == "running")
+                    & ((JobModel.locked_at == None) | (JobModel.locked_at < lock_expired_before))
+                )
+            ),
             JobModel.attempts < JobModel.max_attempts,
         )
         if kind:
@@ -74,14 +79,17 @@ class JobService:
         job = await self.session.get(JobModel, job_id)
         if not job:
             return None
-        if job.status != "queued":
-            return job
-        if int(job.attempts or 0) >= int(job.max_attempts or 0):
-            return None
 
         now_ms = int(time.time() * 1000)
         lock_expired_before = now_ms - lock_timeout_ms
-        if job.locked_at and job.locked_at > lock_expired_before:
+        if int(job.attempts or 0) >= int(job.max_attempts or 0):
+            return None
+        if job.status == "running":
+            if job.locked_at and job.locked_at > lock_expired_before:
+                return None
+        elif job.status != "queued":
+            return None
+        elif job.locked_at and job.locked_at > lock_expired_before:
             return None
 
         job.status = "running"

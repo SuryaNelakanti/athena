@@ -8,6 +8,7 @@ from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, Cha
 from app.providers.factory import get_envoy
 from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel, LogModel  # Trace, Span, Dataset, Log DB models
 from app.services.provider_keys import ProviderKeyStore
+from app.services.job_service import JobService
 from app.services.cache import get_cache
 
 class ProxyService:
@@ -168,6 +169,12 @@ class ProxyService:
              self.session.add(span)
              self.session.add(trace)
              await self.session.commit()
+
+             try:
+                 job_service = JobService(self.session)
+                 await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
+             except Exception:
+                 pass
              
              # Return response with trace context for client correlation
              response.trace_id = trace_id
@@ -328,6 +335,12 @@ class ProxyService:
             self.session.add(span)
             self.session.add(trace)
             await self.session.commit()
+
+            try:
+                job_service = JobService(self.session)
+                await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
+            except Exception:
+                pass
 
             yield "data: [DONE]\n\n"
 

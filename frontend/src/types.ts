@@ -273,3 +273,45 @@ export interface Log {
   log_metadata: Record<string, any>;
   created_at: number;
 }
+
+// --- AQL ---
+
+export interface AqlQueryResponse {
+  shape: string;
+  schema: string[];
+  data: Record<string, any>[];
+  query?: string;
+}
+
+export interface AqlFilter {
+  field: string;
+  op: string;
+  value: any;
+}
+
+export interface AqlMeasure {
+  func: string;
+  field?: string;
+  alias?: string;
+}
+
+export interface AqlSort {
+  field: string;
+  direction?: 'asc' | 'desc' | string;
+}
+
+export interface AqlBuilder {
+  shape: string;
+  params?: Record<string, any>;
+  select?: string[];
+  filters?: AqlFilter[];
+  dimensions?: string[];
+  measures?: AqlMeasure[];
+  sort?: AqlSort;
+  limit?: number;
+}
+
+export interface AqlQueryRequest {
+  query?: string;
+  builder?: AqlBuilder;
+}
