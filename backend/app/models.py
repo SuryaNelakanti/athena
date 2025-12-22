@@ -183,6 +183,10 @@ class DatasetModel(SQLModel, table=True):
     name: str
     description: Optional[str] = None
     version: int = Field(default=1)
+    kind: str = Field(default="eval", index=True)
+    schema: Dict = Field(sa_column=Column(JSON), default={})
+    schema_version: int = Field(default=1)
+    review_policy: Dict = Field(sa_column=Column(JSON), default={})
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
 class DatasetRowModel(SQLModel, table=True):
@@ -197,6 +201,8 @@ class DatasetRowModel(SQLModel, table=True):
     is_deleted: bool = Field(default=False)  # Tombstone marker for soft deletes
     
     # Content fields
+    row_kind: str = Field(default="eval", index=True)  # eval | resource
+    eval_label: Optional[str] = Field(default=None, index=True)  # gold | anti_pattern
     input: Dict = Field(sa_column=Column(JSON), default={})
     expected: Optional[Dict] = Field(sa_column=Column(JSON), default={})
     meta: Dict = Field(sa_column=Column(JSON), default={})

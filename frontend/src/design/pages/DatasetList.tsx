@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Dataset } from '../../types';
 import { CircleStackIcon, PlusIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import { Button, Input, Modal, SectionHeader, Textarea, Badge } from '../ui';
+import { Button, Input, Modal, SectionHeader, Textarea, Badge, Select } from '../ui';
 
 interface DatasetListProps {
     projectId: string;
@@ -13,7 +13,7 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newDataset, setNewDataset] = useState({ name: '', description: '' });
+    const [newDataset, setNewDataset] = useState({ name: '', description: '', kind: 'eval' });
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -39,9 +39,10 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
             await api.createDataset({
                 name: newDataset.name,
                 description: newDataset.description,
+                kind: newDataset.kind,
                 project_id: projectId
             });
-            setNewDataset({ name: '', description: '' });
+            setNewDataset({ name: '', description: '', kind: 'eval' });
             setShowCreateModal(false);
             loadDatasets();
         } catch (e: any) {
@@ -112,6 +113,17 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                             onChange={e => setNewDataset({ ...newDataset, description: e.target.value })}
                         />
                     </div>
+                    <div>
+                        <label className="block text-[11px] font-medium text-text-muted mb-2">Dataset Type</label>
+                        <Select
+                            value={newDataset.kind}
+                            onChange={(e) => setNewDataset({ ...newDataset, kind: e.target.value })}
+                        >
+                            <option value="eval">Eval</option>
+                            <option value="knowledge">Knowledge</option>
+                            <option value="mixed">Mixed</option>
+                        </Select>
+                    </div>
                     {error && <p className="text-xs text-rose-500 font-medium">{error}</p>}
                 </div>
             </Modal>
@@ -156,6 +168,11 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                                         <Badge variant="neutral" className="text-[9px]">
                                             v{ds.version}
                                         </Badge>
+                                        {ds.kind && (
+                                            <Badge variant="outline" className="text-[9px] uppercase">
+                                                {ds.kind}
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-xs text-text-muted truncate mt-0.5">
                                         {ds.description || 'No description'}
@@ -166,7 +183,9 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                                 <div className="flex items-center gap-6 text-xs text-text-muted flex-shrink-0">
                                     <div className="flex items-center gap-1.5">
                                         <DocumentTextIcon className="w-3.5 h-3.5" />
-                                        <span className="tabular-nums">—</span>
+                                        <span className="tabular-nums">
+                                            {ds.row_counts?.total ?? '—'}
+                                        </span>
                                         <span>rows</span>
                                     </div>
                                     <div className="w-20 text-right">

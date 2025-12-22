@@ -48,6 +48,8 @@ class ReviewPromoteRequest(BaseModel):
     dataset_id: str
     corrected_expected: Optional[dict] = None
     example_type: Optional[str] = "gold"
+    row_kind: Optional[str] = None
+    eval_label: Optional[str] = None
 
 
 def _extract_preview_text(value: Any, max_len: int = 240) -> str:
@@ -251,7 +253,9 @@ async def promote_review_to_dataset(
         input_data=input_data,
         expected_data=expected_data,
         meta={"promoted_from_review": True, "review_id": review.id},
-        example_type=payload.example_type or "gold",
+        example_type=payload.example_type,
+        row_kind=payload.row_kind,
+        eval_label=payload.eval_label,
         source_trace_id=trace.id,
         version_meta={"source": "review", "review_id": review.id, "trace_id": trace.id},
     )
@@ -265,4 +269,3 @@ async def promote_review_to_dataset(
     await session.commit()
     await session.refresh(review)
     return review
-

@@ -21,7 +21,8 @@ interface DatasetDetailProps {
 }
 
 const MAIN_TABS = [
-    { id: 'examples', label: 'Examples' },
+    { id: 'eval', label: 'Eval' },
+    { id: 'resources', label: 'Resources' },
     { id: 'history', label: 'History' },
 ];
 
@@ -42,7 +43,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'gold' | 'anti_pattern'>('all');
-    const [activeTab, setActiveTab] = useState<'examples' | 'history'>('examples');
+    const [activeTab, setActiveTab] = useState<'eval' | 'resources' | 'history'>('eval');
     const [history, setHistory] = useState<DatasetVersion[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
@@ -131,19 +132,31 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
         }
     };
 
+    const getRowKind = (row: DatasetRow) => row.row_kind || 'eval';
+    const getEvalLabel = (row: DatasetRow) => row.eval_label || row.example_type || 'gold';
+
     // Filter rows
     const filteredRows = rows.filter(row => {
-        // Type filter
-        if (filterType !== 'all' && row.example_type !== filterType) return false;
-        // Search filter
+        const rowKind = getRowKind(row);
+        const evalLabel = getEvalLabel(row);
+
+        if (activeTab === 'eval' && rowKind !== 'eval') return false;
+        if (activeTab === 'resources' && rowKind !== 'resource') return false;
+
+        if (activeTab === 'eval' && filterType !== 'all' && evalLabel !== filterType) return false;
+
         if (!searchQuery.trim()) return true;
         const input = extractText(row.input).toLowerCase();
         const expected = extractExpected(row.expected).toLowerCase();
         return input.includes(searchQuery.toLowerCase()) || expected.includes(searchQuery.toLowerCase());
     });
 
-    const goldCount = rows.filter(r => r.example_type === 'gold' || !r.example_type).length;
-    const antiPatternCount = rows.filter(r => r.example_type === 'anti_pattern').length;
+    const evalRows = rows.filter(r => getRowKind(r) === 'eval');
+    const goldCount = evalRows.filter(r => getEvalLabel(r) === 'gold').length;
+    const antiPatternCount = evalRows.filter(r => getEvalLabel(r) === 'anti_pattern').length;
+    const resourceCount = rows.filter(r => getRowKind(r) === 'resource').length;
+    const isEvalTab = activeTab === 'eval';
+    const isResourceTab = activeTab === 'resources';
 
     const handleAddExample = async () => {
         setAddError(null);
@@ -151,16 +164,19 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
             setAddError('Input is required');
             return;
         }
-        if (!newExample.expected.trim()) {
+        const isEvalTab = activeTab === 'eval';
+        if (isEvalTab && !newExample.expected.trim()) {
             setAddError('Expected output is required');
             return;
         }
 
         try {
             await api.addDatasetRow(dataset.id, {
-                input: { prompt: newExample.input },
-                expected: { answer: newExample.expected },
-                example_type: newExample.example_type,
+                input: isEvalTab ? { prompt: newExample.input } : { text: newExample.input },
+                expected: isEvalTab ? { answer: newExample.expected } : undefined,
+                row_kind: isEvalTab ? 'eval' : 'resource',
+                eval_label: isEvalTab ? newExample.example_type : undefined,
+                example_type: isEvalTab ? newExample.example_type : undefined,
             });
             await loadRows();
             setShowAddModal(false);
@@ -188,6 +204,11 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     <h2 className="text-xl font-serif font-black text-text-main leading-tight">{dataset.name}</h2>
                                     <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
                                         <Badge variant="primary">v{dataset.version}</Badge>
+                                        {dataset.kind && (
+                                            <Badge variant="outline" className="uppercase">
+                                                {dataset.kind}
+                                            </Badge>
+                                        )}
                                         <span>|</span>
                                         <span className="text-emerald-500">{goldCount} gold</span>
                                         {antiPatternCount > 0 && (
@@ -196,16 +217,24 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                                 <span className="text-rose-500">{antiPatternCount} anti-patterns</span>
                                             </>
                                         )}
+                                        {resourceCount > 0 && (
+                                            <>
+                                                <span>|</span>
+                                                <span className="text-sky-500">{resourceCount} resources</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <Button
-                            onClick={() => setShowAddModal(true)}
-                            variant="primary"
-                        >
-                            <PlusIcon className="w-4 h-4" /> Add Example
-                        </Button>
+                        {activeTab !== 'history' && (
+                            <Button
+                                onClick={() => setShowAddModal(true)}
+                                variant="primary"
+                            >
+                                <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
+                            </Button>
+                        )}
                     </div>
                     {dataset.description && (
                         <p className="text-text-muted text-sm max-w-3xl leading-relaxed">{dataset.description}</p>
@@ -217,9 +246,10 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     <Card className="bg-primary/5 border-primary/20">
                         <h4 className="text-sm font-bold text-text-main mb-1">What is this dataset?</h4>
                         <p className="text-xs text-text-muted leading-relaxed">
-                            Each row has an <strong className="text-primary">Input</strong> (the prompt) and an <strong className="text-emerald-500">Expected Output</strong> (the ideal response).
-                            <strong className="text-emerald-500 ml-1">Gold examples</strong> are correct behaviors.
+                            Eval rows store <strong className="text-primary">Inputs</strong> and <strong className="text-emerald-500">Expected Outputs</strong>.
+                            <strong className="text-emerald-500 ml-1">Gold</strong> entries are correct behaviors.
                             <strong className="text-rose-500 ml-1">Anti-patterns</strong> are outputs the AI should avoid.
+                            <span className="ml-1">Resources store reference material for context.</span>
                         </p>
                     </Card>
                 </div>
@@ -228,42 +258,44 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     <Tabs
                         options={MAIN_TABS}
                         value={activeTab}
-                        onChange={(value) => setActiveTab(value as 'examples' | 'history')}
+                        onChange={(value) => setActiveTab(value as 'eval' | 'resources' | 'history')}
                     />
                 </div>
 
-                {activeTab === 'examples' && (
+                {activeTab !== 'history' && (
                     <div className="px-8 pb-4 flex gap-4">
                         <div className="relative flex-1">
                             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                             <Input
                                 type="text"
-                                placeholder="Search examples..."
+                                placeholder={activeTab === 'resources' ? 'Search resources...' : 'Search eval rows...'}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-10"
                             />
                         </div>
-                        <Tabs
-                            options={FILTER_TABS}
-                            value={filterType}
-                            onChange={(value) => setFilterType(value as 'all' | 'gold' | 'anti_pattern')}
-                        />
+                        {activeTab === 'eval' && (
+                            <Tabs
+                                options={FILTER_TABS}
+                                value={filterType}
+                                onChange={(value) => setFilterType(value as 'all' | 'gold' | 'anti_pattern')}
+                            />
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Examples List */}
             <div className="flex-1 overflow-y-auto p-6">
-                {activeTab === 'examples' ? (
+                {activeTab !== 'history' ? (
                     <>
                         {loading ? (
-                            <div className="py-20 text-center text-text-muted italic">Loading examples...</div>
+                            <div className="py-20 text-center text-text-muted italic">Loading rows...</div>
                         ) : filteredRows.length === 0 ? (
                             <div className="py-20 text-center">
                                 <CircleStackIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
                                 <p className="text-text-muted italic mb-4">
-                                    {searchQuery ? 'No examples match your search.' : 'No examples in this dataset yet.'}
+                                    {searchQuery ? 'No rows match your search.' : 'No rows in this dataset yet.'}
                                 </p>
                                 <Button
                                     onClick={() => setShowAddModal(true)}
@@ -271,7 +303,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     size="sm"
                                     className="text-primary"
                                 >
-                                    <PlusIcon className="w-4 h-4" /> Add Your First Example
+                                    <PlusIcon className="w-4 h-4" /> {isResourceTab ? 'Add Your First Resource' : 'Add Your First Row'}
                                 </Button>
                             </div>
                         ) : (
@@ -280,7 +312,10 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     const isExpanded = expandedRowId === row.id;
                                     const inputText = extractText(row.input);
                                     const expectedText = extractExpected(row.expected);
-                                    const isAntiPattern = row.example_type === 'anti_pattern';
+                                    const rowKind = getRowKind(row);
+                                    const evalLabel = getEvalLabel(row);
+                                    const isAntiPattern = rowKind === 'eval' && evalLabel === 'anti_pattern';
+                                    const isResource = rowKind === 'resource';
 
                                     return (
                                         <div
@@ -304,6 +339,9 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                                         {isAntiPattern && (
                                                             <Badge variant="danger">Anti-Pattern</Badge>
                                                         )}
+                                                        {isResource && (
+                                                            <Badge variant="outline">Resource</Badge>
+                                                        )}
                                                         {row.source_trace_id && (
                                                             <Badge variant="warning">From Trace</Badge>
                                                         )}
@@ -311,8 +349,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                                     <p className="text-sm text-text-main line-clamp-2 font-medium">{inputText}</p>
                                                     <p className="text-xs text-text-muted mt-1 line-clamp-1">
                                                         <span className={isAntiPattern ? 'text-rose-500 font-medium' : 'text-emerald-500 font-medium'}>
-                                                            {isAntiPattern ? 'Avoid:' : 'Expected:'}
-                                                        </span> {expectedText}
+                                                            {isResource ? 'Resource:' : isAntiPattern ? 'Avoid:' : 'Expected:'}
+                                                        </span> {isResource ? 'Reference content' : expectedText}
                                                     </p>
                                                 </div>
                                                 <div className="flex-shrink-0">
@@ -327,41 +365,55 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                             {/* Expanded Content */}
                                             {isExpanded && (
                                                 <div className="px-6 pb-6 pt-2 border-t border-border-base/50">
-                                                    <div className="grid md:grid-cols-2 gap-4">
-                                                        {/* Input */}
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <DocumentTextIcon className="w-4 h-4 text-primary" />
-                                                                <span className="text-xs font-bold uppercase tracking-wider text-primary">Input (Prompt)</span>
-                                                            </div>
-                                                            <div className="bg-app rounded-md border border-border-base p-4">
-                                                                <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
+                                                    {isResource ? (
+                                                        <div className="grid md:grid-cols-1 gap-4">
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <DocumentTextIcon className="w-4 h-4 text-primary" />
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Resource Content</span>
+                                                                </div>
+                                                                <div className="bg-app rounded-md border border-border-base p-4">
+                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
+                                                    ) : (
+                                                        <div className="grid md:grid-cols-2 gap-4">
+                                                            {/* Input */}
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <DocumentTextIcon className="w-4 h-4 text-primary" />
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Input (Prompt)</span>
+                                                                </div>
+                                                                <div className="bg-app rounded-md border border-border-base p-4">
+                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
+                                                                </div>
+                                                            </div>
 
-                                                        {/* Expected */}
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                {isAntiPattern ? (
-                                                                    <>
-                                                                        <ExclamationTriangleIcon className="w-4 h-4 text-rose-500" />
-                                                                        <span className="text-xs font-bold uppercase tracking-wider text-rose-500">Anti-Pattern (Avoid This)</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
-                                                                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Expected Output</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                            <div className={`rounded-md p-4 ${isAntiPattern
-                                                                ? 'bg-rose-500/5 border border-rose-500/20'
-                                                                : 'bg-emerald-500/5 border border-emerald-500/20'
-                                                                }`}>
-                                                                <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
+                                                            {/* Expected */}
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    {isAntiPattern ? (
+                                                                        <>
+                                                                            <ExclamationTriangleIcon className="w-4 h-4 text-rose-500" />
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-rose-500">Anti-Pattern (Avoid This)</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Expected Output</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <div className={`rounded-md p-4 ${isAntiPattern
+                                                                    ? 'bg-rose-500/5 border border-rose-500/20'
+                                                                    : 'bg-emerald-500/5 border border-emerald-500/20'
+                                                                    }`}>
+                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -444,8 +496,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
 
             <Modal
                 open={showAddModal}
-                title="Add Example"
-                description="Create an input-output pair for testing."
+                title={isResourceTab ? 'Add Resource' : 'Add Eval Row'}
+                description={isResourceTab ? 'Store reference material for context.' : 'Create an input-output pair for testing.'}
                 onClose={() => setShowAddModal(false)}
                 footer={
                     <div className="flex items-center justify-end gap-2">
@@ -453,10 +505,12 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                             Cancel
                         </Button>
                         <Button
-                            variant={newExample.example_type === 'gold' ? 'success' : 'danger'}
+                            variant={isEvalTab ? (newExample.example_type === 'gold' ? 'success' : 'danger') : 'primary'}
                             onClick={handleAddExample}
                         >
-                            {newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern'}
+                            {isEvalTab
+                                ? (newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern')
+                                : 'Add Resource'}
                         </Button>
                     </div>
                 }
@@ -467,46 +521,52 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         <div className="text-xs text-rose-500 font-semibold bg-rose-500/10 rounded-md p-3">{addError}</div>
                     )}
 
-                    <div>
-                        <label className="block text-[11px] font-medium text-text-muted mb-2">Example Type</label>
-                        <Tabs
-                            options={EXAMPLE_TABS}
-                            value={newExample.example_type}
-                            onChange={(value) => setNewExample(p => ({ ...p, example_type: value as 'gold' | 'anti_pattern' }))}
-                        />
-                        <p className="text-[11px] text-text-muted mt-2">
-                            {newExample.example_type === 'gold'
-                                ? 'Gold examples show correct AI behavior.'
-                                : 'Anti-patterns show outputs the AI should avoid.'}
-                        </p>
-                    </div>
+                    {isEvalTab && (
+                        <div>
+                            <label className="block text-[11px] font-medium text-text-muted mb-2">Example Type</label>
+                            <Tabs
+                                options={EXAMPLE_TABS}
+                                value={newExample.example_type}
+                                onChange={(value) => setNewExample(p => ({ ...p, example_type: value as 'gold' | 'anti_pattern' }))}
+                            />
+                            <p className="text-[11px] text-text-muted mt-2">
+                                {newExample.example_type === 'gold'
+                                    ? 'Gold entries show correct AI behavior.'
+                                    : 'Anti-patterns show outputs the AI should avoid.'}
+                            </p>
+                        </div>
+                    )}
 
                     <div>
-                        <label className="block text-[11px] font-medium text-text-muted mb-2">Input (Prompt / Question)</label>
+                        <label className="block text-[11px] font-medium text-text-muted mb-2">
+                            {isResourceTab ? 'Resource Content' : 'Input (Prompt / Question)'}
+                        </label>
                         <Textarea
                             value={newExample.input}
                             onChange={(e) => setNewExample(p => ({ ...p, input: e.target.value }))}
                             className="h-28 resize-none"
-                            placeholder="What question or prompt should be given to the AI?"
+                            placeholder={isResourceTab ? 'Paste the reference content or notes here.' : 'What question or prompt should be given to the AI?'}
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-[11px] font-medium text-text-muted mb-2">
-                            {newExample.example_type === 'gold' ? 'Expected Output (Correct Answer)' : 'Anti-Pattern Output (What to Avoid)'}
-                        </label>
-                        <Textarea
-                            value={newExample.expected}
-                            onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
-                            className={`h-28 resize-none ${newExample.example_type === 'gold'
-                                    ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
-                                    : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
-                                }`}
-                            placeholder={newExample.example_type === 'gold'
-                                ? "What's the correct response?"
-                                : "What output should the AI avoid?"}
-                        />
-                    </div>
+                    {isEvalTab && (
+                        <div>
+                            <label className="block text-[11px] font-medium text-text-muted mb-2">
+                                {newExample.example_type === 'gold' ? 'Expected Output (Correct Answer)' : 'Anti-Pattern Output (What to Avoid)'}
+                            </label>
+                            <Textarea
+                                value={newExample.expected}
+                                onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
+                                className={`h-28 resize-none ${newExample.example_type === 'gold'
+                                        ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
+                                        : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
+                                    }`}
+                                placeholder={newExample.example_type === 'gold'
+                                    ? "What's the correct response?"
+                                    : "What output should the AI avoid?"}
+                            />
+                        </div>
+                    )}
                 </div>
             </Modal>
         </div>

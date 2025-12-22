@@ -4,7 +4,7 @@ from typing import Any, Optional
 import time
 import uuid
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -14,6 +14,20 @@ from app.models import DatasetModel, DatasetRowModel, DatasetVersionModel
 class DatasetService:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    def _resolve_row_kind(self, row_kind: Optional[str]) -> str:
+        return row_kind or "eval"
+
+    def _resolve_eval_label(
+        self,
+        row_kind: str,
+        eval_label: Optional[str],
+        example_type: Optional[str],
+        fallback: Optional[str] = None,
+    ) -> Optional[str]:
+        if row_kind != "eval":
+            return None
+        return eval_label or example_type or fallback or "gold"
 
     async def get_dataset(self, dataset_id: str) -> DatasetModel:
         dataset = await self.session.get(DatasetModel, dataset_id)
@@ -67,7 +81,13 @@ class DatasetService:
         self.session.add(entry)
         return entry
 
-    async def list_rows(self, dataset_id: str, at_version: Optional[int] = None) -> list[DatasetRowModel]:
+    async def list_rows(
+        self,
+        dataset_id: str,
+        at_version: Optional[int] = None,
+        row_kind: Optional[str] = None,
+        eval_label: Optional[str] = None,
+    ) -> list[DatasetRowModel]:
         dataset = await self.get_dataset(dataset_id)
         effective_version = at_version if at_version is not None else dataset.version
         last_flush_version = await self._get_last_flush_version(dataset_id, effective_version)
@@ -100,6 +120,25 @@ class DatasetService:
             .order_by(DatasetRowModel.created_at.desc())
         )
 
+        if row_kind:
+            if row_kind == "eval":
+                stmt = stmt.where(
+                    or_(
+                        DatasetRowModel.row_kind == "eval",
+                        DatasetRowModel.row_kind.is_(None),
+                    )
+                )
+            else:
+                stmt = stmt.where(DatasetRowModel.row_kind == row_kind)
+
+        if eval_label:
+            stmt = stmt.where(
+                or_(
+                    DatasetRowModel.eval_label == eval_label,
+                    DatasetRowModel.example_type == eval_label,
+                )
+            )
+
         res = await self.session.execute(stmt)
         return res.scalars().all()
 
@@ -127,12 +166,20 @@ class DatasetService:
         input_data: Any,
         expected_data: Any,
         meta: Optional[dict[str, Any]] = None,
-        example_type: str = "gold",
+        example_type: Optional[str] = None,
+        row_kind: Optional[str] = None,
+        eval_label: Optional[str] = None,
         source_trace_id: Optional[str] = None,
         version_meta: Optional[dict[str, Any]] = None,
     ) -> DatasetRowModel:
         dataset = await self.get_dataset(dataset_id)
         await self._next_dataset_version(dataset)
+
+        resolved_row_kind = self._resolve_row_kind(row_kind)
+        resolved_eval_label = self._resolve_eval_label(
+            resolved_row_kind, eval_label, example_type
+        )
+        resolved_example_type = resolved_eval_label or "gold"
 
         row = DatasetRowModel(
             id=f"dr_{uuid.uuid4().hex[:8]}",
@@ -141,10 +188,12 @@ class DatasetService:
             version=1,
             dataset_version=int(dataset.version),
             is_deleted=False,
+            row_kind=resolved_row_kind,
+            eval_label=resolved_eval_label,
             input=input_data or {},
             expected=expected_data or {},
             meta=meta or {},
-            example_type=example_type,
+            example_type=resolved_example_type,
             source_trace_id=source_trace_id,
             created_at=int(time.time() * 1000),
         )
@@ -170,6 +219,8 @@ class DatasetService:
         expected_data: Optional[Any] = None,
         meta: Optional[dict[str, Any]] = None,
         example_type: Optional[str] = None,
+        row_kind: Optional[str] = None,
+        eval_label: Optional[str] = None,
         is_deleted: Optional[bool] = None,
         version_meta: Optional[dict[str, Any]] = None,
     ) -> DatasetRowModel:
@@ -184,6 +235,17 @@ class DatasetService:
 
         await self._next_dataset_version(dataset)
 
+        resolved_row_kind = self._resolve_row_kind(
+            row_kind if row_kind is not None else latest.row_kind
+        )
+        resolved_eval_label = self._resolve_eval_label(
+            resolved_row_kind,
+            eval_label,
+            example_type,
+            fallback=latest.eval_label or latest.example_type,
+        )
+        resolved_example_type = resolved_eval_label or "gold"
+
         new_row = DatasetRowModel(
             id=f"dr_{uuid.uuid4().hex[:8]}",
             dataset_id=dataset_id,
@@ -191,10 +253,12 @@ class DatasetService:
             version=int(latest.version) + 1,
             dataset_version=int(dataset.version),
             is_deleted=latest.is_deleted if is_deleted is None else bool(is_deleted),
+            row_kind=resolved_row_kind,
+            eval_label=resolved_eval_label,
             input=latest.input if input_data is None else input_data,
             expected=latest.expected if expected_data is None else expected_data,
             meta=latest.meta if meta is None else meta,
-            example_type=latest.example_type if example_type is None else example_type,
+            example_type=resolved_example_type,
             source_trace_id=latest.source_trace_id,
             created_at=int(time.time() * 1000),
         )
@@ -239,6 +303,8 @@ class DatasetService:
             version=int(latest.version) + 1,
             dataset_version=int(dataset.version),
             is_deleted=True,
+            row_kind=latest.row_kind,
+            eval_label=latest.eval_label,
             input=latest.input,
             expected=latest.expected,
             meta=latest.meta,
@@ -278,3 +344,12 @@ class DatasetService:
         await self.session.refresh(entry)
         return entry
 
+    async def get_row_counts(self, dataset_id: str) -> dict[str, int]:
+        rows = await self.list_rows(dataset_id)
+        eval_rows = [row for row in rows if (row.row_kind or "eval") == "eval"]
+        resource_rows = [row for row in rows if row.row_kind == "resource"]
+        return {
+            "total": len(rows),
+            "eval": len(eval_rows),
+            "resource": len(resource_rows),
+        }

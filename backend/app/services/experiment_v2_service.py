@@ -332,7 +332,11 @@ class ExperimentV2Service:
 
             from app.services.dataset_service import DatasetService
             dataset_service = DatasetService(session)
-            rows = await dataset_service.list_rows(experiment.dataset_id, at_version=version.dataset_version_pinned)
+            rows = await dataset_service.list_rows(
+                experiment.dataset_id,
+                at_version=version.dataset_version_pinned,
+                row_kind="eval",
+            )
 
             run.status = "running"
             run.started_at = int(time.time() * 1000)

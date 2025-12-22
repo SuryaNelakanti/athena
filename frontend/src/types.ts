@@ -66,22 +66,35 @@ export interface Dataset {
   name: string;
   description?: string;
   version: number;
+  kind?: 'eval' | 'knowledge' | 'mixed' | string;
+  schema?: Record<string, any>;
+  schema_version?: number;
+  review_policy?: Record<string, any>;
+  row_counts?: DatasetRowCounts;
   created_at: number;
+}
+
+export interface DatasetRowCounts {
+  total: number;
+  eval: number;
+  resource: number;
 }
 
 export interface DatasetRow {
   id: string;
   dataset_id: string;
+  row_kind?: 'eval' | 'resource' | string;
+  eval_label?: 'gold' | 'anti_pattern' | string | null;
   // Versioning fields
   logical_id: string;  // Groups revisions of the same logical row
   version: number;  // Revision number
-  dataset_version?: number; // Dataset version when this revision was added
+  dataset_version?: number; // Dataset version when this revision was added     
   is_deleted: boolean;  // Tombstone marker
   // Content fields
   input: any;
   expected?: any;
   meta: Record<string, any>;
-  example_type: 'gold' | 'anti_pattern';  // "gold" (positive example) or "anti_pattern" (negative example)
+  example_type?: 'gold' | 'anti_pattern' | string;  // legacy
   source_trace_id?: string;  // If promoted from a trace
   created_at: number;
 }

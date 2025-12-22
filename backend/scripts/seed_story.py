@@ -1439,7 +1439,7 @@ async def seed_logs(session: AsyncSession) -> None:
 
 
 # =============================================================================
-# DATASETS (Enhanced with multi-turn examples and anti-patterns)
+# DATASETS (Enhanced with multi-turn examples, resources, and anti-patterns)
 # =============================================================================
 
 async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
@@ -1448,22 +1448,22 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
     
     # Datasets
     datasets = [
-        ("ds_support_refunds", "proj_support", "Support: Refund Responses", "Policy-correct refund responses with guardrails and escalation paths"),
-        ("ds_support_antipatterns", "proj_support", "Support: Anti-Patterns", "Refund anti-patterns and policy violations from incidents"),
-        ("ds_legal_clauses", "proj_legal", "Legal: Clause Extraction", "Clause extraction and redlines with verified citations"),
-        ("ds_legal_antipatterns", "proj_legal", "Legal: Anti-Patterns", "Hallucinated citations and invented sections to block"),
-        ("ds_gtm_outbound", "proj_gtm", "GTM: Outbound Emails", "Compliant outbound emails with opt-out and recovery messaging"),
-        ("ds_gtm_antipatterns", "proj_gtm", "GTM: Anti-Patterns", "Spammy, non-compliant outbound examples to block"),
+        ("ds_support_refunds", "proj_support", "Support: Refund Responses", "Policy-correct refund responses with guardrails and escalation paths", "mixed"),
+        ("ds_support_antipatterns", "proj_support", "Support: Anti-Patterns", "Refund anti-patterns and policy violations from incidents", "eval"),
+        ("ds_legal_clauses", "proj_legal", "Legal: Clause Extraction", "Clause extraction and redlines with verified citations", "mixed"),
+        ("ds_legal_antipatterns", "proj_legal", "Legal: Anti-Patterns", "Hallucinated citations and invented sections to block", "eval"),
+        ("ds_gtm_outbound", "proj_gtm", "GTM: Outbound Emails", "Compliant outbound emails with opt-out and recovery messaging", "mixed"),
+        ("ds_gtm_antipatterns", "proj_gtm", "GTM: Anti-Patterns", "Spammy, non-compliant outbound examples to block", "eval"),
     ]
-    
-    for idx, (ds_id, proj, name, desc) in enumerate(datasets, start=1):
+
+    for idx, (ds_id, proj, name, desc, kind) in enumerate(datasets, start=1):
         session.add(DatasetModel(
             id=ds_id, project_id=proj, name=name, description=desc,
-            version=1, created_at=base - idx * 100_000
+            version=1, kind=kind, created_at=base - idx * 100_000
         ))
     await session.commit()
     
-    # Dataset rows with narrative depth (gold + anti-patterns)
+    # Dataset rows with narrative depth (eval + resources)
     contract_id = CONTRACTS["nexus_msa"]["id"]
     rows = [
         # Support refunds - gold examples
@@ -1549,6 +1549,16 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
             },
             "example_type": "gold",
             "meta": {"story_phase": "post_fix", "persona": "support", "scenario": "proration"},
+        },
+        {
+            "dataset_id": "ds_support_refunds",
+            "row_kind": "resource",
+            "input": {
+                "title": "Refund policy quick guide",
+                "text": "Refunds allowed within 30 days of cancellation. Duplicate charges eligible for full refund. Escalate exceptions to billing.",
+                "source": POLICY_DOCS["refunds"],
+            },
+            "meta": {"story_phase": "baseline", "persona": "support", "resource_type": "policy"},
         },
 
         # Support anti-patterns
@@ -1678,6 +1688,16 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
             "meta": {"story_phase": "post_fix", "persona": "legal", "scenario": "exec_summary"},
             "source_trace_id": "trace_legal_summary_001",
         },
+        {
+            "dataset_id": "ds_legal_clauses",
+            "row_kind": "resource",
+            "input": {
+                "title": "Nexus MSA section index",
+                "text": "Sections 1-16 only. Liability cap in 8.2. Data protection in 11. Termination for cause in 12.3.",
+                "source": contract_id,
+            },
+            "meta": {"story_phase": "baseline", "persona": "legal", "resource_type": "contract_index"},
+        },
 
         # Legal anti-patterns
         {
@@ -1786,6 +1806,16 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
             "example_type": "gold",
             "meta": {"story_phase": "post_fix", "persona": "gtm", "scenario": "short_outreach"},
         },
+        {
+            "dataset_id": "ds_gtm_outbound",
+            "row_kind": "resource",
+            "input": {
+                "title": "Outbound compliance checklist",
+                "text": "Always include opt-out language. Avoid urgency pressure. Keep personalization business-relevant. Do not use private data.",
+                "source": POLICY_DOCS["outbound"],
+            },
+            "meta": {"story_phase": "baseline", "persona": "gtm", "resource_type": "policy"},
+        },
 
         # GTM anti-patterns
         {
@@ -1844,9 +1874,13 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
         # Increment version for THIS dataset
         v = dataset_versions.get(ds_id, 0) + 1
         dataset_versions[ds_id] = v
-        
+
         row_id = f"dr_{idx:03d}"
         logical_id = f"drl_{idx:03d}"
+        row_kind = row.get("row_kind", "eval")
+        eval_label = row.get("eval_label")
+        if row_kind == "eval" and not eval_label:
+            eval_label = row.get("example_type", "gold")
         session.add(DatasetRowModel(
             id=row_id,
             dataset_id=ds_id,
@@ -1854,6 +1888,8 @@ async def seed_datasets(session: AsyncSession, bad_traces: dict) -> None:
             version=1,
             dataset_version=v,
             is_deleted=False,
+            row_kind=row_kind,
+            eval_label=eval_label,
             input=row["input"],
             expected=row.get("expected", {}),
             example_type=row.get("example_type", "gold"),
@@ -1930,7 +1966,8 @@ async def seed_experiments(session: AsyncSession) -> None:
 
     def output_text_for(row: DatasetRowModel, quality: str) -> str:
         expected = row.expected or {}
-        if row.example_type == "anti_pattern":
+        label = row.eval_label or row.example_type or "gold"
+        if label == "anti_pattern":
             if quality == "baseline":
                 return expected.get("bad_response") or expected.get("good_response") or ""
             return expected.get("good_response") or expected_text(expected)
@@ -1942,7 +1979,8 @@ async def seed_experiments(session: AsyncSession) -> None:
     def scores_for(row: DatasetRowModel, quality: str, idx: int, scorers: tuple[str, ...]) -> dict:
         base_map = {"baseline": 0.45, "constrained": 0.72, "best": 0.92}
         anti_map = {"baseline": 0.12, "constrained": 0.7, "best": 0.95}
-        base = anti_map[quality] if row.example_type == "anti_pattern" else base_map[quality]
+        label = row.eval_label or row.example_type or "gold"
+        base = anti_map[quality] if label == "anti_pattern" else base_map[quality]
         jitter = ((idx % 5) - 2) * 0.01
         score = max(0.0, min(1.0, base + jitter))
         scores = {}
@@ -2011,7 +2049,10 @@ async def seed_experiments(session: AsyncSession) -> None:
         rows_res = await session.execute(
             select(DatasetRowModel).where(DatasetRowModel.dataset_id == ds_id, DatasetRowModel.is_deleted == False)
         )
-        dataset_rows = rows_res.scalars().all()
+        dataset_rows = [
+            row for row in rows_res.scalars().all()
+            if (row.row_kind or "eval") == "eval"
+        ]
 
         runs = [
             ("baseline", v1, ("exact_match",), "gpt-4o-mini"),
@@ -2119,7 +2160,7 @@ async def main() -> None:
         "  - 36 Traces with 3-5 spans each (realistic chains)\n"
         "  - 10 Review Items (showing triage workflow)\n"
         "  - 4 Assignments + 5 Mentions (cross-team communication)\n"
-        "  - 6 Datasets (30 rows: gold + anti-pattern)\n"
+        "  - 6 Datasets (33 rows: eval + resources)\n"
         "  - 3 Experiments with progressive improvement (avg ~0.45 -> 0.72 -> 0.92)\n"
         "\nStories:\n"
         "  - Support: \"The Refund Incident of 12/18\" - $47K in unauthorized refunds\n"

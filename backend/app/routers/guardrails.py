@@ -119,7 +119,7 @@ async def create_guardrail_from_anti_pattern(
     pattern = await session.get(DatasetRowModel, pattern_id)
     if not pattern:
         raise HTTPException(status_code=404, detail="Anti-pattern not found")
-    if pattern.example_type != "anti_pattern":
+    if (pattern.row_kind or "eval") != "eval" or (pattern.eval_label or pattern.example_type) != "anti_pattern":
         raise HTTPException(status_code=400, detail="Dataset row is not an anti-pattern")
     
     guardrail = GuardrailModel(

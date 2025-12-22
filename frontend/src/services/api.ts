@@ -234,8 +234,16 @@ export const api = {
         return response.json();
     },
 
-    getDatasetRows: async (datasetId: string): Promise<any[]> => {
-        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows`);
+    getDatasetRows: async (
+        datasetId: string,
+        filters?: { row_kind?: string; eval_label?: string; at_version?: number }
+    ): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (filters?.row_kind) params.append('row_kind', filters.row_kind);
+        if (filters?.eval_label) params.append('eval_label', filters.eval_label);
+        if (filters?.at_version !== undefined) params.append('at_version', String(filters.at_version));
+        const query = params.toString();
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows${query ? `?${query}` : ''}`);
         if (!response.ok) throw new Error('Failed to fetch dataset rows');
         return response.json();
     },
@@ -256,6 +264,8 @@ export const api = {
         input: any;
         expected: any;
         example_type?: string;  // "gold" or "anti_pattern"
+        row_kind?: string;
+        eval_label?: string;
         meta?: any;
     }): Promise<any> => {
         const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}/rows`, {
@@ -274,6 +284,8 @@ export const api = {
             input?: any;
             expected?: any;
             example_type?: string;
+            row_kind?: string;
+            eval_label?: string;
             meta?: any;
             is_deleted?: boolean;
             reason?: string;
@@ -312,15 +324,22 @@ export const api = {
         options?: {
             corrected_expected?: any;
             example_type?: string;  // "gold" or "anti_pattern"
+            row_kind?: string;
+            eval_label?: string;
         }
     ): Promise<any> => {
         const params = new URLSearchParams({ trace_id: traceId, dataset_id: datasetId });
-        if (options?.example_type) params.append('example_type', options.example_type);
-
         const response = await fetch(`${API_BASE_URL}/datasets/promote?${params.toString()}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: options?.corrected_expected ? JSON.stringify({ corrected_expected: options.corrected_expected }) : undefined,
+            body: options
+                ? JSON.stringify({
+                    corrected_expected: options.corrected_expected,
+                    example_type: options.example_type,
+                    row_kind: options.row_kind,
+                    eval_label: options.eval_label,
+                })
+                : undefined,
         });
         if (!response.ok) throw new Error('Failed to promote trace to dataset');
         return response.json();
@@ -531,6 +550,8 @@ export const api = {
         dataset_id: string;
         corrected_expected?: any;
         example_type?: string;
+        row_kind?: string;
+        eval_label?: string;
     }): Promise<any> => {
         const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/promote`, {
             method: 'POST',

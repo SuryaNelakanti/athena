@@ -83,7 +83,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
 
       // Load dataset rows for context
       if (exp.dataset_id) {
-        const rows = await api.getDatasetRows(exp.dataset_id);
+        const rows = await api.getDatasetRows(exp.dataset_id, { row_kind: 'eval' });
         setDatasetRows(rows);
       }
 

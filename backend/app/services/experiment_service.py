@@ -6,7 +6,7 @@ import time
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete
+from sqlalchemy import delete, or_
 from sqlmodel import select
 
 from app.models import DatasetRowModel, ExperimentModel, ExperimentResultModel
@@ -101,7 +101,13 @@ class ExperimentService:
             await self.session.commit()
 
         rows_result = await self.session.execute(
-            select(DatasetRowModel).where(DatasetRowModel.dataset_id == experiment.dataset_id)
+            select(DatasetRowModel).where(
+                DatasetRowModel.dataset_id == experiment.dataset_id,
+                or_(
+                    DatasetRowModel.row_kind == "eval",
+                    DatasetRowModel.row_kind.is_(None),
+                ),
+            )
         )
         rows = rows_result.scalars().all()
 
@@ -182,4 +188,3 @@ class ExperimentService:
         await self.session.commit()
         await self.session.refresh(experiment)
         return experiment
-

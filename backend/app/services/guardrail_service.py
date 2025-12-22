@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_
 from sqlmodel import select
 
 from app.models import GuardrailModel, DatasetModel, DatasetRowModel
@@ -162,7 +163,14 @@ class GuardrailService:
             dataset_ids = [d.id for d in datasets]
             row_stmt = select(DatasetRowModel).where(
                 DatasetRowModel.dataset_id.in_(dataset_ids),
-                DatasetRowModel.example_type == "anti_pattern"
+                or_(
+                    DatasetRowModel.eval_label == "anti_pattern",
+                    DatasetRowModel.example_type == "anti_pattern",
+                ),
+                or_(
+                    DatasetRowModel.row_kind == "eval",
+                    DatasetRowModel.row_kind.is_(None),
+                ),
             )
             row_result = await self.session.execute(row_stmt)
             patterns = row_result.scalars().all()
