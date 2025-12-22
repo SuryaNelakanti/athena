@@ -3,7 +3,8 @@ import {
     BeakerIcon,
     PaperAirplaneIcon,
     ArrowPathIcon,
-    ChevronDownIcon
+    ChevronDownIcon,
+    ChevronUpIcon
 } from '@heroicons/react/24/outline';
 import { Badge, Button, Card, IconButton, Select, Textarea, cx } from '../ui';
 
@@ -77,6 +78,12 @@ const Labs: React.FC = () => {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Model parameters
+    const [temperature, setTemperature] = useState(0.7);
+    const [maxTokens, setMaxTokens] = useState<number | undefined>(undefined);
+    const [topP, setTopP] = useState(1.0);
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Ref for scrolling
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -158,7 +165,10 @@ const Labs: React.FC = () => {
                     model: model,
                     provider: provider || undefined,
                     messages: requestMessages,
-                    stream: true
+                    stream: true,
+                    temperature: temperature,
+                    max_tokens: maxTokens || undefined,
+                    top_p: topP !== 1.0 ? topP : undefined,
                 }),
                 signal: abortControllerRef.current.signal
             });
@@ -309,13 +319,71 @@ const Labs: React.FC = () => {
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Parameters</label>
                         <Card padded={false} className="bg-app p-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-70">Temperature</span>
-                                <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">0.7</span>
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Temperature</span>
+                                    <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">{temperature.toFixed(1)}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="2"
+                                    step="0.1"
+                                    value={temperature}
+                                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-border-base/50 rounded-full appearance-none cursor-pointer accent-primary"
+                                />
+                                <div className="flex justify-between text-[9px] text-text-muted mt-1">
+                                    <span>Precise</span>
+                                    <span>Creative</span>
+                                </div>
                             </div>
-                            <div className="w-full bg-border-base/50 h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-primary h-full w-[70%]"></div>
-                            </div>
+
+                            <button
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                                className="flex items-center gap-1.5 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-text-main transition-colors"
+                            >
+                                {showAdvanced ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+                                Advanced Settings
+                            </button>
+
+                            {showAdvanced && (
+                                <div className="space-y-4 pt-2 border-t border-border-base">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Max Tokens</span>
+                                            <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">
+                                                {maxTokens || 'auto'}
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="128000"
+                                            value={maxTokens || ''}
+                                            onChange={(e) => setMaxTokens(e.target.value ? parseInt(e.target.value) : undefined)}
+                                            placeholder="Leave empty for auto"
+                                            className="w-full px-3 py-1.5 text-xs bg-panel border border-border-base rounded-md text-text-main placeholder:text-text-muted"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Top P</span>
+                                            <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">{topP.toFixed(2)}</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={topP}
+                                            onChange={(e) => setTopP(parseFloat(e.target.value))}
+                                            className="w-full h-1.5 bg-border-base/50 rounded-full appearance-none cursor-pointer accent-primary"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </Card>
                     </div>
                 </div>

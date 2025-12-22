@@ -15,6 +15,45 @@ type LogRow = {
     status?: string;
 };
 
+// Field options for chart axis selectors
+const X_AXIS_FIELDS = [
+    { value: 'timestamp', label: 'Timestamp' },
+    { value: 'model', label: 'Model' },
+    { value: 'provider', label: 'Provider' },
+    { value: 'status', label: 'Status' },
+    { value: 'event_type', label: 'Event Type' },
+];
+
+const Y_AXIS_FIELDS = [
+    { value: 'total_tokens', label: 'Total Tokens' },
+    { value: 'latency_ms', label: 'Latency (ms)' },
+    { value: 'cost', label: 'Cost' },
+    { value: 'prompt_tokens', label: 'Prompt Tokens' },
+    { value: 'completion_tokens', label: 'Completion Tokens' },
+    { value: 'count', label: 'Count' },
+];
+
+const SERIES_FIELDS = [
+    { value: '', label: 'None' },
+    { value: 'model', label: 'Model' },
+    { value: 'provider', label: 'Provider' },
+    { value: 'status', label: 'Status' },
+    { value: 'event_type', label: 'Event Type' },
+];
+
+// Simple AQL formatter that adds line breaks and indentation
+const formatAql = (query: string): string => {
+    if (!query.trim()) return query;
+    // Add line breaks after keywords
+    let formatted = query.trim()
+        .replace(/\s+/g, ' ')
+        .replace(/\b(from|select|filter|sort|limit|group by)\b/gi, '\n$1')
+        .trim();
+    // Indent lines after the first
+    const lines = formatted.split('\n');
+    return lines.map((line, i) => i === 0 ? line : '  ' + line.trim()).join('\n');
+};
+
 const StatCard = ({ title, value, unit, change, loading }: { title: string, value: string, unit?: string, change?: string, loading?: boolean }) => (
     <Card className="p-6">
         <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-3 opacity-70">{title}</h3>
@@ -371,30 +410,39 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">X Axis Field</label>
-                            <Input
+                            <Select
                                 value={newChart.x_field}
                                 onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
-                                placeholder="e.g. timestamp"
                                 className="text-xs"
-                            />
+                            >
+                                {X_AXIS_FIELDS.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </Select>
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Y Axis Field</label>
-                            <Input
+                            <Select
                                 value={newChart.y_field}
                                 onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
-                                placeholder="e.g. total_tokens"
                                 className="text-xs"
-                            />
+                            >
+                                {Y_AXIS_FIELDS.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </Select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Series Grouping (Optional)</label>
-                            <Input
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Series Grouping</label>
+                            <Select
                                 value={newChart.series_field}
                                 onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
-                                placeholder="e.g. model"
                                 className="text-xs"
-                            />
+                            >
+                                {SERIES_FIELDS.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </Select>
                         </div>
                     </div>
 
@@ -406,6 +454,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                         <Textarea
                             value={newChart.query}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
+                            onBlur={(e) => setNewChart((prev) => ({ ...prev, query: formatAql(prev.query) }))}
                             placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
                             className="font-mono text-xs h-28 resize-none"
                         />

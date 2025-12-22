@@ -78,8 +78,32 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const OP_BY_TYPE: Record<'string' | 'number', string[]> = {
-  string: ['=', '!=', 'contains', 'in'],
+  string: ['=', '!=', 'contains', 'not contains', 'regex', 'in'],
   number: ['=', '!=', '>', '>=', '<', '<='],
+};
+
+const OP_LABELS: Record<string, string> = {
+  '=': 'equals',
+  '!=': 'not equals',
+  'contains': 'contains',
+  'not contains': 'not contains',
+  'regex': 'matches regex',
+  'in': 'in list',
+  '>': 'greater than',
+  '>=': 'greater or equal',
+  '<': 'less than',
+  '<=': 'less or equal',
+};
+
+// Simple AQL formatter that adds line breaks and indentation
+const formatAql = (query: string): string => {
+  if (!query.trim()) return query;
+  let formatted = query.trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\b(from|select|filter|sort|limit|group by)\b/gi, '\n$1')
+    .trim();
+  const lines = formatted.split('\n');
+  return lines.map((line, i) => i === 0 ? line : '  ' + line.trim()).join('\n');
 };
 
 const FILTER_FIELDS = [
@@ -769,7 +793,7 @@ const LogTable: React.FC<LogTableProps> = ({
               className="text-xs"
             >
               {(OP_BY_TYPE[FIELD_TYPES[newFilter.field] || 'string'] || []).map((op) => (
-                <option key={op} value={op}>{op}</option>
+                <option key={op} value={op}>{OP_LABELS[op] || op}</option>
               ))}
             </Select>
             <Input
@@ -822,6 +846,11 @@ const LogTable: React.FC<LogTableProps> = ({
             <Textarea
               value={queryMode === 'aql' ? aqlQuery : aqlPreview}
               onChange={(e) => setAqlQuery(e.target.value)}
+              onBlur={() => {
+                if (queryMode === 'aql') {
+                  setAqlQuery(formatAql(aqlQuery));
+                }
+              }}
               readOnly={queryMode !== 'aql'}
               className="font-mono text-xs h-28"
             />

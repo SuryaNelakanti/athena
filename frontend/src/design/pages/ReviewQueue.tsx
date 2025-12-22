@@ -4,6 +4,8 @@ import {
   MagnifyingGlassIcon,
   InboxArrowDownIcon,
   ArrowUpRightIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { Dataset, ReviewItem } from '../../types';
@@ -36,6 +38,13 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
     correctedExpected: '',
     useCorrection: false,
   });
+
+  // Expandable sections
+  const [inputExpanded, setInputExpanded] = useState(true);
+  const [outputExpanded, setOutputExpanded] = useState(true);
+  // Editable notes
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
 
   const loadReviews = async () => {
     setLoading(true);
@@ -118,6 +127,18 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
       setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     } catch (e: any) {
       setActionError(e?.message || 'Failed to promote to dataset');
+    }
+  };
+
+  const saveNotes = async () => {
+    if (!selectedReview) return;
+    setActionError(null);
+    try {
+      const updated = await api.updateReview(selectedReview.id, { notes: notesDraft });
+      setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setEditingNotes(false);
+    } catch (e: any) {
+      setActionError(e?.message || 'Failed to save notes');
     }
   };
 
@@ -243,15 +264,33 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                 </Card>
 
                 <Card>
-                  <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Input</div>
-                  <div className="bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Input</div>
+                    <button
+                      onClick={() => setInputExpanded(!inputExpanded)}
+                      className="text-xs text-text-muted hover:text-text-main flex items-center gap-1"
+                    >
+                      {inputExpanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+                      {inputExpanded ? 'Collapse' : 'Expand'}
+                    </button>
+                  </div>
+                  <div className={`bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap transition-all ${inputExpanded ? 'max-h-64 overflow-y-auto' : 'max-h-20 overflow-hidden'}`}>
                     {selectedReview.meta?.input_preview || 'No input preview'}
                   </div>
                 </Card>
 
                 <Card>
-                  <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Output</div>
-                  <div className="bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Output</div>
+                    <button
+                      onClick={() => setOutputExpanded(!outputExpanded)}
+                      className="text-xs text-text-muted hover:text-text-main flex items-center gap-1"
+                    >
+                      {outputExpanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+                      {outputExpanded ? 'Collapse' : 'Expand'}
+                    </button>
+                  </div>
+                  <div className={`bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap transition-all ${outputExpanded ? 'max-h-64 overflow-y-auto' : 'max-h-20 overflow-hidden'}`}>
                     {selectedReview.meta?.output_preview || 'No output preview'}
                   </div>
                 </Card>
@@ -355,13 +394,53 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                 </Card>
 
                 <Card>
-                  <div className="flex items-center gap-2 mb-2">
-                    <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />
-                    <span className="text-sm font-bold text-text-main">Notes</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-bold text-text-main">Notes</span>
+                    </div>
+                    {!editingNotes && (
+                      <button
+                        onClick={() => {
+                          setNotesDraft(selectedReview.notes || '');
+                          setEditingNotes(true);
+                        }}
+                        className="text-xs text-primary hover:text-primary/80 font-semibold"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </div>
-                  <div className="text-xs text-text-muted whitespace-pre-wrap">
-                    {selectedReview.notes || 'No notes'}
-                  </div>
+                  {editingNotes ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={notesDraft}
+                        onChange={(e) => setNotesDraft(e.target.value)}
+                        className="h-24 resize-none text-xs"
+                        placeholder="Add notes about this review..."
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          onClick={() => setEditingNotes(false)}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={saveNotes}
+                          variant="primary"
+                          size="sm"
+                        >
+                          Save Notes
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted whitespace-pre-wrap">
+                      {selectedReview.notes || 'No notes - click Edit to add'}
+                    </div>
+                  )}
                 </Card>
               </div>
             )}

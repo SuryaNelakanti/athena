@@ -39,11 +39,11 @@ const Layout: React.FC<LayoutProps> = ({
   const navItems = [
     { name: 'Dashboard', icon: HomeIcon, path: '/' },
     { name: 'Logs', icon: ListBulletIcon, path: '/logs' },
-    { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
     { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review' },
     { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration' },
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments' },
+    { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
   ];
 
