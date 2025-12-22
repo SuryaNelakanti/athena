@@ -130,7 +130,7 @@ const Settings: React.FC = () => {
                     </div>
 
                     {loading ? (
-                        <div className="py-10 text-center text-text-muted italic">Loading providers…</div>
+                        <div className="py-10 text-center text-text-muted italic">Loading providers...</div>
                     ) : (
                         <div className="space-y-4">
                             {providers.map((p) => (
@@ -142,7 +142,7 @@ const Settings: React.FC = () => {
                                                 {p.configured ? 'Configured' : 'Not configured'}
                                             </div>
                                             <div className="text-xs text-text-muted mt-1">
-                                                Updated: {p.updated_at_ms ? new Date(p.updated_at_ms).toLocaleString() : '—'}
+                                                Updated: {p.updated_at_ms ? new Date(p.updated_at_ms).toLocaleString() : '-'}
                                             </div>
                                         </div>
                                         <button
@@ -194,7 +194,7 @@ const Settings: React.FC = () => {
                     </div>
 
                     {loading ? (
-                        <div className="py-10 text-center text-text-muted italic">Loading models…</div>
+                        <div className="py-10 text-center text-text-muted italic">Loading models...</div>
                     ) : (
                         <div className="space-y-6">
                             {Object.keys(grouped).length === 0 && (

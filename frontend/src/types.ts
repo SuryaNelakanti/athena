@@ -227,6 +227,22 @@ export interface ShareLink {
   created_at: number;
 }
 
+// --- Monitor charts ---
+
+export interface MonitorChart {
+  id: string;
+  project_id: string;
+  name: string;
+  query: string;
+  chart_type: 'line' | 'area' | 'bar' | string;
+  x_field: string;
+  y_field: string;
+  series_field?: string | null;
+  config: Record<string, any>;
+  created_at: number;
+  updated_at: number;
+}
+
 // --- Review queue ---
 
 export interface ReviewItem {

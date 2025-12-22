@@ -132,6 +132,23 @@ class LogModel(SQLModel, table=True):
     
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
+# --- Monitor Charts ---
+
+class MonitorChartModel(SQLModel, table=True):
+    __tablename__ = "monitor_chart"
+
+    id: str = Field(primary_key=True)
+    project_id: str = Field(index=True)
+    name: str
+    query: str
+    chart_type: str = Field(default="line", index=True)  # line | area | bar
+    x_field: str
+    y_field: str
+    series_field: Optional[str] = None
+    config: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
+
 
 # --- Review Queue Models ---
 

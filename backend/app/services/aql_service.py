@@ -9,7 +9,28 @@ import math
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models import LogModel, TraceModel
+from app.models import (
+    LogModel,
+    TraceModel,
+    SpanModel,
+    ExperimentRunResultModel,
+    ExperimentRunModel,
+    ExperimentVersionModel,
+    ExperimentModel,
+)
+
+
+def _project_spans_stmt():
+    return select(SpanModel).join(TraceModel, SpanModel.trace_id == TraceModel.id)
+
+
+def _experiment_outputs_stmt():
+    return (
+        select(ExperimentRunResultModel)
+        .join(ExperimentRunModel, ExperimentRunResultModel.run_id == ExperimentRunModel.id)
+        .join(ExperimentVersionModel, ExperimentRunModel.experiment_version_id == ExperimentVersionModel.id)
+        .join(ExperimentModel, ExperimentVersionModel.experiment_id == ExperimentModel.id)
+    )
 
 
 class AQLParseError(ValueError):
@@ -52,6 +73,7 @@ class AQLService:
     SHAPES = {
         "project_logs": {
             "model": LogModel,
+            "param_filters": {"project_id": LogModel.project_id},
             "fields": {
                 "id": LogModel.id,
                 "project_id": LogModel.project_id,
@@ -115,6 +137,7 @@ class AQLService:
         },
         "project_traces": {
             "model": TraceModel,
+            "param_filters": {"project_id": TraceModel.project_id},
             "fields": {
                 "id": TraceModel.id,
                 "project_id": TraceModel.project_id,
@@ -145,7 +168,94 @@ class AQLService:
             },
             "default_sort": ("timestamp", "desc"),
         },
+        "project_spans": {
+            "model": SpanModel,
+            "base_stmt": _project_spans_stmt,
+            "param_filters": {"project_id": TraceModel.project_id},
+            "fields": {
+                "id": SpanModel.id,
+                "project_id": TraceModel.project_id,
+                "trace_id": SpanModel.trace_id,
+                "parent_id": SpanModel.parent_id,
+                "name": SpanModel.name,
+                "type": SpanModel.type,
+                "start_time": SpanModel.start_time,
+                "end_time": SpanModel.end_time,
+                "status": SpanModel.status,
+                "error_message": SpanModel.error_message,
+                "metrics": SpanModel.metrics,
+                "attributes": SpanModel.attributes,
+                "tags": SpanModel.tags,
+                "input": SpanModel.input,
+                "output": SpanModel.output,
+            },
+            "field_types": {
+                "id": "string",
+                "project_id": "string",
+                "trace_id": "string",
+                "parent_id": "string",
+                "name": "string",
+                "type": "string",
+                "status": "string",
+                "start_time": "number",
+                "end_time": "number",
+            },
+            "filter_fields": {
+                "id",
+                "project_id",
+                "trace_id",
+                "parent_id",
+                "name",
+                "type",
+                "status",
+                "start_time",
+                "end_time",
+            },
+            "default_sort": ("start_time", "desc"),
+        },
+        "experiment_outputs": {
+            "model": ExperimentRunResultModel,
+            "base_stmt": _experiment_outputs_stmt,
+            "param_filters": {"experiment_id": ExperimentModel.id},
+            "fields": {
+                "id": ExperimentRunResultModel.id,
+                "experiment_id": ExperimentModel.id,
+                "project_id": ExperimentModel.project_id,
+                "experiment_version_id": ExperimentRunModel.experiment_version_id,
+                "run_id": ExperimentRunResultModel.run_id,
+                "run_status": ExperimentRunModel.status,
+                "dataset_row_id": ExperimentRunResultModel.dataset_row_id,
+                "latency_ms": ExperimentRunResultModel.latency_ms,
+                "output": ExperimentRunResultModel.output,
+                "scores": ExperimentRunResultModel.scores,
+                "created_at": ExperimentRunResultModel.created_at,
+            },
+            "field_types": {
+                "id": "string",
+                "experiment_id": "string",
+                "project_id": "string",
+                "experiment_version_id": "string",
+                "run_id": "string",
+                "run_status": "string",
+                "dataset_row_id": "string",
+                "latency_ms": "number",
+                "created_at": "number",
+            },
+            "filter_fields": {
+                "id",
+                "experiment_id",
+                "project_id",
+                "experiment_version_id",
+                "run_id",
+                "run_status",
+                "dataset_row_id",
+                "latency_ms",
+                "created_at",
+            },
+            "default_sort": ("created_at", "desc"),
+        },
     }
+    SHAPES["experiment_logs"] = SHAPES["experiment_outputs"]
 
     KEYWORD_PATTERN = re.compile(
         r"\b(from|select|filter|where|dimensions|measures|sort|limit)\b",
@@ -268,15 +378,16 @@ class AQLService:
         if not shape:
             raise AQLParseError(f"Unknown shape '{query.shape}'")
 
-        model = shape["model"]
         fields = shape["fields"]
         filter_fields = shape["filter_fields"]
+        stmt = self._build_base_stmt(shape)
+        param_filters = shape.get("param_filters", {})
+        for param, col in param_filters.items():
+            value = query.params.get(param)
+            if value is None:
+                raise AQLParseError(f"Missing {param} in FROM clause")
+            stmt = stmt.where(col == value)
 
-        project_id = query.params.get("project_id")
-        if not project_id:
-            raise AQLParseError("Missing project_id in FROM clause")
-
-        stmt = select(model).where(fields["project_id"] == project_id)
         for filt in query.filters:
             if filt.field not in filter_fields:
                 raise AQLParseError(f"Field '{filt.field}' cannot be filtered")
@@ -285,14 +396,17 @@ class AQLService:
 
         data_rows = []
         if query.measures or query.dimensions:
+            required_fields = self._required_fields_for_aggregate(query, fields)
+            stmt = self._with_selected_columns(stmt, fields, required_fields)
             result = await session.execute(stmt)
-            records = result.scalars().all()
+            records = result.mappings().all()
             data_rows = self._aggregate_rows(records, query, fields)
             data_rows = self._sort_rows(data_rows, query.sort)
             if query.limit is not None:
                 data_rows = data_rows[: query.limit]
         else:
             select_fields = self._resolve_select_fields(query.select_fields, fields)
+            stmt = self._with_selected_columns(stmt, fields, select_fields)
             sort = query.sort or self._default_sort(shape)
             if sort:
                 col = fields.get(sort.field)
@@ -300,11 +414,11 @@ class AQLService:
                     stmt = stmt.order_by(col.desc() if sort.direction == "desc" else col.asc())
             if query.limit is not None:
                 stmt = stmt.limit(query.limit)
-
+            
             result = await session.execute(stmt)
-            records = result.scalars().all()
+            records = result.mappings().all()
             for record in records:
-                row = {field: getattr(record, field) for field in select_fields}
+                row = {field: record.get(field) for field in select_fields}
                 data_rows.append(row)
 
         schema = list(data_rows[0].keys()) if data_rows else self._schema_for_query(query, fields)
@@ -568,6 +682,37 @@ class AQLService:
             return None
         return AQLSort(field=default_sort[0], direction=default_sort[1])
 
+    def _build_base_stmt(self, shape: dict):
+        base_stmt = shape.get("base_stmt")
+        if base_stmt:
+            return base_stmt()
+        return select(shape["model"])
+
+    def _with_selected_columns(self, stmt, fields: dict, field_names: list[str]):
+        columns = []
+        for name in field_names:
+            col = fields.get(name)
+            if col is None:
+                continue
+            columns.append(col.label(name))
+        if not columns:
+            return stmt
+        return stmt.with_only_columns(*columns)
+
+    def _required_fields_for_aggregate(self, query: AQLQuery, fields: dict) -> list[str]:
+        required: list[str] = []
+        for dim in query.dimensions:
+            if dim in fields and dim not in required:
+                required.append(dim)
+        for measure in query.measures:
+            if not measure.field or measure.field == "*":
+                continue
+            if measure.field in fields and measure.field not in required:
+                required.append(measure.field)
+        if not required and fields:
+            required.append(next(iter(fields.keys())))
+        return required
+
     def _resolve_select_fields(self, select_fields: list[str], fields: dict) -> list[str]:
         if not select_fields or "*" in select_fields:
             return list(fields.keys())
@@ -584,7 +729,7 @@ class AQLService:
         grouped: dict[tuple, list[Any]] = {}
         if dimensions:
             for record in records:
-                key = tuple(getattr(record, dim) for dim in dimensions)
+                key = tuple(self._get_record_value(record, dim) for dim in dimensions)
                 grouped.setdefault(key, []).append(record)
         else:
             grouped[tuple()] = records
@@ -608,12 +753,12 @@ class AQLService:
             if not field or field == "*":
                 return float(len(records))
             for record in records:
-                if getattr(record, field, None) is not None:
+                if self._get_record_value(record, field) is not None:
                     values.append(1.0)
             return float(len(values))
 
         for record in records:
-            value = getattr(record, field, None) if field else None
+            value = self._get_record_value(record, field) if field else None
             if isinstance(value, (int, float)):
                 values.append(float(value))
 
@@ -634,6 +779,14 @@ class AQLService:
             return float(values[idx])
 
         raise AQLParseError(f"Unsupported measure function '{func}'")
+
+    def _get_record_value(self, record: Any, field: str) -> Any:
+        if isinstance(record, dict):
+            return record.get(field)
+        getter = getattr(record, "get", None)
+        if callable(getter):
+            return getter(field)
+        return getattr(record, field, None)
 
     def _sort_rows(self, rows: list[dict[str, Any]], sort: Optional[AQLSort]) -> list[dict[str, Any]]:
         if not sort:

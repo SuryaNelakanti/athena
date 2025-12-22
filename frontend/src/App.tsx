@@ -13,13 +13,34 @@ import ReviewQueue from './components/ReviewQueue';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace, Log } from './types';
 
+const parseHashRoute = () => {
+  const raw = window.location.hash.replace(/^#/, '');
+  if (!raw) {
+    return { path: '/', params: new URLSearchParams() };
+  }
+  const [pathPart, queryString] = raw.split('?');
+  return { path: pathPart || '/', params: new URLSearchParams(queryString || '') };
+};
+
+const buildHashRoute = (path: string, params?: Record<string, string | null | undefined>) => {
+  const search = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+  }
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+};
+
 // In-Memory Router Implementation
 const App: React.FC = () => {
   // State
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  // Default to '/' directly to avoid accessing window.location in restricted contexts
-  const [currentPath, setCurrentPath] = useState('/');
+  const initialRoute = parseHashRoute();
+  const [currentPath, setCurrentPath] = useState(initialRoute.path);
+  const [routeParams, setRouteParams] = useState(initialRoute.params);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<Log | null>(null);
   const [selectedDataset, setSelectedDataset] = useState<any | null>(null);
@@ -33,9 +54,27 @@ const App: React.FC = () => {
   const [creatingProject, setCreatingProject] = useState(false);
 
   // Navigation Handler
-  const navigate = (path: string) => {
-    setCurrentPath(path);
+  const navigate = (path: string, params?: Record<string, string | null | undefined>) => {
+    const nextHash = buildHashRoute(path, params);
+    if (window.location.hash.replace(/^#/, '') !== nextHash) {
+      window.location.hash = nextHash;
+    } else {
+      const query = nextHash.split('?')[1] || '';
+      setCurrentPath(path);
+      setRouteParams(new URLSearchParams(query));
+    }
   };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const nextRoute = parseHashRoute();
+      setCurrentPath(nextRoute.path);
+      setRouteParams(nextRoute.params);
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Initialize Projects
   useEffect(() => {
@@ -44,7 +83,7 @@ const App: React.FC = () => {
         // No projects exist - auto-create a default one
         setCreatingProject(true);
         try {
-          const newProject = await api.createProject({ name: 'Default Project' });
+          const newProject = await api.createProject({ name: 'Athena Demo' });
           setProjects([newProject]);
           setCurrentProject(newProject);
         } catch (err) {
@@ -74,24 +113,55 @@ const App: React.FC = () => {
 
   // Handle opening trace from log row
   const handleOpenTrace = async (traceId: string) => {
-    // Fetch the full trace and show detail
+    navigate('/logs', { trace_id: traceId });
+  };
+
+  useEffect(() => {
+    const traceId = routeParams.get('trace_id');
+    if (!traceId || !currentProject) {
+      setSelectedTraceId(null);
+      return;
+    }
+    if (selectedTraceId === traceId) return;
     const existingTrace = traces.find(t => t.id === traceId);
     if (existingTrace) {
       setSelectedTraceId(traceId);
-    } else {
-      // Trace not in current list, fetch it
-      try {
-        const fetchedTraces = await api.getTraces(currentProject!.id, { limit: 1 });
-        const foundTrace = fetchedTraces.find(t => t.id === traceId);
+      return;
+    }
+    api.getTraces(currentProject.id, { search: traceId, limit: 1 })
+      .then((fetched) => {
+        const foundTrace = fetched.find(t => t.id === traceId);
         if (foundTrace) {
-          setTraces(prev => [...prev, foundTrace]);
+          setTraces(prev => prev.some(t => t.id === traceId) ? prev : [...prev, foundTrace]);
           setSelectedTraceId(traceId);
         }
-      } catch (err) {
-        console.error('Failed to fetch trace:', err);
-      }
+      })
+      .catch(err => console.error('Failed to fetch trace:', err));
+  }, [routeParams, currentProject, traces, selectedTraceId]);
+
+  useEffect(() => {
+    const datasetId = routeParams.get('dataset_id');
+    if (!datasetId || !currentProject) {
+      setSelectedDataset(null);
+      return;
     }
-  };
+    if (selectedDataset?.id === datasetId) return;
+    api.getDataset(datasetId)
+      .then(setSelectedDataset)
+      .catch(err => console.error('Failed to fetch dataset:', err));
+  }, [routeParams, currentProject, selectedDataset]);
+
+  useEffect(() => {
+    const experimentId = routeParams.get('experiment_id');
+    if (!experimentId || !currentProject) {
+      setSelectedExperiment(null);
+      return;
+    }
+    if (selectedExperiment?.id === experimentId) return;
+    api.getExperiment(experimentId)
+      .then(setSelectedExperiment)
+      .catch(err => console.error('Failed to fetch experiment:', err));
+  }, [routeParams, currentProject, selectedExperiment]);
 
   // Derived View State
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
@@ -126,7 +196,7 @@ const App: React.FC = () => {
             <div className="w-full md:w-1/2 absolute md:static inset-0 z-20 md:z-auto bg-gray-900">
               <TraceDetail
                 trace={selectedTrace}
-                onClose={() => setSelectedTraceId(null)}
+                onClose={() => navigate('/logs')}
               />
             </div>
           )}
@@ -135,15 +205,31 @@ const App: React.FC = () => {
     }
     if (currentPath === '/datasets') {
       if (selectedDataset) {
-        return <DatasetDetail dataset={selectedDataset} onBack={() => setSelectedDataset(null)} />;
+        return <DatasetDetail dataset={selectedDataset} onBack={() => navigate('/datasets')} />;
       }
-      return <DatasetList projectId={currentProject?.id || ''} onSelectDataset={setSelectedDataset} />;
+      return (
+        <DatasetList
+          projectId={currentProject?.id || ''}
+          onSelectDataset={(dataset) => {
+            setSelectedDataset(dataset);
+            navigate('/datasets', { dataset_id: dataset.id });
+          }}
+        />
+      );
     }
     if (currentPath === '/experiments') {
       if (selectedExperiment) {
-        return <ExperimentDetail experiment={selectedExperiment} onBack={() => setSelectedExperiment(null)} />;
+        return <ExperimentDetail experiment={selectedExperiment} onBack={() => navigate('/experiments')} />;
       }
-      return <ExperimentList projectId={currentProject?.id || ''} onSelectExperiment={setSelectedExperiment} />;
+      return (
+        <ExperimentList
+          projectId={currentProject?.id || ''}
+          onSelectExperiment={(experiment) => {
+            setSelectedExperiment(experiment);
+            navigate('/experiments', { experiment_id: experiment.id });
+          }}
+        />
+      );
     }
     if (currentPath === '/settings') {
       return <Settings />;

@@ -282,6 +282,21 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     return JSON.stringify(obj);
   };
 
+  const extractOutput = (obj: any): string => {
+    if (typeof obj === 'string') return obj;
+    if (!obj || typeof obj !== 'object') return '';
+    for (const key of ['output_text', 'text', 'content', 'answer', 'response']) {
+      if (typeof obj[key] === 'string') return obj[key];
+    }
+    return JSON.stringify(obj);
+  };
+
+  const truncateText = (value: string, maxLength: number = 160) => {
+    if (!value) return '';
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, maxLength).trimEnd()}...`;
+  };
+
   // Get dataset row for a result
   const getRowForResult = (result: ExperimentRunResult): DatasetRow | null => {
     return datasetRows.find(r => r.id === result.dataset_row_id) || null;
@@ -337,7 +352,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   <h2 className="text-xl font-serif font-black text-text-main leading-tight">{exp.name}</h2>
                   <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
                     <span>{versions.length} versions</span>
-                    <span>•</span>
+                    <span>|</span>
                     <span>{datasetRows.length} test cases</span>
                   </div>
                 </div>
@@ -364,7 +379,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
         {/* Explanation Banner */}
         <div className="px-8 pb-4">
           <div className="bg-gradient-to-r from-amber-500/5 to-transparent border border-amber-500/20 rounded-xl p-4">
-            <h4 className="text-sm font-bold text-text-main mb-1">🧪 What is an Experiment?</h4>
+            <h4 className="text-sm font-bold text-text-main mb-1">What is an Experiment?</h4>
             <p className="text-xs text-text-muted leading-relaxed">
               An experiment tests your AI by running it against a <strong className="text-text-main">dataset</strong>.
               For each test case, the AI receives the <strong className="text-wispr-purple">Input</strong>, generates an <strong className="text-amber-500">Actual Output</strong>,
@@ -407,7 +422,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                     )}
                   </div>
                   <div className="text-[10px] text-text-muted truncate mt-1">
-                    {model ? `${model.provider}:${model.model_id}` : '—'}
+                    {model ? `${model.provider}:${model.model_id}` : '-'}
                   </div>
                   <div className="text-[10px] text-text-muted opacity-60 truncate mt-0.5">
                     {(v.config as any)?.notes || 'No notes'}
@@ -588,8 +603,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
 
                       return (
                         <div key={`${row.dataset_row_id}-${idx}`} className="grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b border-border-base/60">
-                          <div className="col-span-5 text-text-main line-clamp-2">
-                            {row.input ? JSON.stringify(row.input) : 'Unknown input'}
+                          <div className="col-span-5 text-text-main">
+                            {row.input ? truncateText(extractText(row.input), 140) : 'Unknown input'}
                           </div>
                           <div className="col-span-2 text-right text-text-muted tabular-nums">
                             {baseScore !== undefined ? (baseScore * 100).toFixed(0) + '%' : '-'}
@@ -636,7 +651,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   const row = getRowForResult(res);
                   const inputText = row ? extractText(row.input) : 'Unknown input';
                   const expectedText = row ? extractExpected(row.expected) : 'Unknown expected';
-                  const actualText = res.output?.output_text || JSON.stringify(res.output);
+                  const actualText = extractOutput(res.output);
+                  const actualPreview = truncateText(actualText, 140);
                   const isExpanded = expandedResultId === res.id;
                   const exactMatch = res.scores?.exact_match;
                   const containsScore = res.scores?.contains;
@@ -658,13 +674,13 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-text-main line-clamp-1 font-medium">{inputText}</p>
                           <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
-                            <span className="text-amber-500 font-medium">Output:</span> {actualText}
+                            <span className="text-amber-500 font-medium">Output:</span> {actualPreview || 'No output'}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
                           {/* Scores */}
                           <div className={`text-lg font-black tabular-nums ${getScoreColor(exactMatch)}`}>
-                            {exactMatch !== undefined ? `${(exactMatch * 100).toFixed(0)}%` : '—'}
+                            {exactMatch !== undefined ? `${(exactMatch * 100).toFixed(0)}%` : '-'}
                           </div>
                           <div className="text-xs text-text-muted tabular-nums">
                             {res.latency_ms?.toFixed(0)}ms
@@ -685,7 +701,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                             <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(exactMatch)}`}>
                               <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Exact Match</span>
                               <span className={`ml-2 font-bold ${getScoreColor(exactMatch)}`}>
-                                {exactMatch !== undefined ? (exactMatch * 100).toFixed(0) : '—'}%
+                                {exactMatch !== undefined ? (exactMatch * 100).toFixed(0) : '-'}%
                               </span>
                             </div>
                             {containsScore !== undefined && (
@@ -711,7 +727,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                             {/* Input */}
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-wispr-purple">📥 Input</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-wispr-purple">Input</span>
                               </div>
                               <div className="bg-app rounded-xl border border-border-base p-3 h-32 overflow-y-auto">
                                 <p className="text-xs text-text-main whitespace-pre-wrap">{inputText}</p>
@@ -721,7 +737,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                             {/* Expected */}
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">✓ Expected</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Expected</span>
                               </div>
                               <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 p-3 h-32 overflow-y-auto">
                                 <p className="text-xs text-text-main whitespace-pre-wrap">{expectedText}</p>
@@ -731,10 +747,10 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                             {/* Actual */}
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">🤖 Actual Output</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Actual Output</span>
                               </div>
                               <div className="bg-amber-500/5 rounded-xl border border-amber-500/20 p-3 h-32 overflow-y-auto">
-                                <p className="text-xs text-text-main whitespace-pre-wrap">{actualText}</p>
+                              <p className="text-xs text-text-main whitespace-pre-wrap">{actualText || 'No output'}</p>
                               </div>
                             </div>
                           </div>

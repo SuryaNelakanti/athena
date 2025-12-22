@@ -1,18 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Trace, Span } from '../types';
 import {
-    ClockIcon,
-    CurrencyDollarIcon,
     CodeBracketIcon,
     CheckCircleIcon,
     ExclamationCircleIcon,
-    ChevronDownIcon,
     ChevronRightIcon,
     CubeIcon,
     ChatBubbleLeftRightIcon,
-    PlusCircleIcon,
     PencilSquareIcon,
-    XMarkIcon,
     HandThumbUpIcon,
     HandThumbDownIcon,
     InboxArrowDownIcon
@@ -93,14 +88,16 @@ const SpanRow: React.FC<SpanRowProps> = ({
 }
 
 const JSONViewer = ({ data, label }: { data: any, label: string }) => (
-    <div className="mb-8">
-        <h4 className="text-[10px] uppercase tracking-widest text-text-muted font-bold mb-3 opacity-60">{label}</h4>
+    <details className="mb-6 group">
+        <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-text-muted font-bold mb-2 opacity-70 group-open:opacity-100">
+            Raw {label}
+        </summary>
         <div className="bg-app border border-border-base rounded-2xl p-4 overflow-x-auto shadow-sm">
             <pre className="text-[12px] text-text-main whitespace-pre-wrap leading-relaxed">
                 {JSON.stringify(data, null, 2)}
             </pre>
         </div>
-    </div>
+    </details>
 );
 
 // Extract readable output from span
@@ -114,11 +111,30 @@ const extractSpanOutput = (span: Span): string => {
     return JSON.stringify(output);
 };
 
+const extractSpanInput = (span: Span): string => {
+    const input = span.input;
+    if (typeof input === 'string') return input;
+    if (!input || typeof input !== 'object') return '';
+    for (const key of ['prompt', 'input', 'text', 'query', 'question', 'content']) {
+        if (typeof input[key] === 'string') return input[key];
+    }
+    if (Array.isArray(input.messages)) {
+        const userMsg = input.messages.find((m: any) => m.role === 'user');
+        if (userMsg?.content) return userMsg.content;
+    }
+    return JSON.stringify(input);
+};
+
+const truncateText = (value: string, maxLength: number = 180) => {
+    if (!value) return '';
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, maxLength).trimEnd()}...`;
+};
+
 const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [selectedSpan, setSelectedSpan] = useState<Span>(trace.root_span);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [isPromoting, setIsPromoting] = useState(false);
-    const [showActionMenu, setShowActionMenu] = useState(false);
     const [reviewNotice, setReviewNotice] = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
 
     // Correct & Add Modal State
@@ -141,7 +157,6 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
 
     const handleActionClick = (type: 'good' | 'correct' | 'bad') => {
         setActionType(type);
-        setShowActionMenu(false);
         setActionError(null);
         setActionSuccess(null);
 
@@ -266,9 +281,9 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     )}
                 </div>
 
-                <div className="flex items-center gap-4 text-xs">
-                    <div className="flex flex-col items-end">
-                        <span className="text-text-muted">Latency</span>
+                    <div className="flex items-center gap-4 text-xs">
+                        <div className="flex flex-col items-end">
+                            <span className="text-text-muted">Latency</span>
                         <span className="text-text-main font-medium tabular-nums">{trace.total_latency}ms</span>
                     </div>
                     <div className="flex flex-col items-end">
@@ -280,8 +295,8 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         <span className="text-text-main font-medium tabular-nums">${trace.total_cost.toFixed(4)}</span>
                     </div>
 
-                    {/* Actions Menu */}
-                    <div className="flex items-center gap-3 ml-4">
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 ml-4 flex-wrap">
                         <button
                             onClick={handleSendToReview}
                             className="flex items-center gap-2 px-4 py-2 bg-panel border border-border-base rounded-xl text-[10px] font-bold tracking-wider text-text-main hover:bg-panel-hover transition-all"
@@ -290,56 +305,27 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                             SEND TO REVIEW
                         </button>
 
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowActionMenu(!showActionMenu)}
-                                className="flex items-center gap-2 px-4 py-2 bg-wispr-purple text-white rounded-xl text-[10px] font-bold tracking-wider hover:bg-wispr-purple-dark transition-all shadow-lg shadow-wispr-purple/20"
-                            >
-                                <PlusCircleIcon className="w-4 h-4" />
-                                ADD TO DATASET
-                                <ChevronDownIcon className="w-3 h-3" />
-                            </button>
-                        {showActionMenu && (
-                            <div className="absolute right-0 top-full mt-2 w-64 bg-panel border border-border-base rounded-2xl shadow-xl z-50 overflow-hidden">
-                                <div className="px-4 py-3 border-b border-border-base bg-app/50">
-                                    <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Choose Action</span>
-                                </div>
-
-                                <button
-                                    onClick={() => handleActionClick('good')}
-                                    className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 transition-colors flex items-start gap-3 border-b border-border-base/50"
-                                >
-                                    <HandThumbUpIcon className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <div className="text-sm font-bold text-text-main">👍 Good Example</div>
-                                        <div className="text-[11px] text-text-muted mt-0.5">Add as-is to gold examples</div>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={() => handleActionClick('correct')}
-                                    className="w-full text-left px-4 py-3 hover:bg-amber-500/10 transition-colors flex items-start gap-3 border-b border-border-base/50"
-                                >
-                                    <PencilSquareIcon className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <div className="text-sm font-bold text-text-main">✏️ Correct & Add</div>
-                                        <div className="text-[11px] text-text-muted mt-0.5">Edit the output, then add to dataset</div>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={() => handleActionClick('bad')}
-                                    className="w-full text-left px-4 py-3 hover:bg-rose-500/10 transition-colors flex items-start gap-3"
-                                >
-                                    <HandThumbDownIcon className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <div className="text-sm font-bold text-text-main">👎 Bad Example</div>
-                                        <div className="text-[11px] text-text-muted mt-0.5">Add as anti-pattern to avoid</div>
-                                    </div>
-                                </button>
-                            </div>
-                        )}
-                        </div>
+                        <button
+                            onClick={() => handleActionClick('good')}
+                            className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-emerald-500/20 transition-all"
+                        >
+                            <HandThumbUpIcon className="w-4 h-4" />
+                            GOOD EXAMPLE
+                        </button>
+                        <button
+                            onClick={() => handleActionClick('correct')}
+                            className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-amber-500/20 transition-all"
+                        >
+                            <PencilSquareIcon className="w-4 h-4" />
+                            CORRECT & ADD
+                        </button>
+                        <button
+                            onClick={() => handleActionClick('bad')}
+                            className="flex items-center gap-2 px-3 py-2 bg-rose-500/10 text-rose-600 border border-rose-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-rose-500/20 transition-all"
+                        >
+                            <HandThumbDownIcon className="w-4 h-4" />
+                            BAD EXAMPLE
+                        </button>
                     </div>
                 </div>
             </div>
@@ -413,6 +399,22 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         </div>
                     </div>
 
+                    {/* Summary Preview */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="bg-app border border-border-base p-4 rounded-2xl">
+                            <div className="text-[9px] uppercase tracking-widest text-text-muted font-bold mb-2">Input Preview</div>
+                            <div className="text-sm text-text-main font-medium whitespace-pre-wrap">
+                                {truncateText(extractSpanInput(selectedSpan)) || 'No input captured.'}
+                            </div>
+                        </div>
+                        <div className="bg-app border border-border-base p-4 rounded-2xl">
+                            <div className="text-[9px] uppercase tracking-widest text-text-muted font-bold mb-2">Output Preview</div>
+                            <div className="text-sm text-text-main font-medium whitespace-pre-wrap">
+                                {truncateText(extractSpanOutput(selectedSpan)) || 'No output captured.'}
+                            </div>
+                        </div>
+                    </div>
+
                     <JSONViewer data={selectedSpan.input} label="Input" />
 
                     {/* Reasoning Section - Check both output and attributes for reasoning content */}
@@ -422,7 +424,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                             <div className="mb-8">
                                 <h4 className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 font-bold mb-3 flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                    🧠 Model Reasoning
+                                    Model Reasoning
                                     {selectedSpan.attributes?.reasoning_enabled && (
                                         <span className="text-[9px] px-2 py-0.5 bg-amber-500/20 rounded-lg ml-2">
                                             Extended Thinking
@@ -499,7 +501,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                             {actionType === 'correct' && (
                                 <div>
                                     <label className="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2">
-                                        ✓ Corrected Expected Output
+                                        Corrected Expected Output
                                     </label>
                                     <textarea
                                         value={correctedOutput}
@@ -526,9 +528,9 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                                         }`}
                                 >
                                     {isPromoting ? 'Adding...' :
-                                        actionType === 'good' ? '👍 Add as Gold' :
-                                            actionType === 'correct' ? '✏️ Add Corrected' :
-                                                '👎 Add as Anti-Pattern'
+                                        actionType === 'good' ? 'Add as Gold' :
+                                            actionType === 'correct' ? 'Add Corrected' :
+                                                'Add as Anti-Pattern'
                                     }
                                 </button>
                             </div>

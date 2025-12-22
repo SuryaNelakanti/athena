@@ -1,4 +1,4 @@
-import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest } from '../types';
+import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest, MonitorChart } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -84,6 +84,55 @@ export const api = {
         if (!response.ok) throw new Error('Failed to delete view');
     },
 
+    // Monitor charts
+    getCharts: async (projectId: string): Promise<MonitorChart[]> => {
+        const response = await fetch(`${API_BASE_URL}/charts/${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch charts');
+        return response.json();
+    },
+
+    createChart: async (chart: {
+        project_id: string;
+        name: string;
+        query: string;
+        chart_type: string;
+        x_field: string;
+        y_field: string;
+        series_field?: string;
+        config?: Record<string, any>;
+    }): Promise<MonitorChart> => {
+        const response = await fetch(`${API_BASE_URL}/charts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(chart),
+        });
+        if (!response.ok) throw new Error('Failed to create chart');
+        return response.json();
+    },
+
+    updateChart: async (chartId: string, updates: {
+        name?: string;
+        query?: string;
+        chart_type?: string;
+        x_field?: string;
+        y_field?: string;
+        series_field?: string | null;
+        config?: Record<string, any>;
+    }): Promise<MonitorChart> => {
+        const response = await fetch(`${API_BASE_URL}/charts/${chartId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+        });
+        if (!response.ok) throw new Error('Failed to update chart');
+        return response.json();
+    },
+
+    deleteChart: async (chartId: string): Promise<void> => {
+        const response = await fetch(`${API_BASE_URL}/charts/${chartId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete chart');
+    },
+
     // Logs (first-class, separate from traces)
     getLogs: async (
         projectId: string,
@@ -166,6 +215,12 @@ export const api = {
     getDatasets: async (projectId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/datasets/?project_id=${projectId}`);
         if (!response.ok) throw new Error('Failed to fetch datasets');
+        return response.json();
+    },
+
+    getDataset: async (datasetId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}`);
+        if (!response.ok) throw new Error('Failed to fetch dataset');
         return response.json();
     },
 

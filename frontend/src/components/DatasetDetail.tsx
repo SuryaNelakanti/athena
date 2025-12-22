@@ -171,11 +171,11 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     <h2 className="text-xl font-serif font-black text-text-main leading-tight">{dataset.name}</h2>
                                     <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
                                         <span className="px-1.5 py-0.5 bg-wispr-purple/10 text-wispr-purple rounded font-bold">v{dataset.version}</span>
-                                        <span>•</span>
+                                        <span>|</span>
                                         <span className="text-emerald-500">{goldCount} gold</span>
                                         {antiPatternCount > 0 && (
                                             <>
-                                                <span>•</span>
+                                                <span>|</span>
                                                 <span className="text-rose-500">{antiPatternCount} anti-patterns</span>
                                             </>
                                         )}
@@ -198,11 +198,11 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                 {/* Explanation Banner */}
                 <div className="px-8 pb-4">
                     <div className="bg-gradient-to-r from-wispr-purple/5 to-transparent border border-wispr-purple/20 rounded-xl p-4">
-                        <h4 className="text-sm font-bold text-text-main mb-1">📊 What is this dataset?</h4>
+                        <h4 className="text-sm font-bold text-text-main mb-1">What is this dataset?</h4>
                         <p className="text-xs text-text-muted leading-relaxed">
                             Each row has an <strong className="text-wispr-purple">Input</strong> (the prompt) and an <strong className="text-emerald-500">Expected Output</strong> (the ideal response).
-                            <strong className="text-emerald-500 ml-1">✓ Gold examples</strong> are correct behaviors.
-                            <strong className="text-rose-500 ml-1">✗ Anti-patterns</strong> are outputs the AI should avoid.
+                            <strong className="text-emerald-500 ml-1">Gold examples</strong> are correct behaviors.
+                            <strong className="text-rose-500 ml-1">Anti-patterns</strong> are outputs the AI should avoid.
                         </p>
                     </div>
                 </div>
@@ -247,13 +247,13 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                 onClick={() => setFilterType('gold')}
                                 className={`px-4 py-2 text-xs font-bold ${filterType === 'gold' ? 'bg-emerald-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
                             >
-                                ✓ Gold
+                                Gold
                             </button>
                             <button
                                 onClick={() => setFilterType('anti_pattern')}
                                 className={`px-4 py-2 text-xs font-bold ${filterType === 'anti_pattern' ? 'bg-rose-500 text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'}`}
                             >
-                                ✗ Anti
+                                Anti
                             </button>
                         </div>
                     </div>
@@ -487,8 +487,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                 </div>
                                 <p className="text-[10px] text-text-muted mt-2">
                                     {newExample.example_type === 'gold'
-                                        ? '✓ Gold examples show correct AI behavior'
-                                        : '✗ Anti-patterns show outputs the AI should avoid'}
+                                        ? 'Gold examples show correct AI behavior'
+                                        : 'Anti-patterns show outputs the AI should avoid'}
                                 </p>
                             </div>
 
@@ -535,7 +535,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                         : 'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
                                         }`}
                                 >
-                                    {newExample.example_type === 'gold' ? '✓ Add Gold Example' : '✗ Add Anti-Pattern'}
+                                    {newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern'}
                                 </button>
                             </div>
                         </div>

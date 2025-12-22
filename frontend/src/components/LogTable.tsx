@@ -786,15 +786,6 @@ const LogTable: React.FC<LogTableProps> = ({
               >
                 <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums gap-2">
                   {formatTime(log.timestamp)}
-                  {log.trace_id && onOpenTrace && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onOpenTrace(log.trace_id!); }}
-                      className="p-1 hover:bg-wispr-purple/10 rounded transition-colors"
-                      title="View Trace"
-                    >
-                      <ArrowTopRightOnSquareIcon className="w-3 h-3 text-wispr-purple" />
-                    </button>
-                  )}
                 </div>
 
                 <div className="col-span-3 flex flex-col justify-center min-w-0">
@@ -805,8 +796,18 @@ const LogTable: React.FC<LogTableProps> = ({
                         {log.event_type}
                       </span>
                     )}
+                    {log.trace_id && onOpenTrace && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onOpenTrace(log.trace_id!); }}
+                        className="px-2 py-0.5 rounded-full text-[9px] font-semibold border border-wispr-purple/30 text-wispr-purple hover:bg-wispr-purple/10 transition-colors flex items-center gap-1"
+                        title="Open Trace"
+                      >
+                        <ArrowTopRightOnSquareIcon className="w-3 h-3" />
+                        Open Trace
+                      </button>
+                    )}
                     {log.trace_id && (
-                      <span className="text-[10px] text-text-muted truncate">trace: {log.trace_id.substring(0, 8)}...</span>
+                      <span className="text-[10px] text-text-muted truncate">id: {log.trace_id.substring(0, 8)}...</span>
                     )}
                   </div>
                 </div>

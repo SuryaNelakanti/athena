@@ -9,7 +9,9 @@ import {
   UserCircleIcon,
   ChevronUpDownIcon,
   CommandLineIcon,
-  ClipboardDocumentCheckIcon
+  ClipboardDocumentCheckIcon,
+  MoonIcon,
+  SunIcon
 } from '@heroicons/react/24/outline';
 
 interface LayoutProps {
@@ -116,8 +118,8 @@ const Layout: React.FC<LayoutProps> = ({
               <UserCircleIcon className="w-8 h-8 text-text-muted" />
             </div>
             <div className="flex flex-col items-start translate-y-[-1px]">
-              <span className="text-sm font-semibold text-text-main">Jane Doe</span>
-              <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-60">Engineering</span>
+              <span className="text-sm font-semibold text-text-main">Demo User</span>
+              <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-60">Product</span>
             </div>
           </button>
 
@@ -126,7 +128,7 @@ const Layout: React.FC<LayoutProps> = ({
             className="p-2.5 rounded-xl text-text-muted hover:bg-panel-hover hover:text-text-main transition-all border border-transparent hover:border-border-base"
             title="Toggle Theme"
           >
-            {isDarkMode ? '🌙' : '☀️'}
+            {isDarkMode ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
           </button>
         </div>
       </aside>

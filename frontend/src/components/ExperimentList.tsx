@@ -162,7 +162,7 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                             <div className="flex items-center gap-8">
                                 <div className="flex flex-col items-end">
                                     <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Main Version</span>
-                                    <span className="text-xs font-bold text-text-main">{(exp.summary as any)?.main_version_id ? 'SET' : '—'}</span>
+                                    <span className="text-xs font-bold text-text-main">{(exp.summary as any)?.main_version_id ? 'SET' : '-'}</span>
                                 </div>
                                 <ChevronRightIcon className="w-5 h-5 text-border-base group-hover:text-text-muted transition-colors ml-4" />
                             </div>
