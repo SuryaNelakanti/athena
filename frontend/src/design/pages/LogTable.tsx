@@ -827,7 +827,7 @@ const LogTable: React.FC<LogTableProps> = ({
             />
             <div className="flex items-center justify-between">
               <div className="text-[10px] text-text-muted uppercase tracking-widest font-bold">
-                {queryMode === 'aql' ? 'Manual query' : 'Read-only preview'}
+                {queryMode === 'aql' ? 'Manual query' : 'Read-only preview. Use Builder to edit.'}
               </div>
               <Button
                 onClick={runAql}
@@ -849,7 +849,11 @@ const LogTable: React.FC<LogTableProps> = ({
       {!showGenericResults && (
         <div className="grid grid-cols-12 gap-4 px-5 py-2.5 text-xs font-medium text-text-muted border-b border-border-base">
           <div className="col-span-2">Time</div>
-          <div className="col-span-9">Message</div>
+          <div className="col-span-1">Trace ID</div>
+          <div className="col-span-5">Message</div>
+          <div className="col-span-1 text-right">Latency</div>
+          <div className="col-span-1 text-right">Tokens</div>
+          <div className="col-span-1 text-right">Cost</div>
           <div className="col-span-1 text-center">Status</div>
         </div>
       )}
@@ -910,8 +914,13 @@ const LogTable: React.FC<LogTableProps> = ({
                   {formatTime(log.timestamp)}
                 </div>
 
+                {/* Trace ID */}
+                <div className="col-span-1 text-text-muted text-xs flex items-center font-mono truncate opacity-75">
+                  {log.trace_id ? log.trace_id.slice(0, 8) : '-'}
+                </div>
+
                 {/* Message + Event Type */}
-                <div className="col-span-9 flex items-center gap-3 min-w-0">
+                <div className="col-span-5 flex items-center gap-3 min-w-0">
                   <span className="text-text-main truncate flex-1" title={log.message}>
                     {log.message}
                   </span>
@@ -920,6 +929,21 @@ const LogTable: React.FC<LogTableProps> = ({
                       {log.event_type}
                     </Badge>
                   )}
+                </div>
+
+                {/* Latency */}
+                <div className="col-span-1 text-text-muted text-xs flex items-center justify-end tabular-nums">
+                  {formatDuration(log.latency_ms)}
+                </div>
+
+                {/* Tokens */}
+                <div className="col-span-1 text-text-muted text-xs flex items-center justify-end tabular-nums">
+                  {log.total_tokens !== undefined ? log.total_tokens : '-'}
+                </div>
+
+                {/* Cost */}
+                <div className="col-span-1 text-text-muted text-xs flex items-center justify-end tabular-nums">
+                  {log.cost !== undefined ? `$${log.cost.toFixed(6)}` : '-'}
                 </div>
 
                 {/* Status */}

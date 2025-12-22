@@ -348,46 +348,69 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
             {showChartBuilder && (
                 <Card className="p-5 mb-6 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <Input
-                            value={newChart.name}
-                            onChange={(e) => setNewChart((prev) => ({ ...prev, name: e.target.value }))}
-                            placeholder="Chart name"
-                            className="text-xs"
-                        />
-                        <Select
-                            value={newChart.chart_type}
-                            onChange={(e) => setNewChart((prev) => ({ ...prev, chart_type: e.target.value }))}
-                            className="text-xs"
-                        >
-                            <option value="line">Line</option>
-                            <option value="area">Area</option>
-                            <option value="bar">Bar</option>
-                        </Select>
-                        <Input
-                            value={newChart.x_field}
-                            onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
-                            placeholder="X field"
-                            className="text-xs"
-                        />
-                        <Input
-                            value={newChart.y_field}
-                            onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
-                            placeholder="Y field"
-                            className="text-xs"
-                        />
-                        <Input
-                            value={newChart.series_field}
-                            onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
-                            placeholder="Series field (optional)"
-                            className="text-xs"
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Name</label>
+                            <Input
+                                value={newChart.name}
+                                onChange={(e) => setNewChart((prev) => ({ ...prev, name: e.target.value }))}
+                                placeholder="e.g. Daily Token Usage"
+                                className="text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Type</label>
+                            <Select
+                                value={newChart.chart_type}
+                                onChange={(e) => setNewChart((prev) => ({ ...prev, chart_type: e.target.value }))}
+                                className="text-xs"
+                            >
+                                <option value="line">Line</option>
+                                <option value="area">Area</option>
+                                <option value="bar">Bar</option>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">X Axis Field</label>
+                            <Input
+                                value={newChart.x_field}
+                                onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
+                                placeholder="e.g. timestamp"
+                                className="text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Y Axis Field</label>
+                            <Input
+                                value={newChart.y_field}
+                                onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
+                                placeholder="e.g. total_tokens"
+                                className="text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Series Grouping (Optional)</label>
+                            <Input
+                                value={newChart.series_field}
+                                onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
+                                placeholder="e.g. model"
+                                className="text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                            <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">AQL Query</label>
+                            <span className="text-[10px] text-text-muted">Fields: timestamp, latency_ms, cost, total_tokens, model, status</span>
+                        </div>
+                        <Textarea
+                            value={newChart.query}
+                            onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
+                            placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
+                            className="font-mono text-xs h-28 resize-none"
                         />
                     </div>
-                    <Textarea
-                        value={newChart.query}
-                        onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
-                        placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
-                        className="font-mono text-xs h-28 resize-none"
-                    />
+
                     {chartError && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{chartError}</div>}
                     <div className="flex items-center gap-2">
                         <Button variant="primary" size="sm" onClick={handleSaveChart}>
