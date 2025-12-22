@@ -1,15 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     BeakerIcon,
-    BoltIcon,
-    CpuChipIcon,
-    ServerStackIcon,
-    SparklesIcon,
-    CommandLineIcon,
     PaperAirplaneIcon,
     ArrowPathIcon,
     ChevronDownIcon
 } from '@heroicons/react/24/outline';
+import { Badge, Button, Card, IconButton, Select, Textarea, cx } from '../ui';
 
 // Simple types for the playground
 interface Message {
@@ -264,58 +260,63 @@ const Labs: React.FC = () => {
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Provider</label>
                         <div className="grid grid-cols-3 gap-2">
-                            {PROVIDERS.map(p => (
-                                <button
-                                    key={p.id}
-                                    onClick={() => { setProvider(p.id); }}
-                                    className={`px-3 py-2.5 rounded-xl text-[10px] uppercase font-bold tracking-widest border transition-all ${provider === p.id
-                                        ? 'bg-wispr-purple text-white border-wispr-purple shadow-lg shadow-wispr-purple/20'
-                                        : 'bg-app text-text-muted border-border-base hover:border-wispr-purple-light hover:text-text-main'
-                                        }`}
-                                >
-                                    {p.name}
-                                </button>
-                            ))}
+                            {PROVIDERS.map(p => {
+                                const isActive = provider === p.id;
+                                return (
+                                    <Button
+                                        key={p.id}
+                                        onClick={() => { setProvider(p.id); }}
+                                        variant={isActive ? 'primary' : 'outline'}
+                                        size="sm"
+                                        className={cx(
+                                            'text-[10px] uppercase tracking-widest font-semibold',
+                                            !isActive && 'text-text-muted hover:text-text-main'
+                                        )}
+                                    >
+                                        {p.name}
+                                    </Button>
+                                );
+                            })}
                         </div>
                     </div>
 
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Model</label>
                         <div className="relative">
-                            <select
+                            <Select
                                 value={model}
                                 onChange={(e) => setModel(e.target.value)}
-                                className="w-full appearance-none bg-app border border-border-base text-text-main text-sm font-semibold rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple transition-all cursor-pointer shadow-sm"
+                                className="pr-9 font-medium"
                             >
                                 {displayedModels.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
-                            </select>
+                            </Select>
                             <ChevronDownIcon className="absolute right-3 top-2.5 w-4 h-4 text-text-muted pointer-events-none" />
                         </div>
                     </div>
 
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">System Prompt</label>
-                        <textarea
+                        <Textarea
                             value={systemPrompt}
                             onChange={(e) => setSystemPrompt(e.target.value)}
-                            className="w-full h-32 bg-app border border-border-base text-text-main text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple transition-all resize-none placeholder-text-muted/40 shadow-sm leading-relaxed"
+                            className="h-32 resize-none leading-relaxed"
                             placeholder="You are a helpful assistant..."
                         />
                     </div>
 
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Parameters</label>
-                        <div className="bg-app border border-border-base rounded-2xl p-4 space-y-4 shadow-sm">
+                        <Card padded={false} className="bg-app p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-70">Temperature</span>
                                 <span className="text-xs font-bold text-text-main bg-panel px-2 py-0.5 rounded-lg border border-border-base tabular-nums">0.7</span>
                             </div>
                             <div className="w-full bg-border-base/50 h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-wispr-purple h-full w-[70%] shadow-[0_0_8px_rgba(141,124,228,0.4)]"></div>
+                                <div className="bg-primary h-full w-[70%]"></div>
                             </div>
-                        </div>
+                        </Card>
                     </div>
                 </div>
             </div>
@@ -332,22 +333,22 @@ const Labs: React.FC = () => {
 
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] rounded-3xl px-6 py-4 shadow-sm ${msg.role === 'user'
-                                ? 'bg-wispr-purple text-white shadow-xl shadow-wispr-purple/20'
+                            <div className={`max-w-[80%] rounded-xl px-6 py-4 shadow-xs ${msg.role === 'user'
+                                ? 'bg-primary text-white border border-primary'
                                 : 'bg-panel border border-border-base text-text-main'
                                 }`}>
                                 <div className={`text-[9px] mb-1 uppercase tracking-widest font-black opacity-60 ${msg.role === 'user' ? 'text-white/80' : 'text-text-muted'}`}>
                                     {msg.role}
                                     {msg.role === 'assistant' && msg.reasoning && (
-                                        <span className="ml-2 text-[8px] bg-wispr-purple/20 text-wispr-purple dark:text-wispr-purple-light px-2 py-0.5 rounded-full border border-wispr-purple/10">reasoning</span>
+                                        <Badge variant="primary" className="ml-2">reasoning</Badge>
                                     )}
                                 </div>
                                 <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{msg.content || (msg.reasoning ? <span className="italic opacity-50">Thinking...</span> : '')}</div>
 
                                 {msg.reasoning && (
-                                    <div className="mt-3 pt-3 border-t border-dashed border-gray-400/30 text-xs">
+                                    <div className="mt-3 pt-3 border-t border-dashed border-border-base/60 text-xs">
                                         <div className="font-bold uppercase tracking-widest text-[9px] mb-2 opacity-60">Reasoning Process</div>
-                                        <div className="text-[11px] opacity-90 whitespace-pre-wrap bg-black/5 dark:bg-white/5 p-4 rounded-xl leading-relaxed border border-border-base/50">{msg.reasoning}</div>
+                                        <div className="text-[11px] opacity-90 whitespace-pre-wrap bg-app p-4 rounded-lg leading-relaxed border border-border-base/70">{msg.reasoning}</div>
                                     </div>
                                 )}
                             </div>
@@ -359,7 +360,7 @@ const Labs: React.FC = () => {
                 {/* Input Area */}
                 <div className="p-4 bg-panel border-t border-border-base transition-colors duration-300">
                     <div className="relative">
-                        <textarea
+                        <Textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => {
@@ -369,19 +370,21 @@ const Labs: React.FC = () => {
                                 }
                             }}
                             placeholder="Type a message..."
-                            className="w-full bg-app border border-border-base text-text-main text-sm font-medium rounded-2xl pl-5 pr-14 py-4 focus:outline-none focus:ring-4 focus:ring-wispr-purple/10 focus:border-wispr-purple transition-all shadow-lg shadow-black/5 resize-none h-[64px] max-h-48 placeholder-text-muted/40 leading-relaxed"
+                            className="h-[64px] max-h-48 resize-none bg-app px-4 py-3 pr-14 text-sm font-medium leading-relaxed shadow-sm"
                         />
-                        <button
+                        <IconButton
                             onClick={handleSubmit}
                             disabled={loading || !input.trim()}
-                            className="absolute right-3 top-3 p-2.5 bg-wispr-purple text-white rounded-xl hover:bg-wispr-purple-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-wispr-purple/20"
+                            variant="primary"
+                            size="sm"
+                            className="absolute right-3 top-3 shadow-xs"
                         >
                             {loading ? (
                                 <ArrowPathIcon className="w-5 h-5 animate-spin" />
                             ) : (
                                 <PaperAirplaneIcon className="w-5 h-5" />
                             )}
-                        </button>
+                        </IconButton>
                     </div>
                     <div className="text-center mt-2">
                         <span className="text-[10px] text-text-muted">Enter to send, Shift + Enter for new line</span>

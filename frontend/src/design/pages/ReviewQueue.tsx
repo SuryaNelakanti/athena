@@ -5,12 +5,21 @@ import {
   InboxArrowDownIcon,
   ArrowUpRightIcon,
 } from '@heroicons/react/24/outline';
-import { api } from '../services/api';
-import { Dataset, ReviewItem } from '../types';
+import { api } from '../../services/api';
+import { Dataset, ReviewItem } from '../../types';
+import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
 
 interface ReviewQueueProps {
   projectId: string;
 }
+
+const STATUS_TABS = [
+  { id: 'open', label: 'Open' },
+  { id: 'in_review', label: 'In Review' },
+  { id: 'resolved', label: 'Resolved' },
+  { id: 'dismissed', label: 'Dismissed' },
+  { id: 'all', label: 'All' },
+];
 
 const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -69,18 +78,18 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
     });
   }, [reviews, searchQuery]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case 'open':
-        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+        return 'warning';
       case 'in_review':
-        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+        return 'primary';
       case 'resolved':
-        return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+        return 'success';
       case 'dismissed':
-        return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+        return 'danger';
       default:
-        return 'bg-text-muted/10 text-text-muted border-border-base';
+        return 'neutral';
     }
   };
 
@@ -116,44 +125,33 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
     <div className="h-full flex flex-col bg-app transition-colors duration-300">
       {/* Header */}
       <div className="border-b border-border-base bg-panel shrink-0">
-        <div className="px-8 py-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-serif font-black text-text-main">Review Queue</h2>
-            <p className="text-xs text-text-muted mt-1">
-              Triage production traces, label failures, and promote to datasets.
-            </p>
-          </div>
-          <button
-            onClick={loadReviews}
-            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs font-bold text-text-muted hover:text-text-main hover:bg-panel-hover"
-          >
-            Refresh
-          </button>
-        </div>
+        <div className="px-8 py-6 space-y-4">
+          <SectionHeader
+            title="Review Queue"
+            subtitle="Triage production traces, label failures, and promote to datasets."
+            actions={
+              <Button variant="secondary" onClick={loadReviews}>
+                Refresh
+              </Button>
+            }
+          />
 
-        <div className="px-8 pb-4 flex gap-4">
-          <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-            <input
-              type="text"
-              placeholder="Search input or output..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-app border border-border-base rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple/50"
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex-1 min-w-[240px]">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <Input
+                type="text"
+                placeholder="Search input or output..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Tabs
+              options={STATUS_TABS}
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as any)}
             />
-          </div>
-          <div className="flex rounded-xl border border-border-base overflow-hidden">
-            {['open', 'in_review', 'resolved', 'dismissed', 'all'].map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s as any)}
-                className={`px-4 py-2 text-xs font-bold ${
-                  statusFilter === s ? 'bg-wispr-purple text-white' : 'bg-panel text-text-muted hover:bg-panel-hover'
-                }`}
-              >
-                {s.replace('_', ' ').toUpperCase()}
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -174,14 +172,14 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                     <button
                       key={review.id}
                       onClick={() => setSelectedReviewId(review.id)}
-                      className={`w-full text-left p-4 rounded-2xl border transition-all ${
-                        isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : 'bg-panel border-border-base hover:border-border-hover'
+                      className={`w-full text-left p-4 rounded-lg border transition-all ${
+                        isSelected ? 'bg-primary/5 border-primary/20' : 'bg-panel border-border-base hover:border-border-hover'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusBadge(review.status)}`}>
+                        <Badge variant={getStatusVariant(review.status)}>
                           {review.status.replace('_', ' ')}
-                        </span>
+                        </Badge>
                         <span className="text-[10px] text-text-muted uppercase tracking-wider">{review.source_type}</span>
                       </div>
                       <div className="mt-2 text-sm text-text-main font-medium line-clamp-2">
@@ -210,15 +208,15 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs text-text-muted uppercase tracking-wider">Review</div>
                       <div className="text-lg font-black text-text-main">{selectedReview.id}</div>
                     </div>
-                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${getStatusBadge(selectedReview.status)}`}>
+                    <Badge variant={getStatusVariant(selectedReview.status)}>
                       {selectedReview.status.replace('_', ' ')}
-                    </span>
+                    </Badge>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
                     <div>
@@ -239,53 +237,53 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                     </div>
                   </div>
                   {actionError && (
-                    <div className="mt-4 text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3">
+                    <div className="mt-4 text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">
                       {actionError}
                     </div>
                   )}
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Input</div>
-                  <div className="bg-app border border-border-base rounded-xl p-3 text-sm text-text-main whitespace-pre-wrap">
+                  <div className="bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap">
                     {selectedReview.meta?.input_preview || 'No input preview'}
                   </div>
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Output</div>
-                  <div className="bg-app border border-border-base rounded-xl p-3 text-sm text-text-main whitespace-pre-wrap">
+                  <div className="bg-app border border-border-base rounded-md p-3 text-sm text-text-main whitespace-pre-wrap">
                     {selectedReview.meta?.output_preview || 'No output preview'}
                   </div>
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Status</div>
                       <div className="text-sm text-text-main">Update review state</div>
                     </div>
-                    <select
+                    <Select
                       value={selectedReview.status}
                       onChange={(e) => updateStatus(e.target.value as ReviewItem['status'])}
-                      className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                      className="text-xs"
                     >
                       <option value="open">Open</option>
                       <option value="in_review">In Review</option>
                       <option value="resolved">Resolved</option>
                       <option value="dismissed">Dismissed</option>
-                    </select>
+                    </Select>
                   </div>
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="flex items-center gap-2 mb-3">
                     <InboxArrowDownIcon className="w-4 h-4 text-emerald-500" />
                     <div className="text-sm font-bold text-text-main">Promote to Dataset</div>
                   </div>
 
                   {selectedReview.dataset_row_id ? (
-                    <div className="text-xs text-emerald-500 font-bold bg-emerald-500/10 rounded-xl p-3">
+                    <div className="text-xs text-emerald-500 font-bold bg-emerald-500/10 rounded-md p-3">
                       Promoted to dataset {selectedReview.dataset_id}
                     </div>
                   ) : (
@@ -295,10 +293,10 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                           <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">
                             Dataset
                           </label>
-                          <select
+                          <Select
                             value={promotion.datasetId}
                             onChange={(e) => setPromotion((p) => ({ ...p, datasetId: e.target.value }))}
-                            className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
+                            className="text-sm"
                           >
                             <option value="">Select dataset...</option>
                             {datasets.map((ds) => (
@@ -306,22 +304,22 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                                 {ds.name}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">
                             Example Type
                           </label>
-                          <select
+                          <Select
                             value={promotion.exampleType}
                             onChange={(e) =>
                               setPromotion((p) => ({ ...p, exampleType: e.target.value as 'gold' | 'anti_pattern' }))
                             }
-                            className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
+                            className="text-sm"
                           >
                             <option value="gold">Gold</option>
                             <option value="anti_pattern">Anti-Pattern</option>
-                          </select>
+                          </Select>
                         </div>
                       </div>
 
@@ -336,28 +334,28 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                       </div>
 
                       {promotion.useCorrection && (
-                        <textarea
+                        <Textarea
                           value={promotion.correctedExpected}
                           onChange={(e) => setPromotion((p) => ({ ...p, correctedExpected: e.target.value }))}
-                          className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main h-24 resize-none"
+                          className="h-24 resize-none"
                           placeholder="Enter corrected expected output..."
                         />
                       )}
 
                       <div className="flex justify-end mt-4">
-                        <button
+                        <Button
                           onClick={promoteToDataset}
                           disabled={!promotion.datasetId}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 disabled:opacity-50"
+                          variant="success"
                         >
                           <ArrowUpRightIcon className="w-4 h-4" /> Promote
-                        </button>
+                        </Button>
                       </div>
                     </>
                   )}
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base rounded-2xl p-5">
+                <Card>
                   <div className="flex items-center gap-2 mb-2">
                     <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />
                     <span className="text-sm font-bold text-text-main">Notes</span>
@@ -365,7 +363,7 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                   <div className="text-xs text-text-muted whitespace-pre-wrap">
                     {selectedReview.notes || 'No notes'}
                   </div>
-                </div>
+                </Card>
               </div>
             )}
           </div>
@@ -376,3 +374,4 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
 };
 
 export default ReviewQueue;
+

@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import Layout from './components/Layout';
-import LogTable from './components/LogTable';
-import TraceDetail from './components/TraceDetail';
-import Dashboard from './components/Dashboard';
-import Labs from './components/Labs';
-import DatasetList from './components/DatasetList';
-import ExperimentList from './components/ExperimentList';
-import DatasetDetail from './components/DatasetDetail';
-import ExperimentDetail from './components/ExperimentDetail';
-import Settings from './components/Settings';
-import ReviewQueue from './components/ReviewQueue';
+import Layout from './design/layout/Layout';
+import LogTable from './design/pages/LogTable';
+import TraceDetail from './design/pages/TraceDetail';
+import Dashboard from './design/pages/Dashboard';
+import Labs from './design/pages/Labs';
+import DatasetList from './design/pages/DatasetList';
+import ExperimentList from './design/pages/ExperimentList';
+import DatasetDetail from './design/pages/DatasetDetail';
+import ExperimentDetail from './design/pages/ExperimentDetail';
+import Settings from './design/pages/Settings';
+import ReviewQueue from './design/pages/ReviewQueue';
+import Collaboration from './design/pages/Collaboration';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace, Log } from './types';
+import { Button, Card, Input } from './design/ui';
+import { initAccent } from './design/theme/accent';
 
 const parseHashRoute = () => {
   const raw = window.location.hash.replace(/^#/, '');
@@ -64,6 +67,10 @@ const App: React.FC = () => {
       setRouteParams(new URLSearchParams(query));
     }
   };
+
+  useEffect(() => {
+    initAccent();
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -169,7 +176,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading && traces.length === 0 && currentPath !== '/logs') {
-      return <div className="flex items-center justify-center h-full text-gray-500">Loading...</div>;
+      return <div className="flex items-center justify-center h-full text-text-muted">Loading...</div>;
     }
 
     if (currentPath === '/') {
@@ -181,10 +188,13 @@ const App: React.FC = () => {
     if (currentPath === '/review') {
       return <ReviewQueue projectId={currentProject?.id || ''} />;
     }
+    if (currentPath === '/collaboration') {
+      return <Collaboration projectId={currentProject?.id || ''} />;
+    }
     if (currentPath.startsWith('/logs')) {
       return (
         <div className="flex h-full">
-          <div className={`${showDetail ? 'w-1/2 hidden md:block' : 'w-full'} border-r border-gray-800 transition-all`}>
+          <div className={`${showDetail ? 'w-1/2 hidden md:block' : 'w-full'} border-r border-border-base transition-all`}>
             <LogTable
               projectId={currentProject ? currentProject.id : ''}
               onSelectLog={(log) => setSelectedLog(log)}
@@ -193,7 +203,7 @@ const App: React.FC = () => {
             />
           </div>
           {showDetail && selectedTrace && (
-            <div className="w-full md:w-1/2 absolute md:static inset-0 z-20 md:z-auto bg-gray-900">
+            <div className="w-full md:w-1/2 absolute md:static inset-0 z-20 md:z-auto bg-panel">
               <TraceDetail
                 trace={selectedTrace}
                 onClose={() => navigate('/logs')}
@@ -235,7 +245,7 @@ const App: React.FC = () => {
       return <Settings />;
     }
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center">
           <h2 className="text-xl font-semibold mb-2">Phase 2: More to come</h2>
           <p>Settings and refined dashboard views are in progress.</p>
@@ -249,7 +259,7 @@ const App: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-screen bg-app text-text-main">
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold animate-pulse">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-primary flex items-center justify-center text-white font-bold animate-pulse shadow-xs">
             <span className="text-2xl font-serif">A</span>
           </div>
           <p className="text-lg">Setting up your first project...</p>
@@ -262,8 +272,8 @@ const App: React.FC = () => {
   if (showCreateProject || (!currentProject && projects.length === 0)) {
     return (
       <div className="flex items-center justify-center h-screen bg-app text-text-main">
-        <div className="bg-panel p-8 rounded-2xl border border-border-base shadow-xl max-w-md w-full mx-4">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold">
+        <Card className="max-w-md w-full mx-4 p-8 shadow-lg">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-primary flex items-center justify-center text-white font-bold shadow-xs">
             <span className="text-2xl font-serif">A</span>
           </div>
           <h2 className="text-xl font-semibold text-center mb-2">Welcome to Athena</h2>
@@ -287,22 +297,24 @@ const App: React.FC = () => {
               }
             }}
           >
-            <input
+            <Input
               type="text"
               name="projectName"
               placeholder="Project name"
-              className="w-full px-4 py-3 rounded-xl bg-app border border-border-base focus:border-wispr-purple focus:ring-2 focus:ring-wispr-purple/20 outline-none transition-all mb-4"
+              className="mb-4"
               autoFocus
             />
-            <button
+            <Button
               type="submit"
               disabled={creatingProject}
-              className="w-full py-3 bg-wispr-purple text-white rounded-xl font-semibold hover:bg-wispr-purple/90 transition-all disabled:opacity-50"
+              className="w-full"
+              variant="primary"
+              size="lg"
             >
               {creatingProject ? 'Creating...' : 'Create Project'}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
       </div>
     );
   }

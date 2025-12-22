@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
-import { api } from '../services/api';
-import { MonitorChart } from '../types';
+import { api } from '../../services/api';
+import { MonitorChart } from '../../types';
+import { Badge, Button, Card, Input, SectionHeader, Select, Textarea } from '../ui';
 
 interface DashboardProps {
     projectId: string;
@@ -15,18 +16,18 @@ type LogRow = {
 };
 
 const StatCard = ({ title, value, unit, change, loading }: { title: string, value: string, unit?: string, change?: string, loading?: boolean }) => (
-    <div className="bg-panel border border-border-base p-6 rounded-2xl shadow-sm hover:shadow-md transition-all hover:border-border-hover">
+    <Card className="p-6">
         <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-3 opacity-70">{title}</h3>
         <div className="flex items-baseline gap-1">
             <span className="text-3xl font-bold text-text-main tracking-tight">{loading ? '--' : value}</span>
             {unit && <span className="text-sm text-text-muted font-medium ml-1">{unit}</span>}
         </div>
         {change && (
-            <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/10 text-[10px] text-emerald-600 dark:text-emerald-400 mt-3 font-bold border border-emerald-500/20">
+            <Badge variant="success" className="mt-3">
                 {change}
-            </div>
+            </Badge>
         )}
-    </div>
+    </Card>
 );
 
 const percentile = (values: number[], p: number) => {
@@ -264,13 +265,15 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         return String(value);
     };
 
-    const SERIES_COLORS = ['#8D7CE4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
+    const SERIES_COLORS = ['#2563EB', '#10b981', '#f59e0b', '#ef4444', '#64748b'];
 
     return (
         <div className="p-8 h-full overflow-y-auto bg-app transition-colors duration-300">
             <div className="mb-8">
-                <h1 className="text-3xl font-serif font-black text-text-main tracking-tight">Project Overview</h1>
-                <p className="text-text-muted text-sm mt-1">Real-time performance and usage metrics for your AI services.</p>
+                <SectionHeader
+                    title="Project Overview"
+                    subtitle="Real-time performance and usage metrics for your AI services."
+                />
             </div>
 
             <div className="grid grid-cols-4 gap-6 mb-8">
@@ -281,29 +284,29 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
             </div>
 
             <div className="grid grid-cols-2 gap-8 h-80 mb-8">
-                <div className="bg-panel border border-border-base p-6 rounded-2xl shadow-sm">
+                <Card className="p-6">
                     <h3 className="text-text-main text-sm font-bold mb-6 tracking-tight">Request Volume (24h)</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={requestChartData}>
                             <defs>
                                 <linearGradient id="colorReq" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#8D7CE4" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#8D7CE4" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-base)" vertical={false} />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                             <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} />
                             <Tooltip
-                                contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '12px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                itemStyle={{ color: '#8D7CE4' }}
+                                contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '8px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                itemStyle={{ color: '#2563EB' }}
                             />
-                            <Area type="monotone" dataKey="requests" stroke="#8D7CE4" strokeWidth={3} fillOpacity={1} fill="url(#colorReq)" />
+                            <Area type="monotone" dataKey="requests" stroke="#2563EB" strokeWidth={3} fillOpacity={1} fill="url(#colorReq)" />
                         </AreaChart>
                     </ResponsiveContainer>
-                </div>
+                </Card>
 
-                <div className="bg-panel border border-border-base p-6 rounded-2xl shadow-sm">
+                <Card className="p-6">
                     <h3 className="text-text-main text-sm font-bold mb-6 tracking-tight">P95 Latency (ms)</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={requestChartData}>
@@ -312,12 +315,12 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                             <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} />
                             <Tooltip
                                 cursor={{ fill: 'var(--bg-panel-hover)', radius: 8 }}
-                                contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '12px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '8px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                             />
                             <Bar dataKey="latency" fill="#10b981" radius={[6, 6, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
-                </div>
+                </Card>
             </div>
 
             <div className="flex items-center justify-between mb-4">
@@ -326,91 +329,87 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                     <p className="text-xs text-text-muted mt-1">Saved AQL queries rendered as reusable dashboards.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleRefreshCharts}
-                        className="px-3 py-1.5 rounded-lg border border-border-base text-xs text-text-muted hover:text-text-main hover:border-border-hover transition-all"
-                    >
+                    <Button variant="secondary" size="sm" onClick={handleRefreshCharts}>
                         Refresh
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => {
                             resetChartForm();
                             setShowChartBuilder(true);
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-wispr-purple text-white text-xs font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
                     >
                         + Add Chart
-                    </button>
+                    </Button>
                 </div>
             </div>
 
             {showChartBuilder && (
-                <div className="bg-panel border border-border-base rounded-2xl p-5 mb-6 space-y-4">
+                <Card className="p-5 mb-6 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <input
+                        <Input
                             value={newChart.name}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, name: e.target.value }))}
                             placeholder="Chart name"
-                            className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                            className="text-xs"
                         />
-                        <select
+                        <Select
                             value={newChart.chart_type}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, chart_type: e.target.value }))}
-                            className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                            className="text-xs"
                         >
                             <option value="line">Line</option>
                             <option value="area">Area</option>
                             <option value="bar">Bar</option>
-                        </select>
-                        <input
+                        </Select>
+                        <Input
                             value={newChart.x_field}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
                             placeholder="X field"
-                            className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                            className="text-xs"
                         />
-                        <input
+                        <Input
                             value={newChart.y_field}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
                             placeholder="Y field"
-                            className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                            className="text-xs"
                         />
-                        <input
+                        <Input
                             value={newChart.series_field}
                             onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
                             placeholder="Series field (optional)"
-                            className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+                            className="text-xs"
                         />
                     </div>
-                    <textarea
+                    <Textarea
                         value={newChart.query}
                         onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
                         placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
-                        className="w-full bg-app border border-border-base rounded-xl p-3 text-xs text-text-main font-mono resize-none h-28"
+                        className="font-mono text-xs h-28 resize-none"
                     />
-                    {chartError && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3">{chartError}</div>}
+                    {chartError && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{chartError}</div>}
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleSaveChart}
-                            className="px-4 py-2 bg-wispr-purple text-white rounded-xl text-xs font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
-                        >
+                        <Button variant="primary" size="sm" onClick={handleSaveChart}>
                             {editingChartId ? 'Update Chart' : 'Save Chart'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             onClick={() => {
                                 setShowChartBuilder(false);
                                 resetChartForm();
                             }}
-                            className="px-4 py-2 border border-border-base rounded-xl text-xs text-text-muted hover:text-text-main hover:border-border-hover transition-all"
+                            variant="secondary"
+                            size="sm"
                         >
                             Cancel
-                        </button>
+                        </Button>
                     </div>
-                </div>
+                </Card>
             )}
 
             <div className="grid grid-cols-2 gap-6">
                 {charts.length === 0 && (
-                    <div className="col-span-2 bg-panel border border-border-base rounded-2xl p-6 text-center text-text-muted text-sm italic">
+                    <div className="col-span-2 bg-panel border border-border-base rounded-lg p-6 text-center text-text-muted text-sm italic">
                         No custom charts yet. Add one to visualize AQL results.
                     </div>
                 )}
@@ -419,19 +418,19 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                     const { data, seriesKeys } = buildSeriesData(rows, chart);
                     const isEmpty = data.length === 0;
                     return (
-                        <div key={chart.id} className="bg-panel border border-border-base p-6 rounded-2xl shadow-sm flex flex-col">
+                        <Card key={chart.id} className="p-6 flex flex-col">
                             <div className="flex items-start justify-between mb-4">
                                 <div>
                                     <h3 className="text-text-main text-sm font-bold">{chart.name}</h3>
                                     <div className="text-[10px] text-text-muted mt-1 uppercase tracking-widest">{chart.chart_type}</div>
                                 </div>
                                 <div className="flex items-center gap-2 text-[10px] text-text-muted">
-                                    <button onClick={() => handleEditChart(chart)} className="hover:text-text-main">Edit</button>
-                                    <button onClick={() => handleDeleteChart(chart.id)} className="hover:text-rose-500">Delete</button>
+                                    <Button variant="ghost" size="sm" onClick={() => handleEditChart(chart)}>Edit</Button>
+                                    <Button variant="ghost" size="sm" className="text-rose-500 hover:text-rose-600" onClick={() => handleDeleteChart(chart.id)}>Delete</Button>
                                 </div>
                             </div>
                             {chartErrors[chart.id] && (
-                                <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3 mb-3">
+                                <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3 mb-3">
                                     {chartErrors[chart.id]}
                                 </div>
                             )}
@@ -536,7 +535,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                                     </ResponsiveContainer>
                                 </div>
                             )}
-                        </div>
+                        </Card>
                     );
                 })}
             </div>

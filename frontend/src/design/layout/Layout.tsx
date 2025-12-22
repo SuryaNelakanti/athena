@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project } from '../types';
+import { Project } from '../../types';
 import {
   HomeIcon,
   ListBulletIcon,
@@ -7,12 +7,14 @@ import {
   CircleStackIcon,
   Cog6ToothIcon,
   UserCircleIcon,
+  UserGroupIcon,
   ChevronUpDownIcon,
   CommandLineIcon,
   ClipboardDocumentCheckIcon,
   MoonIcon,
   SunIcon
 } from '@heroicons/react/24/outline';
+import { IconButton, Select } from '../ui';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,6 +39,7 @@ const Layout: React.FC<LayoutProps> = ({
     { name: 'Logs', icon: ListBulletIcon, path: '/logs' },
     { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
     { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review' },
+    { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration' },
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
@@ -67,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({
       {/* Sidebar */}
       <aside className="w-64 border-r border-border-base flex flex-col bg-panel flex-shrink-0 transition-colors duration-300">
         <div className="p-6 border-b border-border-base flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-wispr-purple flex items-center justify-center text-white font-bold shadow-xl shadow-wispr-purple/20 transition-transform hover:scale-105 cursor-pointer">
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white font-bold shadow-xs transition-transform hover:scale-105 cursor-pointer">
             <span className="text-xl font-serif">A</span>
           </div>
           <span className="font-serif font-bold text-text-main tracking-tight text-2xl">Athena</span>
@@ -75,21 +78,21 @@ const Layout: React.FC<LayoutProps> = ({
 
         <div className="p-4">
           <div className="relative">
-            <select
+            <Select
               value={currentProject.id}
               onChange={(e) => {
                 const p = projects.find(proj => proj.id === e.target.value);
                 if (p) onProjectChange(p);
               }}
-              className="w-full appearance-none bg-app border border-border-base hover:border-border-hover rounded-xl px-4 py-2.5 text-sm text-text-main transition-all shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-wispr-purple/50 font-semibold uppercase tracking-wider text-[11px]"
+              className="w-full pr-9 text-[11px] font-semibold uppercase tracking-wider shadow-xs"
             >
               {projects.map(p => (
                 <option key={p.id} value={p.id} className="bg-panel text-text-main">
                   {p.name}
                 </option>
               ))}
-            </select>
-            <ChevronUpDownIcon className="w-4 h-4 text-text-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
+            <ChevronUpDownIcon className="w-4 h-4 text-text-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
@@ -100,12 +103,12 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 key={item.name}
                 onClick={() => onNavigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl transition-all duration-200 ${isActive
-                  ? 'bg-wispr-purple/10 text-wispr-purple font-semibold border border-wispr-purple/20'
-                  : 'text-text-muted hover:bg-panel-hover hover:text-text-main'
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-all duration-200 ${isActive
+                  ? 'bg-primary/10 text-primary font-semibold border border-primary/20'
+                  : 'text-text-muted hover:bg-panel-hover hover:text-text-main border border-transparent'
                   }`}
               >
-                <item.icon className={`w-5 h-5 transition-colors ${isActive ? 'text-wispr-purple' : 'text-text-muted'}`} />
+                <item.icon className={`w-5 h-5 transition-colors ${isActive ? 'text-primary' : 'text-text-muted'}`} />
                 {item.name}
               </button>
             );
@@ -123,13 +126,13 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
           </button>
 
-          <button
+          <IconButton
             onClick={toggleTheme}
-            className="p-2.5 rounded-xl text-text-muted hover:bg-panel-hover hover:text-text-main transition-all border border-transparent hover:border-border-base"
+            variant="ghost"
             title="Toggle Theme"
           >
             {isDarkMode ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
-          </button>
+          </IconButton>
         </div>
       </aside>
 
@@ -142,3 +145,4 @@ const Layout: React.FC<LayoutProps> = ({
 };
 
 export default Layout;
+

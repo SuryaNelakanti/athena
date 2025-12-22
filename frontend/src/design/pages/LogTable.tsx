@@ -1,15 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Log, AqlQueryResponse, AqlBuilder } from '../types';
+import { Log, AqlQueryResponse, AqlBuilder } from '../../types';
 import {
   CpuChipIcon,
   BookmarkIcon,
   XMarkIcon,
   ArrowTopRightOnSquareIcon,
+  AtSymbolIcon,
+  LinkIcon,
   FunnelIcon,
   PlusIcon,
+  UserPlusIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-import { api, View } from '../services/api';
+import { api, View } from '../../services/api';
+import { Badge, Button, IconButton, Input, Modal, Select, Textarea } from '../ui';
 
 interface LogTableProps {
   projectId: string;
@@ -23,6 +27,17 @@ type Filter = {
   field: string;
   op: string;
   value: string;
+};
+
+type CollabKind = 'assignment' | 'mention' | 'share';
+type CollabTarget = 'log' | 'trace';
+
+type CollabAction = {
+  kind: CollabKind;
+  objectType: CollabTarget;
+  objectId: string;
+  logId: string;
+  traceId?: string | null;
 };
 
 const RESULT_LIMIT = 200;
@@ -147,6 +162,16 @@ const LogTable: React.FC<LogTableProps> = ({
   const [showSaveView, setShowSaveView] = useState(false);
   const [newViewName, setNewViewName] = useState('');
   const [showViewsList, setShowViewsList] = useState(false);
+
+  const [collabAction, setCollabAction] = useState<CollabAction | null>(null);
+  const [collabAssignee, setCollabAssignee] = useState('');
+  const [collabMention, setCollabMention] = useState('');
+  const [collabNote, setCollabNote] = useState('');
+  const [shareExpiry, setShareExpiry] = useState('');
+  const [collabError, setCollabError] = useState<string | null>(null);
+  const [collabMessage, setCollabMessage] = useState<string | null>(null);
+  const [collabBusy, setCollabBusy] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
 
   const [newFilter, setNewFilter] = useState({
     field: FILTER_FIELDS[0],
@@ -436,6 +461,97 @@ const LogTable: React.FC<LogTableProps> = ({
     }
   };
 
+  const openCollab = (kind: CollabKind, log: Log) => {
+    setCollabAction({
+      kind,
+      objectType: 'log',
+      objectId: log.id,
+      logId: log.id,
+      traceId: log.trace_id,
+    });
+    setCollabAssignee('');
+    setCollabMention('');
+    setCollabNote('');
+    setShareExpiry('');
+    setShareToken(null);
+    setCollabError(null);
+    setCollabMessage(null);
+  };
+
+  const closeCollab = () => {
+    setCollabAction(null);
+    setCollabError(null);
+    setCollabMessage(null);
+    setCollabBusy(false);
+    setShareToken(null);
+  };
+
+  const handleCollabSubmit = async () => {
+    if (!collabAction) return;
+    setCollabError(null);
+    setCollabMessage(null);
+    setCollabBusy(true);
+    try {
+      if (collabAction.kind === 'assignment') {
+        if (!collabAssignee.trim()) {
+          setCollabError('Assignee is required.');
+          return;
+        }
+        await api.createAssignment({
+          project_id: projectId,
+          object_type: collabAction.objectType,
+          object_id: collabAction.objectId,
+          assignee: collabAssignee.trim(),
+          note: collabNote.trim() || undefined,
+        });
+        setCollabMessage('Assignment created.');
+      }
+      if (collabAction.kind === 'mention') {
+        if (!collabMention.trim()) {
+          setCollabError('Mention target is required.');
+          return;
+        }
+        await api.createMention({
+          project_id: projectId,
+          object_type: collabAction.objectType,
+          object_id: collabAction.objectId,
+          mentioned: collabMention.trim(),
+          note: collabNote.trim() || undefined,
+        });
+        setCollabMessage('Mention created.');
+      }
+      if (collabAction.kind === 'share') {
+        const expiresAt = shareExpiry ? new Date(shareExpiry).getTime() : undefined;
+        const created = await api.createShareLink({
+          project_id: projectId,
+          object_type: collabAction.objectType,
+          object_id: collabAction.objectId,
+          expires_at: expiresAt,
+        });
+        setShareToken(created.token);
+        setCollabMessage('Share link created.');
+      }
+    } catch (e: any) {
+      setCollabError(e?.message || 'Failed to create collaboration item.');
+    } finally {
+      setCollabBusy(false);
+    }
+  };
+
+  const updateCollabTarget = (target: CollabTarget) => {
+    setCollabAction((prev) => {
+      if (!prev) return prev;
+      const nextId = target === 'log' ? prev.logId : prev.traceId || prev.logId;
+      return { ...prev, objectType: target, objectId: nextId };
+    });
+  };
+
+  const copyShareToken = async () => {
+    if (!shareToken || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareToken);
+    setCollabMessage('Share token copied.');
+  };
+
   const formatTime = (ms: number) => {
     return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
@@ -446,14 +562,12 @@ const LogTable: React.FC<LogTableProps> = ({
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusVariant = (status?: string) => {
     const normalized = status?.toLowerCase();
-    const colors: Record<string, string> = {
-      success: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      error: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
-      warning: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-    };
-    return colors[normalized] || 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+    if (normalized === 'success') return 'success';
+    if (normalized === 'error') return 'danger';
+    if (normalized === 'warning') return 'warning';
+    return 'neutral';
   };
 
   const activeFilters = filters.filter((f) => f.value.trim());
@@ -465,40 +579,40 @@ const LogTable: React.FC<LogTableProps> = ({
       <div className="px-6 py-3 border-b border-border-base flex flex-col gap-3 bg-app">
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
-            <input
+            <Input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleSearch}
               placeholder="Search message contains (Enter to apply)..."
-              className="w-full bg-panel border border-border-base text-sm text-text-main rounded-xl pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 focus:border-wispr-purple placeholder-text-muted/40 transition-all"
+              className="pr-10"
             />
           </div>
 
-          <select
-            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
+          <Select
+            className="text-[11px] font-semibold uppercase tracking-wide"
             value={statusValue}
             onChange={(e) => handleStatusChange(e.target.value)}
           >
-            <option value="all">STATUS: ALL</option>
-            <option value="success">SUCCESS</option>
-            <option value="error">ERROR</option>
-          </select>
+            <option value="all">Status: All</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+          </Select>
 
-          <select
-            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
+          <Select
+            className="text-[11px] font-semibold uppercase tracking-wide"
             value={eventTypeValue}
             onChange={(e) => handleEventTypeChange(e.target.value)}
           >
             {eventTypeOptions.map((eventType) => (
               <option key={eventType} value={eventType}>
-                {eventType === 'all' ? 'TYPE: ALL' : eventType.replace(/_/g, ' ').toUpperCase()}
+                {eventType === 'all' ? 'Type: All' : eventType.replace(/_/g, ' ')}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <select
-            className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-wispr-purple/20 cursor-pointer transition-all"
+          <Select
+            className="text-[11px] font-semibold uppercase tracking-wide"
             value={timeRange}
             onChange={(e) => handleTimeRangeChange(e.target.value)}
           >
@@ -507,37 +621,43 @@ const LogTable: React.FC<LogTableProps> = ({
                 {range.label}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <button
+          <Button
             onClick={() => setShowAddFilter((prev) => !prev)}
-            className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all flex items-center gap-2"
+            size="sm"
+            variant="outline"
+            className="text-xs"
           >
             <FunnelIcon className="w-3.5 h-3.5" />
             Filters
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={() => {
               if (!showAql) {
                 setAqlQuery(aqlPreview);
               }
               setShowAql((prev) => !prev);
             }}
-            className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all flex items-center gap-2"
+            size="sm"
+            variant="outline"
+            className="text-xs"
           >
             AQL
             <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showAql ? 'rotate-180' : ''}`} />
-          </button>
+          </Button>
 
           <div className="relative">
-            <button
+            <Button
               onClick={() => setShowViewsList(!showViewsList)}
-              className="px-4 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all flex items-center gap-2"
+              size="sm"
+              variant="outline"
+              className="text-xs"
             >
               <BookmarkIcon className="w-3.5 h-3.5" />
-              VIEWS
-            </button>
+              Views
+            </Button>
             {showViewsList && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-panel border border-border-base rounded-md shadow-lg z-20 py-1">
                 {views.length === 0 && <div className="px-3 py-2 text-text-muted italic">No saved views</div>}
@@ -556,62 +676,72 @@ const LogTable: React.FC<LogTableProps> = ({
                 <div className="border-t border-border-base mt-1 pt-1 px-2 pb-1">
                   {showSaveView ? (
                     <div className="flex flex-col gap-2 mt-1">
-                      <input
+                      <Input
                         autoFocus
-                        className="bg-app border border-border-base rounded px-2 py-1 text-xs text-text-main"
                         placeholder="View Name"
                         value={newViewName}
                         onChange={e => setNewViewName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSaveView()}
+                        className="text-xs"
                       />
-                      <button onClick={handleSaveView} className="bg-wispr-purple text-white rounded-lg px-2 py-1.5 text-xs font-bold shadow-lg shadow-wispr-purple/20">Save</button>
+                      <Button onClick={handleSaveView} size="sm" variant="primary" className="text-xs">
+                        Save
+                      </Button>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       onClick={() => setShowSaveView(true)}
-                      className="w-full text-left px-2 py-1.5 text-wispr-purple hover:text-wispr-purple-dark text-[10px] font-bold tracking-wider"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-primary text-[10px] font-bold tracking-wider"
                     >
-                      + SAVE CURRENT VIEW
-                    </button>
+                      + Save Current View
+                    </Button>
                   )}
                 </div>
               </div>
             )}
           </div>
 
-          <button
-            onClick={() => loadLogs(queryMode === 'aql' ? aqlQuery : undefined)}
-            className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs text-text-muted font-semibold hover:text-text-main hover:border-border-hover transition-all"
-          >
-            Refresh
-          </button>
+            <Button
+              onClick={() => loadLogs(queryMode === 'aql' ? aqlQuery : undefined)}
+              size="sm"
+              variant="secondary"
+              className="text-xs"
+            >
+              Refresh
+            </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Quick Filters</span>
           {QUICK_FILTERS.map((filter) => (
-            <button
+            <Button
               key={filter.label}
               onClick={() => applyQuickFilter(filter)}
-              className="px-3 py-1.5 rounded-full bg-panel border border-border-base text-text-muted hover:text-text-main hover:border-border-hover transition-all"
+              size="sm"
+              variant="outline"
+              className="rounded-full text-[11px]"
             >
               {filter.label}
-            </button>
+            </Button>
           ))}
           {activeFilters.length > 0 && (
-            <button
+            <Button
               onClick={clearFilters}
-              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-500 hover:text-rose-600"
+              variant="ghost"
+              size="sm"
+              className="text-[10px] font-bold uppercase tracking-wider text-rose-500 hover:text-rose-600"
             >
               Clear All
-            </button>
+            </Button>
           )}
         </div>
 
         {activeFilters.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {activeFilters.map((filter) => (
-              <div key={filter.id} className="flex items-center gap-2 px-3 py-1.5 bg-panel border border-border-base rounded-full text-xs text-text-main">
+              <div key={filter.id} className="flex items-center gap-2 px-3 py-1.5 bg-panel border border-border-base rounded-md text-xs text-text-main">
                 <span className="font-semibold">{FIELD_LABELS[filter.field] || filter.field}</span>
                 <span className="text-text-muted">{filter.op}</span>
                 <span className="text-text-muted">{filter.value}</span>
@@ -624,8 +754,8 @@ const LogTable: React.FC<LogTableProps> = ({
         )}
 
         {showAddFilter && (
-          <div className="bg-panel border border-border-base rounded-2xl p-4 flex flex-wrap items-center gap-3">
-            <select
+          <div className="bg-panel border border-border-base rounded-lg p-4 flex flex-wrap items-center gap-3">
+            <Select
               value={newFilter.field}
               onChange={(e) => {
                 const field = e.target.value;
@@ -636,92 +766,94 @@ const LogTable: React.FC<LogTableProps> = ({
                   value: '',
                 });
               }}
-              className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+              className="text-xs"
             >
               {FILTER_FIELDS.map((field) => (
                 <option key={field} value={field}>
                   {FIELD_LABELS[field] || field}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               value={newFilter.op}
               onChange={(e) => setNewFilter((prev) => ({ ...prev, op: e.target.value }))}
-              className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main"
+              className="text-xs"
             >
               {(OP_BY_TYPE[FIELD_TYPES[newFilter.field] || 'string'] || []).map((op) => (
                 <option key={op} value={op}>{op}</option>
               ))}
-            </select>
-            <input
+            </Select>
+            <Input
               value={newFilter.value}
               onChange={(e) => setNewFilter((prev) => ({ ...prev, value: e.target.value }))}
-              className="bg-app border border-border-base rounded-xl px-3 py-2 text-xs text-text-main flex-1 min-w-[160px]"
+              className="flex-1 min-w-[160px] text-xs"
               placeholder="Value"
             />
-            <button
+            <Button
               onClick={handleAddFilter}
-              className="px-3 py-2 bg-wispr-purple text-white rounded-xl text-xs font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all flex items-center gap-2"
+              size="sm"
+              variant="primary"
+              className="text-xs"
             >
               <PlusIcon className="w-3 h-3" />
               Add Filter
-            </button>
+            </Button>
           </div>
         )}
 
         {showAql && (
-          <div className="bg-panel border border-border-base rounded-2xl p-4 space-y-3">
+          <div className="bg-panel border border-border-base rounded-lg p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">AQL Query</div>
                 <div className="text-xs text-text-muted">Advanced mode (builder generates this automatically).</div>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={() => {
                     setQueryMode('builder');
                     loadLogs();
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${queryMode === 'builder'
-                    ? 'bg-wispr-purple/10 text-wispr-purple border-wispr-purple/30'
-                    : 'bg-app text-text-muted border-border-base hover:text-text-main'
-                    }`}
+                  size="sm"
+                  variant={queryMode === 'builder' ? 'secondary' : 'ghost'}
+                  className={`text-[10px] font-bold uppercase tracking-wider ${queryMode === 'builder' ? 'text-primary' : ''}`}
                 >
                   Builder
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setQueryMode('aql')}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${queryMode === 'aql'
-                    ? 'bg-wispr-purple/10 text-wispr-purple border-wispr-purple/30'
-                    : 'bg-app text-text-muted border-border-base hover:text-text-main'
-                    }`}
+                  size="sm"
+                  variant={queryMode === 'aql' ? 'secondary' : 'ghost'}
+                  className={`text-[10px] font-bold uppercase tracking-wider ${queryMode === 'aql' ? 'text-primary' : ''}`}
                 >
                   AQL
-                </button>
+                </Button>
               </div>
             </div>
-            <textarea
+            <Textarea
               value={queryMode === 'aql' ? aqlQuery : aqlPreview}
               onChange={(e) => setAqlQuery(e.target.value)}
               readOnly={queryMode !== 'aql'}
-              className="w-full bg-app border border-border-base rounded-xl p-3 text-xs text-text-main font-mono resize-none h-28"
+              className="font-mono text-xs h-28"
             />
             <div className="flex items-center justify-between">
               <div className="text-[10px] text-text-muted uppercase tracking-widest font-bold">
                 {queryMode === 'aql' ? 'Manual query' : 'Read-only preview'}
               </div>
-              <button
+              <Button
                 onClick={runAql}
-                className="px-3 py-1.5 bg-wispr-purple text-white rounded-xl text-xs font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
+                size="sm"
+                variant="primary"
+                className="text-xs"
                 disabled={queryMode !== 'aql'}
               >
                 Run AQL
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
-        {error && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3">{error}</div>}
+        {error && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{error}</div>}
       </div>
 
       {/* Header */}
@@ -747,7 +879,7 @@ const LogTable: React.FC<LogTableProps> = ({
             {aqlResult.data.length === 0 ? (
               <div className="p-8 text-center text-text-muted text-sm italic">No rows returned.</div>
             ) : (
-              <div className="bg-panel border border-border-base rounded-2xl overflow-hidden">
+              <div className="bg-panel border border-border-base rounded-lg overflow-hidden">
                 <table className="min-w-full text-xs text-text-main">
                   <thead>
                     <tr className="text-[10px] uppercase tracking-wider text-text-muted border-b border-border-base">
@@ -781,7 +913,7 @@ const LogTable: React.FC<LogTableProps> = ({
               <div
                 key={log.id}
                 onClick={() => onSelectLog(log)}
-                className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple/30' : ''
+                className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-primary/5 border-primary/20' : ''
                   }`}
               >
                 <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums gap-2">
@@ -792,23 +924,59 @@ const LogTable: React.FC<LogTableProps> = ({
                   <span className="font-medium text-text-main truncate" title={log.message}>{log.message}</span>
                   <div className="flex items-center gap-2 mt-1">
                     {log.event_type && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold border border-border-base bg-app/70 text-text-muted font-mono">
+                      <Badge variant="neutral" className="font-mono text-[9px]">
                         {log.event_type}
-                      </span>
+                      </Badge>
                     )}
                     {log.trace_id && onOpenTrace && (
-                      <button
+                      <Button
                         onClick={(e) => { e.stopPropagation(); onOpenTrace(log.trace_id!); }}
-                        className="px-2 py-0.5 rounded-full text-[9px] font-semibold border border-wispr-purple/30 text-wispr-purple hover:bg-wispr-purple/10 transition-colors flex items-center gap-1"
-                        title="Open Trace"
+                        size="sm"
+                        variant="outline"
+                        className="text-[10px] h-6 px-2"
                       >
                         <ArrowTopRightOnSquareIcon className="w-3 h-3" />
                         Open Trace
-                      </button>
+                      </Button>
                     )}
                     {log.trace_id && (
                       <span className="text-[10px] text-text-muted truncate">id: {log.trace_id.substring(0, 8)}...</span>
                     )}
+                    <div className="flex items-center gap-1">
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        title="Create assignment"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCollab('assignment', log);
+                        }}
+                      >
+                        <UserPlusIcon className="w-3.5 h-3.5" />
+                      </IconButton>
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        title="Create mention"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCollab('mention', log);
+                        }}
+                      >
+                        <AtSymbolIcon className="w-3.5 h-3.5" />
+                      </IconButton>
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        title="Create share link"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCollab('share', log);
+                        }}
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                      </IconButton>
+                    </div>
                   </div>
                 </div>
 
@@ -830,21 +998,145 @@ const LogTable: React.FC<LogTableProps> = ({
                 </div>
 
                 <div className="col-span-1 flex items-center justify-center">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusBadge(
-                      log.status || ''
-                    )}`}
-                  >
+                  <Badge variant={getStatusVariant(log.status)}>
                     {(log.status || 'unknown').toUpperCase()}
-                  </span>
+                  </Badge>
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      <Modal
+        open={!!collabAction}
+        title={
+          collabAction?.kind === 'assignment'
+            ? 'Create assignment'
+            : collabAction?.kind === 'mention'
+              ? 'Create mention'
+              : 'Create share link'
+        }
+        description="Attach a collaboration record to this log or its trace."
+        onClose={closeCollab}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={closeCollab}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleCollabSubmit} disabled={collabBusy}>
+              {collabBusy ? 'Saving...' : 'Create'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {collabError && (
+            <div className="text-xs text-rose-500 font-semibold bg-rose-500/10 rounded-md p-3">
+              {collabError}
+            </div>
+          )}
+          {collabMessage && (
+            <div className="text-xs text-emerald-600 font-semibold bg-emerald-500/10 rounded-md p-3">
+              {collabMessage}
+            </div>
+          )}
+
+          {collabAction?.traceId && (
+            <div>
+              <label className="text-[11px] font-medium text-text-muted">Target</label>
+              <Select
+                value={collabAction.objectType}
+                onChange={(e) => updateCollabTarget(e.target.value as CollabTarget)}
+                className="mt-1"
+              >
+                <option value="log">Log</option>
+                <option value="trace">Trace</option>
+              </Select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] font-medium text-text-muted">Object</label>
+            <div className="mt-1 rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-muted">
+              {collabAction?.objectType} · {collabAction?.objectId}
+            </div>
+          </div>
+
+          {collabAction?.kind === 'assignment' && (
+            <>
+              <div>
+                <label className="text-[11px] font-medium text-text-muted">Assignee</label>
+                <Input
+                  value={collabAssignee}
+                  onChange={(e) => setCollabAssignee(e.target.value)}
+                  placeholder="name@company.com"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-text-muted">Note</label>
+                <Textarea
+                  rows={3}
+                  value={collabNote}
+                  onChange={(e) => setCollabNote(e.target.value)}
+                  placeholder="Optional context"
+                  className="mt-1"
+                />
+              </div>
+            </>
+          )}
+
+          {collabAction?.kind === 'mention' && (
+            <>
+              <div>
+                <label className="text-[11px] font-medium text-text-muted">Mention</label>
+                <Input
+                  value={collabMention}
+                  onChange={(e) => setCollabMention(e.target.value)}
+                  placeholder="name@company.com"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-text-muted">Note</label>
+                <Textarea
+                  rows={3}
+                  value={collabNote}
+                  onChange={(e) => setCollabNote(e.target.value)}
+                  placeholder="Optional context"
+                  className="mt-1"
+                />
+              </div>
+            </>
+          )}
+
+          {collabAction?.kind === 'share' && (
+            <>
+              <div>
+                <label className="text-[11px] font-medium text-text-muted">Expires At</label>
+                <Input
+                  type="datetime-local"
+                  value={shareExpiry}
+                  onChange={(e) => setShareExpiry(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              {shareToken && (
+                <div className="flex items-center justify-between rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-main">
+                  <span className="font-mono">{shareToken}</span>
+                  <Button size="sm" variant="ghost" onClick={copyShareToken}>
+                    Copy
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };
 
 export default LogTable;
+

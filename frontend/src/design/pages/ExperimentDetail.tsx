@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '../services/api';
-import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../types';
+import { api } from '../../services/api';
+import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../../types';
 import {
   ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon,
   BeakerIcon, ChevronDownIcon, ChevronRightIcon,
   CheckCircleIcon, XCircleIcon, ClockIcon
 } from '@heroicons/react/24/outline';
+import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../ui';
 
 interface ExperimentDetailProps {
   experiment: Experiment;
@@ -341,11 +342,11 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
         <div className="px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={onBack} className="p-2 -ml-2 rounded-xl text-text-muted hover:text-text-main hover:bg-panel-hover transition-all">
+              <IconButton onClick={onBack} variant="ghost" size="sm">
                 <ChevronLeftIcon className="w-5 h-5" />
-              </button>
+              </IconButton>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-md bg-primary flex items-center justify-center shadow-xs">
                   <BeakerIcon className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -359,34 +360,34 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 onClick={() => setShowCreateVersion(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-panel border border-border-base rounded-xl text-sm font-bold text-text-main hover:bg-panel-hover transition-all"
+                variant="secondary"
               >
                 <PlusIcon className="w-4 h-4" /> New Version
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={runVersion}
                 disabled={!selectedVersionId}
-                className="flex items-center gap-2 px-4 py-2.5 bg-wispr-purple text-white rounded-xl text-sm font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all disabled:opacity-50"
+                variant="primary"
               >
                 <PlayIcon className="w-4 h-4" /> Run Experiment
-              </button>
+              </Button>
             </div>
           </div>
         </div>
 
         {/* Explanation Banner */}
         <div className="px-8 pb-4">
-          <div className="bg-gradient-to-r from-amber-500/5 to-transparent border border-amber-500/20 rounded-xl p-4">
+          <Card className="bg-amber-500/5 border-amber-500/20">
             <h4 className="text-sm font-bold text-text-main mb-1">What is an Experiment?</h4>
             <p className="text-xs text-text-muted leading-relaxed">
               An experiment tests your AI by running it against a <strong className="text-text-main">dataset</strong>.
-              For each test case, the AI receives the <strong className="text-wispr-purple">Input</strong>, generates an <strong className="text-amber-500">Actual Output</strong>,
+              For each test case, the AI receives the <strong className="text-primary">Input</strong>, generates an <strong className="text-amber-500">Actual Output</strong>,
               which is then compared against the <strong className="text-emerald-500">Expected Output</strong> using scorers.
               Create different versions to try different models, prompts, or parameters.
             </p>
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -408,11 +409,11 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                 <button
                   key={v.id}
                   onClick={() => setSelectedVersionId(v.id)}
-                  className={`w-full text-left p-3 rounded-xl transition-all ${isSelected ? 'bg-wispr-purple/10 border border-wispr-purple/30' : 'hover:bg-panel-hover border border-transparent'
+                  className={`w-full text-left p-3 rounded-md transition-all ${isSelected ? 'bg-primary/10 border border-primary/20' : 'hover:bg-panel-hover border border-transparent'
                     }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-bold ${isSelected ? 'text-wispr-purple' : 'text-text-main'}`}>
+                    <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-text-main'}`}>
                       v{v.version_number}
                     </span>
                     {isMain && (
@@ -437,19 +438,21 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
         <div className="flex-1 overflow-y-auto p-6">
           {/* Selected Version Info */}
           {selectedVersion && (
-            <div className="bg-panel border border-border-base rounded-2xl p-5 mb-6">
+            <Card className="mb-6">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-bold text-text-main">v{selectedVersion.version_number}</span>
                   <span className="text-xs text-text-muted">{selectedModel?.display_name || selectedModel?.model_id}</span>
                 </div>
                 {selectedVersionId !== mainVersionId && (
-                  <button
+                  <Button
                     onClick={() => setMain(selectedVersionId!)}
-                    className="text-xs text-wispr-purple hover:text-wispr-purple-dark font-bold"
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary"
                   >
                     Set as Main
-                  </button>
+                  </Button>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-4 text-xs">
@@ -470,7 +473,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   </span>
                 </div>
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Runs */}
@@ -493,8 +496,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   <button
                     key={r.id}
                     onClick={() => setSelectedRunId(r.id)}
-                    className={`flex-shrink-0 p-3 rounded-xl border transition-all ${isSelected
-                      ? 'bg-wispr-purple/10 border-wispr-purple/30'
+                    className={`flex-shrink-0 p-3 rounded-md border transition-all ${isSelected
+                      ? 'bg-primary/10 border-primary/20'
                       : 'bg-panel border-border-base hover:border-border-hover'
                       }`}
                   >
@@ -504,7 +507,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                       {r.status === 'running' && <ClockIcon className="w-4 h-4 text-amber-500 animate-spin" />}
                       {r.status === 'queued' && <ClockIcon className="w-4 h-4 text-text-muted" />}
                       {r.status === 'canceled' && <StopIcon className="w-4 h-4 text-text-muted" />}
-                      <span className={`text-xs font-bold ${isSelected ? 'text-wispr-purple' : 'text-text-main'}`}>
+                      <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-text-main'}`}>
                         {new Date(r.created_at).toLocaleTimeString()}
                       </span>
                     </div>
@@ -527,21 +530,21 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-text-main">Compare</h3>
-              <button
+              <Button
                 onClick={runCompare}
                 disabled={!compareBaselineId || !compareCandidateId}
-                className="px-3 py-2 bg-panel border border-border-base rounded-xl text-xs font-bold text-text-muted hover:text-text-main hover:bg-panel-hover disabled:opacity-50"
+                variant="secondary"
+                size="sm"
               >
                 Compare Runs
-              </button>
+              </Button>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Baseline Run</label>
-                <select
+                <Select
                   value={compareBaselineId || ''}
                   onChange={(e) => setCompareBaselineId(e.target.value)}
-                  className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
                 >
                   <option value="">Select baseline...</option>
                   {runs.map((r) => (
@@ -549,14 +552,13 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                       {new Date(r.created_at).toLocaleString()} ({r.status})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Candidate Run</label>
-                <select
+                <Select
                   value={compareCandidateId || ''}
                   onChange={(e) => setCompareCandidateId(e.target.value)}
-                  className="w-full bg-app border border-border-base rounded-xl px-4 py-2.5 text-sm text-text-main"
                 >
                   <option value="">Select candidate...</option>
                   {runs.map((r) => (
@@ -564,7 +566,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                       {new Date(r.created_at).toLocaleString()} ({r.status})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
 
@@ -576,7 +578,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
               <div className="mt-4 space-y-4">
                 <div className="grid md:grid-cols-4 gap-3">
                   {['avg_score', 'cost_total', 'latency_ms_total', 'tokens_total'].map((key) => (
-                    <div key={key} className="bg-panel border border-border-base rounded-xl p-3">
+                    <div key={key} className="bg-panel border border-border-base rounded-md p-3">
                       <div className="text-[10px] uppercase tracking-wider text-text-muted">{key}</div>
                       <div className="text-sm font-bold text-text-main">
                         {formatDelta(compareResult.delta_summary?.[key])}
@@ -585,7 +587,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   ))}
                 </div>
 
-                <div className="bg-panel border border-border-base rounded-2xl overflow-hidden">
+                <div className="bg-panel border border-border-base rounded-lg overflow-hidden">
                   <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-text-muted border-b border-border-base">
                     <div className="col-span-5">Input</div>
                     <div className="col-span-2 text-right">Baseline</div>
@@ -639,12 +641,12 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
             </div>
 
             {results.length === 0 ? (
-              <div className="bg-panel border border-border-base rounded-2xl p-10 text-center">
+              <Card className="p-10 text-center">
                 <BeakerIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
                 <p className="text-text-muted italic">
                   {selectedRunId ? 'No results yet.' : 'Select a run to view results.'}
                 </p>
-              </div>
+              </Card>
             ) : (
               <div className="space-y-3">
                 {results.map((res, idx) => {
@@ -661,14 +663,14 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                   return (
                     <div
                       key={res.id}
-                      className={`bg-panel border rounded-2xl overflow-hidden transition-all ${getScoreBg(exactMatch)}`}
+                      className={`bg-panel border rounded-lg overflow-hidden transition-all ${getScoreBg(exactMatch)}`}
                     >
                       {/* Result Header */}
                       <button
                         onClick={() => setExpandedResultId(isExpanded ? null : res.id)}
                         className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-black/5 transition-colors"
                       >
-                        <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-wispr-purple/10 text-wispr-purple flex items-center justify-center text-xs font-bold">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
                           {idx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -727,9 +729,9 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                             {/* Input */}
                             <div>
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-wispr-purple">Input</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Input</span>
                               </div>
-                              <div className="bg-app rounded-xl border border-border-base p-3 h-32 overflow-y-auto">
+                              <div className="bg-app rounded-md border border-border-base p-3 h-32 overflow-y-auto">
                                 <p className="text-xs text-text-main whitespace-pre-wrap">{inputText}</p>
                               </div>
                             </div>
@@ -739,7 +741,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Expected</span>
                               </div>
-                              <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 p-3 h-32 overflow-y-auto">
+                              <div className="bg-emerald-500/5 rounded-md border border-emerald-500/20 p-3 h-32 overflow-y-auto">
                                 <p className="text-xs text-text-main whitespace-pre-wrap">{expectedText}</p>
                               </div>
                             </div>
@@ -749,7 +751,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Actual Output</span>
                               </div>
-                              <div className="bg-amber-500/5 rounded-xl border border-amber-500/20 p-3 h-32 overflow-y-auto">
+                              <div className="bg-amber-500/5 rounded-md border border-amber-500/20 p-3 h-32 overflow-y-auto">
                               <p className="text-xs text-text-main whitespace-pre-wrap">{actualText || 'No output'}</p>
                               </div>
                             </div>
@@ -766,130 +768,121 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
       </div>
 
       {/* Create Version Modal */}
-      {showCreateVersion && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-panel border border-border-base rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-border-base">
-              <h3 className="text-lg font-serif font-black text-text-main">New Experiment Version</h3>
-              <p className="text-xs text-text-muted mt-1">Test a different model, prompt, or parameters</p>
+      <Modal
+        open={showCreateVersion}
+        title="New Experiment Version"
+        description="Test a different model, prompt, or parameters."
+        onClose={() => setShowCreateVersion(false)}
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowCreateVersion(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={createVersion}>
+              Create Version
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-medium text-text-muted mb-2">Model</label>
+            <Select
+              value={newVersion.model_registry_id}
+              onChange={(e) => setNewVersion((p) => ({ ...p, model_registry_id: e.target.value }))}
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>{m.display_name || `${m.provider}:${m.model_id}`}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-medium text-text-muted mb-2">Temperature</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                max="2"
+                value={newVersion.temperature}
+                onChange={(e) => setNewVersion((p) => ({ ...p, temperature: Number(e.target.value) }))}
+              />
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Model</label>
-                <select
-                  value={newVersion.model_registry_id}
-                  onChange={(e) => setNewVersion((p) => ({ ...p, model_registry_id: e.target.value }))}
-                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                >
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.display_name || `${m.provider}:${m.model_id}`}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Temperature</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="2"
-                    value={newVersion.temperature}
-                    onChange={(e) => setNewVersion((p) => ({ ...p, temperature: Number(e.target.value) }))}
-                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Max Tokens</label>
-                  <input
-                    type="number"
-                    value={newVersion.max_tokens}
-                    onChange={(e) => setNewVersion((p) => ({ ...p, max_tokens: e.target.value }))}
-                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                    placeholder="(optional)"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">System Prompt</label>
-                <textarea
-                  value={newVersion.system_prompt}
-                  onChange={(e) => setNewVersion((p) => ({ ...p, system_prompt: e.target.value }))}
-                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main h-24 resize-none"
-                  placeholder="Instructions for the AI..."
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Scorers</label>
-                <p className="text-xs text-text-muted mb-3">Select how to evaluate the AI's output against the expected answer:</p>
-                <div className="space-y-2">
-                  {scorers.map((scorer) => (
-                    <label key={scorer.id} className="flex items-start gap-3 p-3 rounded-xl border border-border-base hover:border-border-hover hover:bg-app/30 cursor-pointer transition-all">
-                      <input
-                        type="checkbox"
-                        checked={newVersion.scorers.includes(scorer.name)}
-                        onChange={(e) => {
-                          setNewVersion((p) => ({
-                            ...p,
-                            scorers: e.target.checked
-                              ? [...p.scorers, scorer.name]
-                              : p.scorers.filter((s) => s !== scorer.name)
-                          }));
-                        }}
-                        className="w-4 h-4 mt-0.5 rounded border-border-base text-wispr-purple flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-text-main">{scorer.display_name || scorer.name}</span>
-                          {scorer.runtime === 'llm_judge' && (
-                            <span className="text-[9px] bg-wispr-purple/20 text-wispr-purple px-1.5 py-0.5 rounded-full font-medium">Uses LLM</span>
-                          )}
-                          {scorer.runtime === 'builtin' && (
-                            <span className="text-[9px] bg-emerald-500/20 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">Fast</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
-                          {scorer.description || getDefaultScorerDescription(scorer.name)}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                {scorers.length === 0 && (
-                  <div className="text-xs text-text-muted italic p-4 border border-dashed border-border-base rounded-xl text-center">
-                    No scorers available. Run seed-builtins to add default scorers.
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Notes</label>
-                <input
-                  value={newVersion.notes}
-                  onChange={(e) => setNewVersion((p) => ({ ...p, notes: e.target.value }))}
-                  className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
-                  placeholder="What are you testing?"
-                />
-              </div>
-              <div className="flex gap-4 pt-2">
-                <button
-                  onClick={() => setShowCreateVersion(false)}
-                  className="flex-1 px-4 py-3 bg-app border border-border-base rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={createVersion}
-                  className="flex-1 px-4 py-3 bg-wispr-purple text-white rounded-xl text-sm font-bold shadow-lg shadow-wispr-purple/20 hover:bg-wispr-purple-dark transition-all"
-                >
-                  Create Version
-                </button>
-              </div>
+            <div>
+              <label className="block text-[11px] font-medium text-text-muted mb-2">Max Tokens</label>
+              <Input
+                type="number"
+                value={newVersion.max_tokens}
+                onChange={(e) => setNewVersion((p) => ({ ...p, max_tokens: e.target.value }))}
+                placeholder="(optional)"
+              />
             </div>
           </div>
+          <div>
+            <label className="block text-[11px] font-medium text-text-muted mb-2">System Prompt</label>
+            <Textarea
+              value={newVersion.system_prompt}
+              onChange={(e) => setNewVersion((p) => ({ ...p, system_prompt: e.target.value }))}
+              className="h-24 resize-none"
+              placeholder="Instructions for the AI..."
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-text-muted mb-2">Scorers</label>
+            <p className="text-xs text-text-muted mb-3">Select how to evaluate the AI's output against the expected answer:</p>
+            <div className="space-y-2">
+              {scorers.map((scorer) => (
+                <label key={scorer.id} className="flex items-start gap-3 p-3 rounded-md border border-border-base hover:border-border-hover hover:bg-app/30 cursor-pointer transition-all">
+                  <input
+                    type="checkbox"
+                    checked={newVersion.scorers.includes(scorer.name)}
+                    onChange={(e) => {
+                      setNewVersion((p) => ({
+                        ...p,
+                        scorers: e.target.checked
+                          ? [...p.scorers, scorer.name]
+                          : p.scorers.filter((s) => s !== scorer.name)
+                      }));
+                    }}
+                    className="w-4 h-4 mt-0.5 rounded border-border-base text-primary flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-text-main">{scorer.display_name || scorer.name}</span>
+                      {scorer.runtime === 'llm_judge' && (
+                        <Badge variant="primary">Uses LLM</Badge>
+                      )}
+                      {scorer.runtime === 'builtin' && (
+                        <Badge variant="success">Fast</Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
+                      {scorer.description || getDefaultScorerDescription(scorer.name)}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {scorers.length === 0 && (
+              <div className="text-xs text-text-muted italic p-4 border border-dashed border-border-base rounded-md text-center">
+                No scorers available. Run seed-builtins to add default scorers.
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-text-muted mb-2">Notes</label>
+            <Input
+              value={newVersion.notes}
+              onChange={(e) => setNewVersion((p) => ({ ...p, notes: e.target.value }))}
+              placeholder="What are you testing?"
+            />
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };
 
 export default ExperimentDetail;
+

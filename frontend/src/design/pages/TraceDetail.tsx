@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Trace, Span } from '../types';
+import { Trace, Span } from '../../types';
 import {
     CodeBracketIcon,
     CheckCircleIcon,
@@ -10,11 +10,14 @@ import {
     PencilSquareIcon,
     HandThumbUpIcon,
     HandThumbDownIcon,
-    InboxArrowDownIcon
+    InboxArrowDownIcon,
+    AtSymbolIcon,
+    LinkIcon,
+    UserPlusIcon
 } from '@heroicons/react/24/outline';
-import { Tooltip } from './Tooltip';
-import { api } from '../services/api';
-import { Dataset } from '../types';
+import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../ui';
+import { api } from '../../services/api';
+import { Dataset } from '../../types';
 
 interface TraceDetailProps {
     trace: Trace;
@@ -42,23 +45,23 @@ const SpanRow: React.FC<SpanRowProps> = ({
     const widthPercent = Math.max(((span.end_time - span.start_time) / totalDuration) * 100, 1);
 
     const iconMap: Record<string, React.ReactNode> = {
-        llm: <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-wispr-purple" />,
-        chain: <CubeIcon className="w-3.5 h-3.5 text-blue-500" />,
+        llm: <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-primary" />,
+        chain: <CubeIcon className="w-3.5 h-3.5 text-primary" />,
         tool: <CodeBracketIcon className="w-3.5 h-3.5 text-amber-500" />,
         retriever: <CodeBracketIcon className="w-3.5 h-3.5 text-emerald-500" />,
     };
 
     return (
         <div
-            className={`group flex items-center py-2.5 px-6 hover:bg-panel-hover cursor-pointer border-l-2 border-transparent transition-all duration-200 ${isSelected ? 'bg-wispr-purple/10 border-wispr-purple' : ''}`}
+            className={`group flex items-center py-2.5 px-6 hover:bg-panel-hover cursor-pointer border-l-2 border-transparent transition-all duration-200 ${isSelected ? 'bg-primary/10 border-primary/20' : ''}`}
             onClick={() => onSelect(span)}
         >
             <div className="flex-1 flex items-center overflow-hidden mr-4">
                 <div style={{ paddingLeft: `${depth * 16}px` }} className="flex items-center gap-2 truncate">
                     <Tooltip content={
                         <span>
-                            <span className="font-semibold text-indigo-400">{span.type.toUpperCase()}</span>
-                            <span className="ml-1 text-gray-400">
+                            <span className="font-semibold text-primary">{span.type.toUpperCase()}</span>
+                            <span className="ml-1 text-text-muted">
                                 {span.type === 'llm' ? 'Language Model' : span.type === 'chain' ? 'Workflow Chain' : span.type === 'tool' ? 'External Tool' : 'Context Retrieval'}
                             </span>
                         </span>
@@ -68,14 +71,14 @@ const SpanRow: React.FC<SpanRowProps> = ({
                         </span>
                     </Tooltip>
 
-                    <span className={`text-sm truncate ${isSelected ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-text-main'}`}>{span.name}</span>
+                    <span className={`text-sm truncate ${isSelected ? 'text-primary font-semibold' : 'text-text-main'}`}>{span.name}</span>
                     <span className="text-[10px] text-text-muted border border-border-base px-1 rounded bg-app">{span.type}</span>
                 </div>
             </div>
 
             <div className="w-36 h-2 relative bg-border-base/40 rounded-full overflow-hidden flex-shrink-0">
                 <div
-                    className={`absolute top-0 bottom-0 rounded-full transition-all duration-300 ${span.status === 'error' ? 'bg-rose-500' : 'bg-wispr-purple'}`}
+                    className={`absolute top-0 bottom-0 rounded-full transition-all duration-300 ${span.status === 'error' ? 'bg-rose-500' : 'bg-primary'}`}
                     style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
                 />
             </div>
@@ -92,7 +95,7 @@ const JSONViewer = ({ data, label }: { data: any, label: string }) => (
         <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-text-muted font-bold mb-2 opacity-70 group-open:opacity-100">
             Raw {label}
         </summary>
-        <div className="bg-app border border-border-base rounded-2xl p-4 overflow-x-auto shadow-sm">
+        <div className="bg-app border border-border-base rounded-md p-4 overflow-x-auto shadow-sm">
             <pre className="text-[12px] text-text-main whitespace-pre-wrap leading-relaxed">
                 {JSON.stringify(data, null, 2)}
             </pre>
@@ -144,6 +147,16 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const [actionType, setActionType] = useState<'good' | 'correct' | 'bad'>('good');
     const [actionError, setActionError] = useState<string | null>(null);
     const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+    const [collabKind, setCollabKind] = useState<'assignment' | 'mention' | 'share' | null>(null);
+    const [collabAssignee, setCollabAssignee] = useState('');
+    const [collabMention, setCollabMention] = useState('');
+    const [collabNote, setCollabNote] = useState('');
+    const [shareExpiry, setShareExpiry] = useState('');
+    const [collabError, setCollabError] = useState<string | null>(null);
+    const [collabMessage, setCollabMessage] = useState<string | null>(null);
+    const [collabBusy, setCollabBusy] = useState(false);
+    const [shareToken, setShareToken] = useState<string | null>(null);
 
     useEffect(() => {
         api.getDatasets(trace.project_id).then(setDatasets).catch(console.error);
@@ -217,6 +230,83 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
         }
     };
 
+    const openCollab = (kind: 'assignment' | 'mention' | 'share') => {
+        setCollabKind(kind);
+        setCollabAssignee('');
+        setCollabMention('');
+        setCollabNote('');
+        setShareExpiry('');
+        setCollabError(null);
+        setCollabMessage(null);
+        setShareToken(null);
+    };
+
+    const closeCollab = () => {
+        setCollabKind(null);
+        setCollabError(null);
+        setCollabMessage(null);
+        setCollabBusy(false);
+        setShareToken(null);
+    };
+
+    const handleCollabSubmit = async () => {
+        if (!collabKind) return;
+        setCollabError(null);
+        setCollabMessage(null);
+        setCollabBusy(true);
+        try {
+            if (collabKind === 'assignment') {
+                if (!collabAssignee.trim()) {
+                    setCollabError('Assignee is required.');
+                    return;
+                }
+                await api.createAssignment({
+                    project_id: trace.project_id,
+                    object_type: 'trace',
+                    object_id: trace.id,
+                    assignee: collabAssignee.trim(),
+                    note: collabNote.trim() || undefined,
+                });
+                setCollabMessage('Assignment created.');
+            }
+            if (collabKind === 'mention') {
+                if (!collabMention.trim()) {
+                    setCollabError('Mention target is required.');
+                    return;
+                }
+                await api.createMention({
+                    project_id: trace.project_id,
+                    object_type: 'trace',
+                    object_id: trace.id,
+                    mentioned: collabMention.trim(),
+                    note: collabNote.trim() || undefined,
+                });
+                setCollabMessage('Mention created.');
+            }
+            if (collabKind === 'share') {
+                const expiresAt = shareExpiry ? new Date(shareExpiry).getTime() : undefined;
+                const created = await api.createShareLink({
+                    project_id: trace.project_id,
+                    object_type: 'trace',
+                    object_id: trace.id,
+                    expires_at: expiresAt,
+                });
+                setShareToken(created.token);
+                setCollabMessage('Share link created.');
+            }
+        } catch (e: any) {
+            setCollabError(e?.message || 'Failed to create collaboration item.');
+        } finally {
+            setCollabBusy(false);
+        }
+    };
+
+    const copyShareToken = async () => {
+        if (!shareToken || !navigator.clipboard) return;
+        await navigator.clipboard.writeText(shareToken);
+        setCollabMessage('Share token copied.');
+    };
+
     useEffect(() => {
         setSelectedSpan(trace.root_span);
     }, [trace.id, trace.root_span]);
@@ -259,13 +349,13 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
     const totalDuration = trace.total_latency;
 
     return (
-        <div className="h-full flex flex-col bg-panel border-l border-border-base text-text-main font-sans transition-colors duration-300">
+            <div className="h-full flex flex-col bg-panel border-l border-border-base text-text-main font-sans transition-colors duration-300">
             {/* Header */}
             <div className="h-20 border-b border-border-base flex items-center justify-between px-8 bg-app flex-shrink-0">
                 <div className="flex items-center gap-6">
-                    <button onClick={onClose} className="p-2 -ml-2 rounded-xl text-text-muted hover:text-text-main hover:bg-panel-hover transition-all">
+                    <IconButton onClick={onClose} variant="ghost" size="sm">
                         <ChevronRightIcon className="w-5 h-5" />
-                    </button>
+                    </IconButton>
                     <div className="flex flex-col">
                         <h2 className="text-lg font-serif font-black text-text-main leading-tight">{trace.root_span.name}</h2>
                         <div className="flex items-center gap-3 text-xs text-text-muted font-medium mt-0.5">
@@ -275,9 +365,9 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         </div>
                     </div>
                     {trace.status === 'error' && (
-                        <span className="flex items-center gap-1 text-xs text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                        <Badge variant="danger" className="gap-1">
                             <ExclamationCircleIcon className="w-3 h-3" /> Error
-                        </span>
+                        </Badge>
                     )}
                 </div>
 
@@ -297,35 +387,35 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 ml-4 flex-wrap">
-                        <button
-                            onClick={handleSendToReview}
-                            className="flex items-center gap-2 px-4 py-2 bg-panel border border-border-base rounded-xl text-[10px] font-bold tracking-wider text-text-main hover:bg-panel-hover transition-all"
-                        >
-                            <InboxArrowDownIcon className="w-4 h-4 text-amber-500" />
-                            SEND TO REVIEW
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <IconButton title="Create assignment" variant="ghost" size="sm" onClick={() => openCollab('assignment')}>
+                                <UserPlusIcon className="w-4 h-4" />
+                            </IconButton>
+                            <IconButton title="Create mention" variant="ghost" size="sm" onClick={() => openCollab('mention')}>
+                                <AtSymbolIcon className="w-4 h-4" />
+                            </IconButton>
+                            <IconButton title="Create share link" variant="ghost" size="sm" onClick={() => openCollab('share')}>
+                                <LinkIcon className="w-4 h-4" />
+                            </IconButton>
+                        </div>
 
-                        <button
-                            onClick={() => handleActionClick('good')}
-                            className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-emerald-500/20 transition-all"
-                        >
+                        <Button onClick={handleSendToReview} variant="secondary" size="sm">
+                            <InboxArrowDownIcon className="w-4 h-4 text-amber-500" />
+                            Send to Review
+                        </Button>
+
+                        <Button onClick={() => handleActionClick('good')} variant="success" size="sm">
                             <HandThumbUpIcon className="w-4 h-4" />
-                            GOOD EXAMPLE
-                        </button>
-                        <button
-                            onClick={() => handleActionClick('correct')}
-                            className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-amber-500/20 transition-all"
-                        >
+                            Good Example
+                        </Button>
+                        <Button onClick={() => handleActionClick('correct')} variant="secondary" size="sm" className="text-amber-600">
                             <PencilSquareIcon className="w-4 h-4" />
-                            CORRECT & ADD
-                        </button>
-                        <button
-                            onClick={() => handleActionClick('bad')}
-                            className="flex items-center gap-2 px-3 py-2 bg-rose-500/10 text-rose-600 border border-rose-500/20 rounded-xl text-[10px] font-bold tracking-wider hover:bg-rose-500/20 transition-all"
-                        >
+                            Correct & Add
+                        </Button>
+                        <Button onClick={() => handleActionClick('bad')} variant="danger" size="sm">
                             <HandThumbDownIcon className="w-4 h-4" />
-                            BAD EXAMPLE
-                        </button>
+                            Bad Example
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -375,7 +465,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                             </div>
                         </div>
                         {selectedSpan.metrics.cost !== undefined && selectedSpan.metrics.cost > 0 && (
-                            <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm shadow-emerald-500/10">
+                            <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm shadow-emerald-500/10">
                                 ${selectedSpan.metrics.cost.toFixed(5)}
                             </div>
                         )}
@@ -384,14 +474,14 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                     {/* Attributes Grid */}
                     <div className="grid grid-cols-2 gap-4 mb-8">
                         {Object.entries(selectedSpan.attributes).map(([key, value]) => (
-                            <div key={key} className="bg-app border border-border-base p-4 rounded-2xl hover:border-border-hover transition-all group">
+                            <div key={key} className="bg-app border border-border-base p-4 rounded-md hover:border-border-hover transition-all group">
                                 <div className="text-[9px] text-text-muted uppercase tracking-widest mb-1.5 font-bold opacity-60 group-hover:opacity-100 transition-opacity">{key.replace('_', ' ')}</div>
                                 <div className="text-sm text-text-main font-semibold truncate">
                                     {String(value)}
                                 </div>
                             </div>
                         ))}
-                        <div className="bg-app border border-border-base p-4 rounded-2xl hover:border-border-hover transition-all group">
+                        <div className="bg-app border border-border-base p-4 rounded-md hover:border-border-hover transition-all group">
                             <div className="text-[9px] text-text-muted uppercase tracking-widest mb-1.5 font-bold opacity-60 group-hover:opacity-100 transition-opacity">Tokens</div>
                             <div className="text-sm text-text-main font-semibold">
                                 {selectedSpan.metrics.total_tokens || 0}
@@ -401,13 +491,13 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
 
                     {/* Summary Preview */}
                     <div className="grid grid-cols-2 gap-4 mb-8">
-                        <div className="bg-app border border-border-base p-4 rounded-2xl">
+                        <div className="bg-app border border-border-base p-4 rounded-md">
                             <div className="text-[9px] uppercase tracking-widest text-text-muted font-bold mb-2">Input Preview</div>
                             <div className="text-sm text-text-main font-medium whitespace-pre-wrap">
                                 {truncateText(extractSpanInput(selectedSpan)) || 'No input captured.'}
                             </div>
                         </div>
-                        <div className="bg-app border border-border-base p-4 rounded-2xl">
+                        <div className="bg-app border border-border-base p-4 rounded-md">
                             <div className="text-[9px] uppercase tracking-widest text-text-muted font-bold mb-2">Output Preview</div>
                             <div className="text-sm text-text-main font-medium whitespace-pre-wrap">
                                 {truncateText(extractSpanOutput(selectedSpan)) || 'No output captured.'}
@@ -431,7 +521,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                                         </span>
                                     )}
                                 </h4>
-                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 overflow-x-auto shadow-sm">
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-md p-4 overflow-x-auto shadow-sm">
                                     <pre className="text-[12px] text-amber-900 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
                                         {selectedSpan.attributes?.reasoning_content ||
                                             selectedSpan.output?.athena_reasoning ||
@@ -448,8 +538,8 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
             {/* Promote Modal */}
             {showCorrectModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-panel border border-border-base rounded-3xl shadow-2xl w-full max-w-lg">
-                        <div className={`p-6 border-b rounded-t-3xl ${actionType === 'good' ? 'border-emerald-500/30 bg-emerald-500/5' :
+                    <div className="bg-panel border border-border-base rounded-lg shadow-lg w-full max-w-lg">
+                        <div className={`p-6 border-b rounded-t-lg ${actionType === 'good' ? 'border-emerald-500/30 bg-emerald-500/5' :
                             actionType === 'correct' ? 'border-amber-500/30 bg-amber-500/5' :
                                 'border-rose-500/30 bg-rose-500/5'
                             }`}>
@@ -466,33 +556,32 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         </div>
                         <div className="p-6 space-y-4">
                             {actionError && (
-                                <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl p-3">{actionError}</div>
+                                <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{actionError}</div>
                             )}
                             {actionSuccess && (
-                                <div className="text-xs text-emerald-500 font-bold bg-emerald-500/10 rounded-xl p-3 flex items-center gap-2">
+                                <div className="text-xs text-emerald-500 font-bold bg-emerald-500/10 rounded-md p-3 flex items-center gap-2">
                                     <CheckCircleIcon className="w-4 h-4" /> {actionSuccess}
                                 </div>
                             )}
 
                             {/* Dataset Selection */}
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Select Dataset</label>
-                                <select
+                                <label className="block text-[11px] font-medium text-text-muted mb-2">Select Dataset</label>
+                                <Select
                                     value={selectedDatasetId || ''}
                                     onChange={(e) => setSelectedDatasetId(e.target.value)}
-                                    className="w-full bg-app border border-border-base rounded-xl px-4 py-3 text-sm text-text-main"
                                 >
                                     <option value="">Choose a dataset...</option>
                                     {datasets.map(ds => (
                                         <option key={ds.id} value={ds.id}>{ds.name}</option>
                                     ))}
-                                </select>
+                                </Select>
                             </div>
 
                             {/* Show current output preview */}
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Current Output</label>
-                                <div className="bg-app border border-border-base rounded-xl p-3 text-xs text-text-main max-h-24 overflow-y-auto">
+                                <label className="block text-[11px] font-medium text-text-muted mb-2">Current Output</label>
+                                <div className="bg-app border border-border-base rounded-md p-3 text-xs text-text-main max-h-24 overflow-y-auto">
                                     {currentOutput || '(No output)'}
                                 </div>
                             </div>
@@ -500,46 +589,159 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                             {/* Correction textarea (only for correct action) */}
                             {actionType === 'correct' && (
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2">
+                                    <label className="block text-[11px] font-medium text-emerald-600 mb-2">
                                         Corrected Expected Output
                                     </label>
-                                    <textarea
+                                    <Textarea
                                         value={correctedOutput}
                                         onChange={(e) => setCorrectedOutput(e.target.value)}
-                                        className="w-full bg-emerald-500/5 border border-emerald-500/30 rounded-xl px-4 py-3 text-sm text-text-main h-32 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        className="bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 h-32 resize-none"
                                         placeholder="Enter the correct expected output..."
                                     />
                                 </div>
                             )}
 
                             <div className="flex gap-4 pt-2">
-                                <button
+                                <Button
+                                    variant="secondary"
+                                    className="flex-1"
                                     onClick={() => setShowCorrectModal(false)}
-                                    className="flex-1 px-4 py-3 bg-app border border-border-base rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all"
                                 >
                                     Cancel
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     onClick={handlePromote}
                                     disabled={isPromoting || !selectedDatasetId}
-                                    className={`flex-1 px-4 py-3 text-white rounded-xl text-sm font-bold shadow-lg transition-all disabled:opacity-50 ${actionType === 'good' ? 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600' :
-                                        actionType === 'correct' ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' :
-                                            'bg-rose-500 shadow-rose-500/20 hover:bg-rose-600'
-                                        }`}
+                                    variant={actionType === 'good' ? 'success' : actionType === 'correct' ? 'secondary' : 'danger'}
+                                    className="flex-1"
                                 >
                                     {isPromoting ? 'Adding...' :
                                         actionType === 'good' ? 'Add as Gold' :
                                             actionType === 'correct' ? 'Add Corrected' :
                                                 'Add as Anti-Pattern'
                                     }
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            <Modal
+                open={!!collabKind}
+                title={
+                    collabKind === 'assignment'
+                        ? 'Create assignment'
+                        : collabKind === 'mention'
+                            ? 'Create mention'
+                            : 'Create share link'
+                }
+                description="Attach collaboration context to this trace."
+                onClose={closeCollab}
+                footer={
+                    <div className="flex items-center justify-end gap-2">
+                        <Button variant="secondary" onClick={closeCollab}>
+                            Cancel
+                        </Button>
+                        <Button variant="primary" onClick={handleCollabSubmit} disabled={collabBusy}>
+                            {collabBusy ? 'Saving...' : 'Create'}
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    {collabError && (
+                        <div className="text-xs text-rose-500 font-semibold bg-rose-500/10 rounded-md p-3">
+                            {collabError}
+                        </div>
+                    )}
+                    {collabMessage && (
+                        <div className="text-xs text-emerald-600 font-semibold bg-emerald-500/10 rounded-md p-3">
+                            {collabMessage}
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-[11px] font-medium text-text-muted">Object</label>
+                        <div className="mt-1 rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-muted">
+                            trace · {trace.id}
+                        </div>
+                    </div>
+
+                    {collabKind === 'assignment' && (
+                        <>
+                            <div>
+                                <label className="block text-[11px] font-medium text-text-muted">Assignee</label>
+                                <Input
+                                    value={collabAssignee}
+                                    onChange={(e) => setCollabAssignee(e.target.value)}
+                                    placeholder="name@company.com"
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-text-muted">Note</label>
+                                <Textarea
+                                    rows={3}
+                                    value={collabNote}
+                                    onChange={(e) => setCollabNote(e.target.value)}
+                                    placeholder="Optional context"
+                                    className="mt-1"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {collabKind === 'mention' && (
+                        <>
+                            <div>
+                                <label className="block text-[11px] font-medium text-text-muted">Mention</label>
+                                <Input
+                                    value={collabMention}
+                                    onChange={(e) => setCollabMention(e.target.value)}
+                                    placeholder="name@company.com"
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-text-muted">Note</label>
+                                <Textarea
+                                    rows={3}
+                                    value={collabNote}
+                                    onChange={(e) => setCollabNote(e.target.value)}
+                                    placeholder="Optional context"
+                                    className="mt-1"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {collabKind === 'share' && (
+                        <>
+                            <div>
+                                <label className="block text-[11px] font-medium text-text-muted">Expires At</label>
+                                <Input
+                                    type="datetime-local"
+                                    value={shareExpiry}
+                                    onChange={(e) => setShareExpiry(e.target.value)}
+                                    className="mt-1"
+                                />
+                            </div>
+                            {shareToken && (
+                                <div className="flex items-center justify-between rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-main">
+                                    <span className="font-mono">{shareToken}</span>
+                                    <Button size="sm" variant="ghost" onClick={copyShareToken}>
+                                        Copy
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };
 
 export default TraceDetail;
+
