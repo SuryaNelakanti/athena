@@ -109,10 +109,10 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                 onClose={() => setShowCreateModal(false)}
                 footer={
                     <div className="flex items-center justify-end gap-2">
-                        <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+                        <Button variant="secondary" size="sm" onClick={() => setShowCreateModal(false)}>
                             Cancel
                         </Button>
-                        <Button variant="primary" onClick={handleCreateExperiment}>
+                        <Button variant="primary" size="sm" onClick={handleCreateExperiment}>
                             Create
                         </Button>
                     </div>

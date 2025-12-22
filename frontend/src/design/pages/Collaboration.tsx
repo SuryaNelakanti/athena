@@ -301,7 +301,7 @@ const Collaboration: React.FC<CollaborationProps> = ({ projectId }) => {
             title="Collaboration"
             subtitle="Assignments, mentions, and shareable links across project artifacts."
             actions={
-              <Button variant="secondary" onClick={fetchAll} disabled={loading}>
+              <Button variant="secondary" size="sm" onClick={fetchAll} disabled={loading}>
                 {loading ? 'Refreshing...' : 'Refresh'}
               </Button>
             }

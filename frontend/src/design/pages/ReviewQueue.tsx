@@ -151,7 +151,7 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
             title="Review Queue"
             subtitle="Triage production traces, label failures, and promote to datasets."
             actions={
-              <Button variant="secondary" onClick={loadReviews}>
+              <Button variant="secondary" size="sm" onClick={loadReviews}>
                 Refresh
               </Button>
             }

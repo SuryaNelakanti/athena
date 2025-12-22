@@ -624,10 +624,10 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                 onClose={closeCollab}
                 footer={
                     <div className="flex items-center justify-end gap-2">
-                        <Button variant="secondary" onClick={closeCollab}>
+                        <Button variant="secondary" size="sm" onClick={closeCollab}>
                             Cancel
                         </Button>
-                        <Button variant="primary" onClick={handleCollabSubmit} disabled={collabBusy}>
+                        <Button variant="primary" size="sm" onClick={handleCollabSubmit} disabled={collabBusy}>
                             {collabBusy ? 'Saving...' : 'Create'}
                         </Button>
                     </div>

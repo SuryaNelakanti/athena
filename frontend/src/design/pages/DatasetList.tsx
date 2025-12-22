@@ -84,10 +84,10 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                 onClose={() => setShowCreateModal(false)}
                 footer={
                     <div className="flex items-center justify-end gap-2">
-                        <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+                        <Button variant="secondary" size="sm" onClick={() => setShowCreateModal(false)}>
                             Cancel
                         </Button>
-                        <Button variant="primary" onClick={handleCreateDataset}>
+                        <Button variant="primary" size="sm" onClick={handleCreateDataset}>
                             Create
                         </Button>
                     </div>

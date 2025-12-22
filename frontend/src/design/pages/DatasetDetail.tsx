@@ -231,6 +231,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                             <Button
                                 onClick={() => setShowAddModal(true)}
                                 variant="primary"
+                                size="sm"
                             >
                                 <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
                             </Button>
@@ -501,11 +502,12 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                 onClose={() => setShowAddModal(false)}
                 footer={
                     <div className="flex items-center justify-end gap-2">
-                        <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+                        <Button variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
                             Cancel
                         </Button>
                         <Button
                             variant={isEvalTab ? (newExample.example_type === 'gold' ? 'success' : 'danger') : 'primary'}
+                            size="sm"
                             onClick={handleAddExample}
                         >
                             {isEvalTab
@@ -558,8 +560,8 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                 value={newExample.expected}
                                 onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
                                 className={`h-28 resize-none ${newExample.example_type === 'gold'
-                                        ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
-                                        : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
+                                    ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
+                                    : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
                                     }`}
                                 placeholder={newExample.example_type === 'gold'
                                     ? "What's the correct response?"

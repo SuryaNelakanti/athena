@@ -363,6 +363,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
               <Button
                 onClick={() => setShowCreateVersion(true)}
                 variant="secondary"
+                size="sm"
               >
                 <PlusIcon className="w-4 h-4" /> New Version
               </Button>
@@ -370,6 +371,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                 onClick={runVersion}
                 disabled={!selectedVersionId}
                 variant="primary"
+                size="sm"
               >
                 <PlayIcon className="w-4 h-4" /> Run Experiment
               </Button>
@@ -776,10 +778,10 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
         className="max-w-lg max-h-[90vh] overflow-y-auto"
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setShowCreateVersion(false)}>
+            <Button variant="secondary" size="sm" onClick={() => setShowCreateVersion(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={createVersion}>
+            <Button variant="primary" size="sm" onClick={createVersion}>
               Create Version
             </Button>
           </div>
