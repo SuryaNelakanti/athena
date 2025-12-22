@@ -336,10 +336,10 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   };
 
   return (
-    <div className="h-full flex flex-col bg-app transition-colors duration-300">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-border-base bg-panel shrink-0">
-        <div className="px-8 py-6">
+      <div className="border-b border-border-hairline shrink-0">
+        <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <IconButton onClick={onBack} variant="ghost" size="sm">
@@ -395,8 +395,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Versions */}
-        <div className="w-64 border-r border-border-base bg-panel overflow-y-auto shrink-0">
-          <div className="p-4 border-b border-border-base">
+        <div className="w-64 border-r border-border-hairline overflow-y-auto shrink-0">
+          <div className="p-4 border-b border-border-hairline">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Versions</h3>
           </div>
           <div className="p-2 space-y-1">
@@ -752,7 +752,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Actual Output</span>
                               </div>
                               <div className="bg-amber-500/5 rounded-md border border-amber-500/20 p-3 h-32 overflow-y-auto">
-                              <p className="text-xs text-text-main whitespace-pre-wrap">{actualText || 'No output'}</p>
+                                <p className="text-xs text-text-main whitespace-pre-wrap">{actualText || 'No output'}</p>
                               </div>
                             </div>
                           </div>

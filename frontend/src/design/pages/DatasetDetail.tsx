@@ -171,10 +171,10 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-app transition-colors duration-300">
+        <div className="h-full flex flex-col">
             {/* Header */}
-            <div className="border-b border-border-base bg-panel shrink-0">
-                <div className="px-8 py-6">
+            <div className="border-b border-border-hairline shrink-0">
+                <div className="px-6 py-4">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-4">
                             <IconButton onClick={onBack} variant="ghost" size="sm">
@@ -254,7 +254,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
             </div>
 
             {/* Examples List */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-6">
                 {activeTab === 'examples' ? (
                     <>
                         {loading ? (
@@ -498,11 +498,10 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         <Textarea
                             value={newExample.expected}
                             onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
-                            className={`h-28 resize-none ${
-                                newExample.example_type === 'gold'
+                            className={`h-28 resize-none ${newExample.example_type === 'gold'
                                     ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
                                     : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
-                            }`}
+                                }`}
                             placeholder={newExample.example_type === 'gold'
                                 ? "What's the correct response?"
                                 : "What output should the AI avoid?"}

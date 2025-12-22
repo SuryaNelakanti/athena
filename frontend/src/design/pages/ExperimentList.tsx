@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Experiment } from '../../types';
 import { BeakerIcon, PlusIcon, ChevronRightIcon, PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, Input, Modal, SectionHeader, Select } from '../ui';
+import { Badge, Button, Input, Modal, Select } from '../ui';
 
 interface ExperimentListProps {
     projectId: string;
@@ -54,41 +54,54 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
 
     const getStatusIcon = (status: string) => {
         switch (status) {
-            case 'completed': return <CheckCircleIcon className="w-4 h-4 text-emerald-500" />;
-            case 'error': return <ExclamationCircleIcon className="w-4 h-4 text-rose-500" />;
-            case 'running': return <PlayIcon className="w-4 h-4 text-primary animate-pulse" />;
-            default: return <ClockIcon className="w-4 h-4 text-text-muted" />;
+            case 'completed': return <CheckCircleIcon className="w-3 h-3" />;
+            case 'error': return <ExclamationCircleIcon className="w-3 h-3" />;
+            case 'running': return <PlayIcon className="w-3 h-3 animate-pulse" />;
+            default: return <ClockIcon className="w-3 h-3" />;
         }
     };
 
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string): 'success' | 'danger' | 'primary' | 'neutral' => {
         switch (status) {
-            case 'completed':
-                return 'success';
-            case 'error':
-                return 'danger';
-            case 'running':
-                return 'primary';
-            default:
-                return 'neutral';
+            case 'completed': return 'success';
+            case 'error': return 'danger';
+            case 'running': return 'primary';
+            default: return 'neutral';
         }
+    };
+
+    const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const getDatasetName = (datasetId: string) => {
+        const ds = datasets.find(d => d.id === datasetId);
+        return ds?.name || datasetId.substring(0, 8);
     };
 
     return (
-        <div className="p-8 h-full overflow-y-auto bg-app transition-colors duration-300 relative">
-            <div className="mb-8">
-                <SectionHeader
-                    title="Experiments"
-                    subtitle="Run complex evaluations across datasets to measure model quality."
-                    actions={
-                        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-                            <PlusIcon className="w-4 h-4" />
-                            New Experiment
-                        </Button>
-                    }
-                />
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-border-hairline flex items-center justify-between">
+                <div>
+                    <h1 className="text-lg font-semibold text-text-main">Experiments</h1>
+                    <p className="text-xs text-text-muted mt-0.5">Run evaluations across datasets to measure quality</p>
+                </div>
+                <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    New Experiment
+                </Button>
             </div>
 
+            {/* Modal */}
             <Modal
                 open={showCreateModal}
                 title="New Experiment"
@@ -117,7 +130,7 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-medium text-text-muted mb-2">Select Dataset</label>
+                        <label className="block text-[11px] font-medium text-text-muted mb-2">Dataset</label>
                         <Select
                             value={newExperiment.dataset_id}
                             onChange={e => setNewExperiment({ ...newExperiment, dataset_id: e.target.value })}
@@ -132,58 +145,69 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                 </div>
             </Modal>
 
-            {loading ? (
-                <div className="flex items-center justify-center py-20 text-text-muted">Loading experiments...</div>
-            ) : (
-                <div className="grid grid-cols-1 gap-4">
-                    {experiments.map(exp => (
-                        <Card
-                            key={exp.id}
-                            onClick={() => onSelectExperiment(exp)}
-                            className="p-6 hover:border-border-hover transition-all group cursor-pointer flex items-center justify-between"
-                        >
-                            <div className="flex items-center gap-6">
-                                <div className="p-3 bg-primary/10 rounded-md">
-                                    <BeakerIcon className="w-6 h-6 text-primary" />
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                    <div className="flex items-center justify-center py-20 text-text-muted text-sm">
+                        Loading experiments...
+                    </div>
+                ) : experiments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-12 h-12 rounded-full bg-border-base/50 flex items-center justify-center mb-4">
+                            <BeakerIcon className="w-6 h-6 text-text-muted" />
+                        </div>
+                        <h3 className="text-text-main font-medium mb-1">No experiments yet</h3>
+                        <p className="text-text-muted text-sm mb-4">Run evaluations to measure model quality</p>
+                        <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                            <PlusIcon className="w-3.5 h-3.5" />
+                            Create Experiment
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-border-hairline">
+                        {experiments.map(exp => (
+                            <div
+                                key={exp.id}
+                                onClick={() => onSelectExperiment(exp)}
+                                className="px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group"
+                            >
+                                {/* Icon */}
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <BeakerIcon className="w-4 h-4 text-primary" />
                                 </div>
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="text-lg font-semibold text-text-main">{exp.name}</h3>
-                                        <Badge variant={getStatusVariant(exp.status)} className="gap-1">
+
+                                {/* Main info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-text-main truncate">
+                                            {exp.name}
+                                        </h3>
+                                        <Badge variant={getStatusVariant(exp.status)} className="text-[9px] gap-1">
                                             {getStatusIcon(exp.status)}
                                             {exp.status}
                                         </Badge>
                                     </div>
-                                <div className="flex items-center gap-4 text-xs text-text-muted font-medium">
-                                        <span>Dataset: <span className="text-text-main">{exp.dataset_id}</span></span>
-                                        <span className="w-1 h-1 rounded-full bg-border-base"></span>
-                                        <span>Started {new Date(exp.created_at).toLocaleString()}</span>
+                                    <p className="text-xs text-text-muted truncate mt-0.5">
+                                        Dataset: {getDatasetName(exp.dataset_id)}
+                                    </p>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="flex items-center gap-6 text-xs text-text-muted flex-shrink-0">
+                                    <div className="w-20 text-right">
+                                        {formatDate(exp.created_at)}
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex items-center gap-8">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest opacity-60">Main Version</span>
-                                    <span className="text-xs font-bold text-text-main">{(exp.summary as any)?.main_version_id ? 'SET' : '-'}</span>
-                                </div>
-                                <ChevronRightIcon className="w-5 h-5 text-border-base group-hover:text-text-muted transition-colors ml-4" />
+                                {/* Arrow */}
+                                <ChevronRightIcon className="w-4 h-4 text-border-base group-hover:text-text-muted transition-colors flex-shrink-0" />
                             </div>
-                        </Card>
-                    ))}
-                </div>
-            )}
-
-            {experiments.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-20 bg-panel/30 border-2 border-dashed border-border-base rounded-lg">
-                    <BeakerIcon className="w-12 h-12 text-border-base mb-4" />
-                    <h3 className="text-text-main font-bold">No experiments found</h3>
-                    <p className="text-text-muted text-sm mt-1">Evaluate your prompts against datasets to ensure reliability.</p>
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
 
 export default ExperimentList;
-

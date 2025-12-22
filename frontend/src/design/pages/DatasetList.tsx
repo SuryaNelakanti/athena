@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Dataset } from '../../types';
-import { CircleStackIcon, PlusIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { Button, Card, Input, Modal, SectionHeader, Textarea } from '../ui';
+import { CircleStackIcon, PlusIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { Button, Input, Modal, SectionHeader, Textarea, Badge } from '../ui';
 
 interface DatasetListProps {
     projectId: string;
@@ -49,21 +49,33 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
         }
     };
 
+    const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
     return (
-        <div className="p-8 h-full overflow-y-auto bg-app transition-colors duration-300 relative">
-            <div className="mb-8">
-                <SectionHeader
-                    title="Datasets"
-                    subtitle="Curated collections of records for evaluation and training."
-                    actions={
-                        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-                            <PlusIcon className="w-4 h-4" />
-                            New Dataset
-                        </Button>
-                    }
-                />
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-border-hairline flex items-center justify-between">
+                <div>
+                    <h1 className="text-lg font-semibold text-text-main">Datasets</h1>
+                    <p className="text-xs text-text-muted mt-0.5">Curated collections for evaluation and fine-tuning</p>
+                </div>
+                <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    New Dataset
+                </Button>
             </div>
 
+            {/* Modal */}
             <Modal
                 open={showCreateModal}
                 title="New Dataset"
@@ -104,49 +116,73 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                 </div>
             </Modal>
 
-            {loading ? (
-                <div className="flex items-center justify-center py-20 text-text-muted">Loading datasets...</div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {datasets.map(ds => (
-                        <Card
-                            key={ds.id}
-                            onClick={() => onSelectDataset(ds)}
-                            className="p-6 hover:border-border-hover transition-all group cursor-pointer"
-                        >
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-primary/10 rounded-md">
-                                    <CircleStackIcon className="w-6 h-6 text-primary" />
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                    <div className="flex items-center justify-center py-20 text-text-muted text-sm">
+                        Loading datasets...
+                    </div>
+                ) : datasets.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-12 h-12 rounded-full bg-border-base/50 flex items-center justify-center mb-4">
+                            <CircleStackIcon className="w-6 h-6 text-text-muted" />
+                        </div>
+                        <h3 className="text-text-main font-medium mb-1">No datasets yet</h3>
+                        <p className="text-text-muted text-sm mb-4">Create your first dataset to start collecting examples</p>
+                        <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                            <PlusIcon className="w-3.5 h-3.5" />
+                            Create Dataset
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-border-hairline">
+                        {datasets.map(ds => (
+                            <div
+                                key={ds.id}
+                                onClick={() => onSelectDataset(ds)}
+                                className="px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group"
+                            >
+                                {/* Icon */}
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <CircleStackIcon className="w-4 h-4 text-primary" />
                                 </div>
-                                <ChevronRightIcon className="w-5 h-5 text-border-base group-hover:text-text-muted transition-colors" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-text-main mb-1">{ds.name}</h3>
-                            <p className="text-text-muted text-xs line-clamp-2 mb-4">{ds.description || 'No description provided.'}</p>
-                            <div className="flex items-center gap-4 pt-4 border-t border-border-base/50">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] text-text-muted font-medium uppercase tracking-widest opacity-60">Version</span>
-                                    <span className="text-sm text-text-main tabular-nums">v{ds.version}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] text-text-muted font-medium uppercase tracking-widest opacity-60">Created</span>
-                                    <span className="text-sm text-text-main">{new Date(ds.created_at).toLocaleDateString()}</span>
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
-            )}
 
-            {datasets.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-20 bg-panel/30 border-2 border-dashed border-border-base rounded-lg">
-                    <CircleStackIcon className="w-12 h-12 text-border-base mb-4" />
-                    <h3 className="text-text-main font-bold">No datasets found</h3>
-                    <p className="text-text-muted text-sm mt-1">Create your first dataset to start evaluating your models.</p>
-                </div>
-            )}
+                                {/* Main info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-text-main truncate">
+                                            {ds.name}
+                                        </h3>
+                                        <Badge variant="neutral" className="text-[9px]">
+                                            v{ds.version}
+                                        </Badge>
+                                    </div>
+                                    <p className="text-xs text-text-muted truncate mt-0.5">
+                                        {ds.description || 'No description'}
+                                    </p>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="flex items-center gap-6 text-xs text-text-muted flex-shrink-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <DocumentTextIcon className="w-3.5 h-3.5" />
+                                        <span className="tabular-nums">—</span>
+                                        <span>rows</span>
+                                    </div>
+                                    <div className="w-20 text-right">
+                                        {formatDate(ds.created_at)}
+                                    </div>
+                                </div>
+
+                                {/* Arrow */}
+                                <ChevronRightIcon className="w-4 h-4 text-border-base group-hover:text-text-muted transition-colors flex-shrink-0" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
 
 export default DatasetList;
-

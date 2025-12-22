@@ -478,9 +478,9 @@ const Collaboration: React.FC<CollaborationProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-app transition-colors duration-300">
-      <div className="border-b border-border-base bg-panel">
-        <div className="px-8 py-6 space-y-4">
+    <div className="h-full flex flex-col">
+      <div className="border-b border-border-hairline">
+        <div className="px-6 py-4 space-y-4">
           <SectionHeader
             title="Collaboration"
             subtitle="Assignments, mentions, and shareable links across project artifacts."
@@ -503,7 +503,7 @@ const Collaboration: React.FC<CollaborationProps> = ({ projectId }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-6">
         {renderBody()}
       </div>
     </div>

@@ -10,15 +10,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-md border text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50';
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-white border-primary hover:bg-primary-hover shadow-xs',
-  secondary: 'bg-panel text-text-main border-border-base hover:bg-panel-hover',
-  outline: 'bg-transparent text-text-main border-border-base hover:bg-panel-hover',
+  primary: 'bg-primary text-white border-primary hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-glow shadow-sm',
+  secondary: 'bg-panel text-text-main border-border-hairline hover:bg-panel-hover hover:-translate-y-0.5 shadow-xs',
+  outline: 'bg-transparent text-text-main border-border-base hover:bg-panel-hover hover:-translate-y-0.5',
   ghost: 'bg-transparent text-text-muted border-transparent hover:bg-panel-hover hover:text-text-main',
-  danger: 'bg-rose-500 text-white border-rose-500 hover:bg-rose-600',
-  success: 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600',
+  danger: 'bg-rose-500 text-white border-rose-500 hover:bg-rose-600 hover:-translate-y-0.5',
+  success: 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 hover:-translate-y-0.5',
 };
 
 const sizes: Record<ButtonSize, string> = {

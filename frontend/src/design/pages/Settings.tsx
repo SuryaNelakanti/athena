@@ -3,7 +3,6 @@ import { api } from '../../services/api';
 import { ModelRegistry } from '../../types';
 import { ArrowPathIcon, KeyIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button, Card, Input, SectionHeader, Select } from '../ui';
-import { ACCENT_OPTIONS, AccentId, getStoredAccent, setAccent } from '../theme/accent';
 
 type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'mock';
 
@@ -16,13 +15,10 @@ type ProviderStatus = {
 const Settings: React.FC = () => {
     const [providers, setProviders] = useState<ProviderStatus[]>([]);
     const [models, setModels] = useState<ModelRegistry[]>([]);
-
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [busyProvider, setBusyProvider] = useState<string | null>(null);
-    const [accent, setAccentState] = useState<AccentId>(getStoredAccent());
 
     const load = async () => {
         setLoading(true);
@@ -102,17 +98,12 @@ const Settings: React.FC = () => {
         return groups;
     }, [models]);
 
-    const handleAccentChange = (value: AccentId) => {
-        setAccentState(value);
-        setAccent(value);
-    };
-
     return (
-        <div className="p-8 h-full overflow-y-auto bg-app transition-colors duration-300">
-            <div className="mb-8">
+        <div className="p-6 h-full overflow-y-auto">
+            <div className="mb-6">
                 <SectionHeader
                     title="Settings"
-                    subtitle="Local provider keys (in-memory) and the curated model registry."
+                    subtitle="Provider keys and model registry configuration."
                 />
             </div>
 
@@ -122,38 +113,7 @@ const Settings: React.FC = () => {
                 </div>
             )}
 
-            <Card className="p-6 mb-8">
-                <div className="flex items-start justify-between gap-6">
-                    <div>
-                        <h2 className="text-lg font-bold text-text-main">Appearance</h2>
-                        <p className="text-xs text-text-muted mt-1">Set the global accent applied to highlights, charts, and key actions.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-md border border-border-base bg-primary shadow-xs" />
-                        <div className="text-xs text-text-muted">Active accent</div>
-                    </div>
-                </div>
-                <div className="mt-5 grid gap-4 md:grid-cols-[220px,1fr]">
-                    <div>
-                        <label className="text-[11px] font-medium text-text-muted">Accent color</label>
-                        <Select
-                            value={accent}
-                            onChange={(e) => handleAccentChange(e.target.value as AccentId)}
-                        >
-                            {ACCENT_OPTIONS.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </Select>
-                    </div>
-                    <div className="text-xs text-text-muted leading-relaxed">
-                        Accent choice is saved locally and applies immediately across the UI.
-                    </div>
-                </div>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 <Card className="p-6">
                     <div className="flex items-center justify-between mb-4">
                         <div>
@@ -166,7 +126,7 @@ const Settings: React.FC = () => {
                             variant="primary"
                             size="sm"
                         >
-                            <ArrowPathIcon className={`w-4 h-4 ${busyProvider ? 'animate-spin' : ''}`} />
+                            <ArrowPathIcon className={`w-3.5 h-3.5 ${busyProvider ? 'animate-spin' : ''}`} />
                             Sync All Models
                         </Button>
                     </div>

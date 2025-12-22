@@ -3,16 +3,14 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link
-    rel="icon"
-    type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238D7CE4'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Arial' font-size='18' fill='white'%3EA%3C/text%3E%3C/svg%3E"
-  />
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236B8A5E'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Arial' font-size='18' fill='white'%3EA%3C/text%3E%3C/svg%3E" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Athena - AI Observability Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Earthy Clinical Canvas: Sora (UI) + Fraunces (Display) -->
   <link
-    href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap"
     rel="stylesheet">
   <script>
     tailwind.config = {
@@ -20,12 +18,30 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Figtree', 'sans-serif'],
-            serif: ['EB Garamond', 'serif'],
+            sans: ['Sora', 'sans-serif'],
+            serif: ['Fraunces', 'serif'],
+          },
+          borderRadius: {
+            sm: '4px',
+            md: '6px',
+            lg: '8px',
+            xl: '10px',
+            '2xl': '12px',
+            '3xl': '14px',
+          },
+          boxShadow: {
+            /* Earthy neutral shadows */
+            xs: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            sm: '0 1px 3px rgba(0, 0, 0, 0.06)',
+            md: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            lg: '0 8px 24px rgba(0, 0, 0, 0.10)',
+            soft: '0 2px 8px rgba(107, 138, 94, 0.08)',
+            glow: '0 0 16px rgba(168, 201, 160, 0.35)',
           },
           colors: {
-            // Semantic Colors (Themed)
+            /* Semantic Colors (Themed) */
             app: 'var(--bg-app)',
+            canvas: 'var(--bg-canvas)',
             panel: 'var(--bg-panel)',
             'panel-hover': 'var(--bg-panel-hover)',
             text: {
@@ -36,74 +52,120 @@
             border: {
               base: 'var(--border-base)',
               hover: 'var(--border-hover)',
+              hairline: 'var(--border-hairline)',
             },
-
-            wispr: {
-              purple: '#8D7CE4',
-              'purple-light': '#A597ED',
-              'purple-dark': '#7565C8',
+            primary: {
+              DEFAULT: 'var(--accent-primary)',
+              hover: 'var(--accent-primary-hover)',
+              subtle: 'var(--accent-primary-subtle)',
+              glow: 'var(--accent-glow)',
             },
-            emerald: {
-              500: '#10b981',
+            /* Earthy palette */
+            sage: {
+              50: '#F4F7F3',
+              100: '#E8EFE6',
+              200: '#D1DFCD',
+              300: '#A8C9A0',
+              400: '#8BAF7E',
+              500: '#6B8A5E',
+              600: '#567048',
+              700: '#415536',
+              800: '#2C3A24',
+              900: '#171F12',
             },
-
-            // Legacy/Specific Palette access if needed
-            gofun: '#FFFFFC',
-            shironeri: '#F3F3F2',
+            earth: {
+              cream: '#F8F6F2',
+              linen: '#EDE9E2',
+              stone: '#D4CFC6',
+            },
             ink: {
-              900: '#1a1a1a',
+              900: '#1A1D17',
+              800: '#22261E',
+              700: '#2E3328',
             }
-          }
+          },
         },
       },
     }
   </script>
   <style>
     :root {
-      /* Light Mode (Lumen) */
-      --bg-app: #FDFCFB;
-      --bg-panel: #F7F2EF;
-      --bg-panel-hover: #EFE9E4;
-      --text-main: #1D1D1F;
-      --text-muted: #6E6E73;
+      /* Light Mode - Earthy Clinical Canvas (Default) */
+      --bg-app: #F8F6F2;
+      --bg-canvas: #FFFFFF;
+      --bg-panel: #FFFFFF;
+      --bg-panel-hover: #F4F2EE;
+      --text-main: #1A1D17;
+      --text-muted: #6B6860;
       --text-inverted: #FFFFFF;
-      --border-base: #E8E5E1;
-      --border-hover: #D8D4CF;
-      --accent-primary: #8D7CE4;
+      --border-base: #E8E5DE;
+      --border-hover: #D4CFC6;
+      --border-hairline: rgba(26, 29, 23, 0.06);
+      --accent-primary: #6B8A5E;
+      --accent-primary-hover: #567048;
+      --accent-primary-subtle: #EEF4EC;
+      --accent-glow: #A8C9A0;
     }
 
     .dark {
-      /* Dark Mode (Pulse) */
-      --bg-app: #0C0C0C;
-      --bg-panel: #141414;
-      --bg-panel-hover: #1D1D1F;
-      --text-main: #F5F5F7;
-      --text-muted: #A1A1A6;
-      --text-inverted: #0C0C0C;
-      --border-base: #262626;
-      --border-hover: #333333;
-      --accent-primary: #8D7CE4;
+      /* Dark Mode - Earthy Clinical Canvas */
+      --bg-app: #1A1D17;
+      --bg-canvas: #22261E;
+      --bg-panel: #22261E;
+      --bg-panel-hover: #2E3328;
+      --text-main: #F4F7F3;
+      --text-muted: #9A9890;
+      --text-inverted: #1A1D17;
+      --border-base: #2E3328;
+      --border-hover: #3D4236;
+      --border-hairline: rgba(244, 247, 243, 0.06);
+      --accent-primary: #8BAF7E;
+      --accent-primary-hover: #A8C9A0;
+      --accent-primary-subtle: #252A20;
+      --accent-glow: #A8C9A0;
     }
 
     body {
       background-color: var(--bg-app);
       color: var(--text-main);
-      transition: background-color 0.3s ease, color 0.3s ease;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Simple elevated surface */
+    .surface-canvas {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Hover lift effect */
+    .hover-lift {
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .hover-lift:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Hairline borders */
+    .border-hairline {
+      border-color: var(--border-hairline);
     }
 
     /* Custom scrollbar */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
 
     ::-webkit-scrollbar-track {
-      background: var(--bg-app);
+      background: transparent;
     }
 
     ::-webkit-scrollbar-thumb {
       background: var(--border-base);
-      border-radius: 4px;
+      border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {

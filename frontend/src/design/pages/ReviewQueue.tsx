@@ -122,10 +122,10 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-app transition-colors duration-300">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-border-base bg-panel shrink-0">
-        <div className="px-8 py-6 space-y-4">
+      <div className="border-b border-border-hairline shrink-0">
+        <div className="px-6 py-4 space-y-4">
           <SectionHeader
             title="Review Queue"
             subtitle="Triage production traces, label failures, and promote to datasets."
@@ -161,7 +161,7 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
       ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* Left: Review list */}
-          <div className="w-1/2 border-r border-border-base bg-panel overflow-y-auto">
+          <div className="w-1/2 border-r border-border-hairline overflow-y-auto">
             {filteredReviews.length === 0 ? (
               <div className="py-20 text-center text-text-muted italic">No review items found.</div>
             ) : (
@@ -172,9 +172,8 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                     <button
                       key={review.id}
                       onClick={() => setSelectedReviewId(review.id)}
-                      className={`w-full text-left p-4 rounded-lg border transition-all ${
-                        isSelected ? 'bg-primary/5 border-primary/20' : 'bg-panel border-border-base hover:border-border-hover'
-                      }`}
+                      className={`w-full text-left p-4 rounded-lg border transition-all ${isSelected ? 'bg-primary/5 border-primary/20' : 'bg-panel border-border-base hover:border-border-hover'
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <Badge variant={getStatusVariant(review.status)}>
@@ -201,7 +200,7 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
           </div>
 
           {/* Right: Review detail */}
-          <div className="w-1/2 overflow-y-auto bg-app p-6">
+          <div className="w-1/2 overflow-y-auto p-6">
             {!selectedReview ? (
               <div className="h-full flex items-center justify-center text-text-muted italic">
                 Select a review item to see details.

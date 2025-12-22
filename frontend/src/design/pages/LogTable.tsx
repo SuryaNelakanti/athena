@@ -574,21 +574,10 @@ const LogTable: React.FC<LogTableProps> = ({
   const showGenericResults = queryMode === 'aql' && aqlResult && aqlResult.shape !== 'project_logs';
 
   return (
-    <div className="flex flex-col h-full bg-app transition-colors duration-300">
+    <div className="flex flex-col h-full transition-colors duration-300">
       {/* Toolbar / Filters */}
-      <div className="px-6 py-3 border-b border-border-base flex flex-col gap-3 bg-app">
+      <div className="px-6 py-3 border-b border-border-hairline flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearch}
-              placeholder="Search message contains (Enter to apply)..."
-              className="pr-10"
-            />
-          </div>
-
           <Select
             className="text-[11px] font-semibold uppercase tracking-wide"
             value={statusValue}
@@ -703,14 +692,14 @@ const LogTable: React.FC<LogTableProps> = ({
             )}
           </div>
 
-            <Button
-              onClick={() => loadLogs(queryMode === 'aql' ? aqlQuery : undefined)}
-              size="sm"
-              variant="secondary"
-              className="text-xs"
-            >
-              Refresh
-            </Button>
+          <Button
+            onClick={() => loadLogs(queryMode === 'aql' ? aqlQuery : undefined)}
+            size="sm"
+            variant="secondary"
+            className="text-xs"
+          >
+            Refresh
+          </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -856,15 +845,11 @@ const LogTable: React.FC<LogTableProps> = ({
         {error && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{error}</div>}
       </div>
 
-      {/* Header */}
+      {/* Header - Simplified */}
       {!showGenericResults && (
-        <div className="grid grid-cols-12 gap-4 px-6 py-2 text-xs font-semibold text-text-muted border-b border-border-base bg-app/95 sticky top-0 z-10 backdrop-blur-sm">
+        <div className="grid grid-cols-12 gap-4 px-5 py-2.5 text-xs font-medium text-text-muted border-b border-border-base">
           <div className="col-span-2">Time</div>
-          <div className="col-span-3">Message</div>
-          <div className="col-span-2">Model</div>
-          <div className="col-span-1 text-right">Latency</div>
-          <div className="col-span-2 text-right">Tokens</div>
-          <div className="col-span-1 text-right">Cost</div>
+          <div className="col-span-9">Message</div>
           <div className="col-span-1 text-center">Status</div>
         </div>
       )}
@@ -912,94 +897,35 @@ const LogTable: React.FC<LogTableProps> = ({
             return (
               <div
                 key={log.id}
-                onClick={() => onSelectLog(log)}
-                className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm border-b border-border-base/50 cursor-pointer hover:bg-panel-hover transition-all duration-200 ${isSelected ? 'bg-primary/5 border-primary/20' : ''
-                  }`}
+                onClick={() => {
+                  onSelectLog(log);
+                  if (log.trace_id && onOpenTrace) {
+                    onOpenTrace(log.trace_id);
+                  }
+                }}
+                className={`grid grid-cols-12 gap-4 px-5 py-3 text-sm border-b border-border-hairline cursor-pointer hover:bg-panel-hover transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
               >
-                <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums gap-2">
+                {/* Time */}
+                <div className="col-span-2 text-text-muted text-xs flex items-center tabular-nums">
                   {formatTime(log.timestamp)}
                 </div>
 
-                <div className="col-span-3 flex flex-col justify-center min-w-0">
-                  <span className="font-medium text-text-main truncate" title={log.message}>{log.message}</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    {log.event_type && (
-                      <Badge variant="neutral" className="font-mono text-[9px]">
-                        {log.event_type}
-                      </Badge>
-                    )}
-                    {log.trace_id && onOpenTrace && (
-                      <Button
-                        onClick={(e) => { e.stopPropagation(); onOpenTrace(log.trace_id!); }}
-                        size="sm"
-                        variant="outline"
-                        className="text-[10px] h-6 px-2"
-                      >
-                        <ArrowTopRightOnSquareIcon className="w-3 h-3" />
-                        Open Trace
-                      </Button>
-                    )}
-                    {log.trace_id && (
-                      <span className="text-[10px] text-text-muted truncate">id: {log.trace_id.substring(0, 8)}...</span>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <IconButton
-                        size="sm"
-                        variant="ghost"
-                        title="Create assignment"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCollab('assignment', log);
-                        }}
-                      >
-                        <UserPlusIcon className="w-3.5 h-3.5" />
-                      </IconButton>
-                      <IconButton
-                        size="sm"
-                        variant="ghost"
-                        title="Create mention"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCollab('mention', log);
-                        }}
-                      >
-                        <AtSymbolIcon className="w-3.5 h-3.5" />
-                      </IconButton>
-                      <IconButton
-                        size="sm"
-                        variant="ghost"
-                        title="Create share link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCollab('share', log);
-                        }}
-                      >
-                        <LinkIcon className="w-3.5 h-3.5" />
-                      </IconButton>
-                    </div>
-                  </div>
+                {/* Message + Event Type */}
+                <div className="col-span-9 flex items-center gap-3 min-w-0">
+                  <span className="text-text-main truncate flex-1" title={log.message}>
+                    {log.message}
+                  </span>
+                  {log.event_type && (
+                    <Badge variant="neutral" className="text-[10px] flex-shrink-0">
+                      {log.event_type}
+                    </Badge>
+                  )}
                 </div>
 
-                <div className="col-span-2 text-text-muted text-xs flex items-center truncate">
-                  {log.model && <CpuChipIcon className="w-3 h-3 mr-1.5 opacity-50" />}
-                  {log.model || '-'}
-                </div>
-
-                <div className="col-span-1 text-right text-text-main text-xs flex items-center justify-end tabular-nums">
-                  {formatDuration(log.latency_ms)}
-                </div>
-
-                <div className="col-span-2 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
-                  {log.total_tokens ? log.total_tokens.toLocaleString() : '-'}
-                </div>
-
-                <div className="col-span-1 text-right text-text-muted text-xs flex items-center justify-end tabular-nums">
-                  {log.cost ? `$${log.cost.toFixed(4)}` : '-'}
-                </div>
-
+                {/* Status */}
                 <div className="col-span-1 flex items-center justify-center">
                   <Badge variant={getStatusVariant(log.status)}>
-                    {(log.status || 'unknown').toUpperCase()}
+                    {(log.status || 'ok').toUpperCase()}
                   </Badge>
                 </div>
               </div>

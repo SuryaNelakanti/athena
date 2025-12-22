@@ -265,10 +265,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         return String(value);
     };
 
-    const SERIES_COLORS = ['#2563EB', '#10b981', '#f59e0b', '#ef4444', '#64748b'];
+    const SERIES_COLORS = ['#6B8A5E', '#8BAF7E', '#A8C9A0', '#567048', '#415536'];
 
     return (
-        <div className="p-8 h-full overflow-y-auto bg-app transition-colors duration-300">
+        <div className="p-6 h-full overflow-y-auto">
             <div className="mb-8">
                 <SectionHeader
                     title="Project Overview"
@@ -290,8 +290,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                         <AreaChart data={requestChartData}>
                             <defs>
                                 <linearGradient id="colorReq" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="#6B8A5E" stopOpacity={0.25} />
+                                    <stop offset="95%" stopColor="#6B8A5E" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-base)" vertical={false} />
@@ -299,9 +299,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                             <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} />
                             <Tooltip
                                 contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '8px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                itemStyle={{ color: '#2563EB' }}
+                                itemStyle={{ color: '#6B8A5E' }}
                             />
-                            <Area type="monotone" dataKey="requests" stroke="#2563EB" strokeWidth={3} fillOpacity={1} fill="url(#colorReq)" />
+                            <Area type="monotone" dataKey="requests" stroke="#6B8A5E" strokeWidth={2} fillOpacity={1} fill="url(#colorReq)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </Card>

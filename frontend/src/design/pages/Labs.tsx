@@ -249,11 +249,11 @@ const Labs: React.FC = () => {
     const displayedModels = availableModels.filter(m => m.provider === provider);
 
     return (
-        <div className="flex h-full bg-app transition-colors duration-300">
-            <div className="w-1/3 border-r border-border-base flex flex-col bg-panel transition-colors duration-300">
-                <div className="p-6 border-b border-border-base bg-app transition-colors duration-300">
-                    <h2 className="text-xl font-serif font-black text-text-main leading-tight mb-1">Playground</h2>
-                    <p className="text-xs text-text-muted font-medium opacity-70">Experiment with different models and prompts.</p>
+        <div className="flex h-full">
+            <div className="w-1/3 border-r border-border-hairline flex flex-col">
+                <div className="p-6 border-b border-border-hairline">
+                    <h2 className="text-lg font-semibold text-text-main mb-1">Playground</h2>
+                    <p className="text-xs text-text-muted">Experiment with different models and prompts.</p>
                 </div>
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-6">
@@ -321,7 +321,7 @@ const Labs: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col bg-app transition-colors duration-300">
+            <div className="flex-1 flex flex-col">
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {messages.length === 0 && (
@@ -358,7 +358,7 @@ const Labs: React.FC = () => {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 bg-panel border-t border-border-base transition-colors duration-300">
+                <div className="p-4 border-t border-border-hairline">
                     <div className="relative">
                         <Textarea
                             value={input}
