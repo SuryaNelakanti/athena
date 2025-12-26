@@ -203,7 +203,7 @@ const App: React.FC = () => {
             />
           </div>
           {showDetail && selectedTrace && (
-            <div className="w-full md:w-1/2 absolute md:static inset-0 z-20 md:z-auto bg-panel">
+            <div className="w-full md:w-1/2 absolute md:static inset-0 z-20 md:z-auto bg-panel animate-slide-in-right">
               <TraceDetail
                 trace={selectedTrace}
                 onClose={() => navigate('/logs')}

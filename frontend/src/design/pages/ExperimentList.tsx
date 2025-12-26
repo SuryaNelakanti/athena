@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { Experiment } from '../../types';
 import { BeakerIcon, PlusIcon, ChevronRightIcon, PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { Badge, Button, Input, Modal, Select } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface ExperimentListProps {
     projectId: string;
@@ -90,16 +91,17 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
     return (
         <div className="h-full flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-border-hairline flex items-center justify-between">
-                <div>
-                    <h1 className="text-lg font-semibold text-text-main">Experiments</h1>
-                    <p className="text-xs text-text-muted mt-0.5">Run evaluations across datasets to measure quality</p>
-                </div>
-                <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-                    <PlusIcon className="w-3.5 h-3.5" />
-                    New Experiment
-                </Button>
-            </div>
+            {/* Header */}
+            <PageHeader
+                title="Experiments"
+                subtitle="Run evaluations across datasets to measure quality"
+                actions={
+                    <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                        <PlusIcon className="w-3.5 h-3.5" />
+                        New Experiment
+                    </Button>
+                }
+            />
 
             {/* Modal */}
             <Modal

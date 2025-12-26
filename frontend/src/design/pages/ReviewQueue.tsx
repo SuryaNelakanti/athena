@@ -10,6 +10,7 @@ import {
 import { api } from '../../services/api';
 import { Dataset, ReviewItem } from '../../types';
 import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface ReviewQueueProps {
   projectId: string;
@@ -143,39 +144,46 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border-hairline shrink-0">
-        <div className="px-6 py-4 space-y-4">
-          <SectionHeader
-            title="Review Queue"
-            subtitle="Triage production traces, label failures, and promote to datasets."
-            actions={
-              <Button variant="secondary" size="sm" onClick={loadReviews}>
-                Refresh
-              </Button>
-            }
-          />
-
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[240px]">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <Input
-                type="text"
-                placeholder="Search input or output..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Tabs
-              options={STATUS_TABS}
-              value={statusFilter}
-              onChange={(value) => setStatusFilter(value as any)}
+    <div className="h-full flex flex-col bg-app">
+      <PageHeader
+        title="Review Queue"
+        subtitle="Triage production traces, label failures, and promote to datasets."
+        actions={
+          <div className="flex bg-panel rounded-lg p-1 border border-border-base">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id as any)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${statusFilter === tab.id
+                  ? 'bg-primary/10 text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-main hover:bg-panel-hover'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        }
+        className="pb-0 border-b-0"
+      >
+        <div className="flex flex-wrap items-center gap-4 pb-4 px-6">
+          <div className="relative flex-1 min-w-[240px]">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <Input
+              type="text"
+              placeholder="Search input or output..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
             />
           </div>
+          <Tabs
+            options={STATUS_TABS}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as any)}
+          />
         </div>
-      </div>
+      </PageHeader>
 
       {loading ? (
         <div className="py-20 text-center text-text-muted italic">Loading review queue...</div>

@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { Dataset } from '../../types';
 import { CircleStackIcon, PlusIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Button, Input, Modal, SectionHeader, Textarea, Badge, Select } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface DatasetListProps {
     projectId: string;
@@ -65,16 +66,17 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
     return (
         <div className="h-full flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-border-hairline flex items-center justify-between">
-                <div>
-                    <h1 className="text-lg font-semibold text-text-main">Datasets</h1>
-                    <p className="text-xs text-text-muted mt-0.5">Curated collections for evaluation and fine-tuning</p>
-                </div>
-                <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-                    <PlusIcon className="w-3.5 h-3.5" />
-                    New Dataset
-                </Button>
-            </div>
+            {/* Header */}
+            <PageHeader
+                title="Datasets"
+                subtitle="Curated collections for evaluation and fine-tuning"
+                actions={
+                    <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                        <PlusIcon className="w-3.5 h-3.5" />
+                        New Dataset
+                    </Button>
+                }
+            />
 
             {/* Modal */}
             <Modal

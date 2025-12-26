@@ -7,6 +7,7 @@ import {
   CheckCircleIcon, XCircleIcon, ClockIcon
 } from '@heroicons/react/24/outline';
 import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface ExperimentDetailProps {
   experiment: Experiment;
@@ -373,27 +374,13 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
+      {/* Header */}
       <div className="border-b border-border-hairline shrink-0">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <IconButton onClick={onBack} variant="ghost" size="sm">
-                <ChevronLeftIcon className="w-5 h-5" />
-              </IconButton>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-md bg-primary flex items-center justify-center shadow-xs">
-                  <BeakerIcon className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-serif font-black text-text-main leading-tight">{exp.name}</h2>
-                  <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
-                    <span>{versions.length} versions</span>
-                    <span>|</span>
-                    <span>{datasetRows.length} test cases</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <PageHeader
+          title={exp.name}
+          subtitle={`${versions.length} versions | ${datasetRows.length} test cases`}
+          onBack={onBack}
+          actions={
             <div className="flex items-center gap-3">
               <Button
                 onClick={() => setShowCreateVersion(true)}
@@ -411,8 +398,9 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                 <PlayIcon className="w-4 h-4" /> Run Experiment
               </Button>
             </div>
-          </div>
-        </div>
+          }
+          className="pb-0 border-b-0"
+        />
 
         {/* Explanation Banner */}
         <div className="px-8 pb-4">

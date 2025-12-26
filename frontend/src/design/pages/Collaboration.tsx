@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Assignment, Mention, ShareLink } from '../../types';
 import { api } from '../../services/api';
 import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 type TabKey = 'assignments' | 'mentions' | 'share_links';
 
@@ -296,16 +297,17 @@ const Collaboration: React.FC<CollaborationProps> = ({ projectId }) => {
   return (
     <div className="h-full flex flex-col">
       <div className="border-b border-border-hairline">
-        <div className="px-6 py-4 space-y-4">
-          <SectionHeader
-            title="Collaboration"
-            subtitle="Assignments, mentions, and shareable links across project artifacts."
-            actions={
-              <Button variant="secondary" size="sm" onClick={fetchAll} disabled={loading}>
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </Button>
-            }
-          />
+        <PageHeader
+          title="Collaboration"
+          subtitle="Assignments, mentions, and shareable links across project artifacts."
+          actions={
+            <Button variant="secondary" size="sm" onClick={fetchAll} disabled={loading}>
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          }
+          className="pb-0 border-b-0"
+        />
+        <div className="px-6 pb-4 pt-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Tabs options={tabOptions} value={activeTab} onChange={(value) => setActiveTab(value as TabKey)} />
             <div className="min-w-[240px]">

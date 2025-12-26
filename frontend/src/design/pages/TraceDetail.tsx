@@ -357,7 +357,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose }) => {
                         <ChevronRightIcon className="w-5 h-5" />
                     </IconButton>
                     <div>
-                        <h2 className="text-lg font-serif font-bold text-text-main">{trace.root_span.name}</h2>
+                        <h2 className="text-xl font-serif font-bold text-text-main">{trace.root_span.name}</h2>
                         <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
                             <span>{trace.id.substring(0, 12)}...</span>
                             <span>•</span>

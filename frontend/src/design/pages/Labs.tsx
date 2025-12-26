@@ -7,6 +7,7 @@ import {
     ChevronUpIcon
 } from '@heroicons/react/24/outline';
 import { Badge, Button, Card, IconButton, Select, Textarea, cx } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 // Simple types for the playground
 interface Message {
@@ -261,10 +262,11 @@ const Labs: React.FC = () => {
     return (
         <div className="flex h-full">
             <div className="w-1/3 border-r border-border-hairline flex flex-col">
-                <div className="p-6 border-b border-border-hairline">
-                    <h2 className="text-lg font-semibold text-text-main mb-1">Playground</h2>
-                    <p className="text-xs text-text-muted">Experiment with different models and prompts.</p>
-                </div>
+                <PageHeader
+                    title="Playground"
+                    subtitle="Experiment with different models and prompts."
+                    className="p-6"
+                />
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-6">
                     <div>

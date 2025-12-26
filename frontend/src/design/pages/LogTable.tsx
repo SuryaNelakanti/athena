@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { api, View } from '../../services/api';
 import { Badge, Button, IconButton, Input, Modal, Select, Textarea } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface LogTableProps {
   projectId: string;
@@ -599,6 +600,11 @@ const LogTable: React.FC<LogTableProps> = ({
 
   return (
     <div className="flex flex-col h-full transition-colors duration-300">
+      <PageHeader
+        title="Logs"
+        subtitle="Search, filter, and analyze system traces and spans."
+        className="pb-0 border-b-0"
+      />
       {/* Toolbar / Filters */}
       <div className="px-6 py-3 border-b border-border-hairline flex flex-col gap-3">
         <div className="flex items-center gap-3">

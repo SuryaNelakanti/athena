@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { ModelRegistry } from '../../types';
 import { ArrowPathIcon, KeyIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button, Card, Input, SectionHeader, Select } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'mock';
 
@@ -99,146 +100,146 @@ const Settings: React.FC = () => {
     }, [models]);
 
     return (
-        <div className="p-6 h-full overflow-y-auto">
-            <div className="mb-6">
-                <SectionHeader
-                    title="Settings"
-                    subtitle="Provider keys and model registry configuration."
-                />
-            </div>
+        <div className="h-full flex flex-col bg-app">
+            <PageHeader
+                title="Settings"
+                subtitle="Provider keys and model registry configuration."
+            />
 
-            {error && (
-                <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-md p-4 text-sm font-semibold">
-                    {error}
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h2 className="text-lg font-bold text-text-main">Provider Keys</h2>
-                            <p className="text-xs text-text-muted mt-1">Keys are stored only in memory and are lost on restart.</p>
-                        </div>
-                        <Button
-                            onClick={() => sync()}
-                            disabled={busyProvider !== null}
-                            variant="primary"
-                            size="sm"
-                        >
-                            <ArrowPathIcon className={`w-3.5 h-3.5 ${busyProvider ? 'animate-spin' : ''}`} />
-                            Sync All Models
-                        </Button>
+            <div className="flex-1 overflow-y-auto p-6">
+                {error && (
+                    <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-md p-4 text-sm font-semibold">
+                        {error}
                     </div>
+                )}
 
-                    {loading ? (
-                        <div className="py-10 text-center text-text-muted italic">Loading providers...</div>
-                    ) : (
-                        <div className="space-y-4">
-                            {providers.map((p) => (
-                                <Card key={p.provider} className="bg-app p-5">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                            <div className="text-xs font-bold uppercase tracking-widest opacity-70">{p.provider}</div>
-                                            <div className="mt-1 text-sm font-semibold text-text-main">
-                                                {p.configured ? 'Configured' : 'Not configured'}
-                                            </div>
-                                            <div className="text-xs text-text-muted mt-1">
-                                                Updated: {p.updated_at_ms ? new Date(p.updated_at_ms).toLocaleString() : '-'}
-                                            </div>
-                                        </div>
-                                        <Button
-                                            onClick={() => sync(p.provider)}
-                                            disabled={busyProvider !== null}
-                                            variant="secondary"
-                                            size="sm"
-                                        >
-                                            Sync
-                                        </Button>
-                                    </div>
-
-                                    <div className="mt-4 flex gap-3">
-                                        <div className="flex-1 relative">
-                                            <KeyIcon className="w-4 h-4 absolute left-3 top-3 text-text-muted opacity-60" />
-                                            <Input
-                                                type="password"
-                                                placeholder="Paste API key"
-                                                value={apiKeys[p.provider] || ''}
-                                                onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.provider]: e.target.value }))}
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                        <Button
-                                            onClick={() => setKey(p.provider)}
-                                            disabled={busyProvider !== null || !(apiKeys[p.provider] || '').trim()}
-                                            variant="primary"
-                                            size="sm"
-                                        >
-                                            Save
-                                        </Button>
-                                        <Button
-                                            onClick={() => clearKey(p.provider)}
-                                            disabled={busyProvider !== null}
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-rose-500 hover:text-rose-600"
-                                            title="Clear key"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </Card>
-                            ))}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <Card className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-text-main">Provider Keys</h2>
+                                <p className="text-xs text-text-muted mt-1">Keys are stored only in memory and are lost on restart.</p>
+                            </div>
+                            <Button
+                                onClick={() => sync()}
+                                disabled={busyProvider !== null}
+                                variant="primary"
+                                size="sm"
+                            >
+                                <ArrowPathIcon className={`w-3.5 h-3.5 ${busyProvider ? 'animate-spin' : ''}`} />
+                                Sync All Models
+                            </Button>
                         </div>
-                    )}
-                </Card>
 
-                <Card className="p-6">
-                    <div className="mb-4">
-                        <h2 className="text-lg font-bold text-text-main">Model Registry</h2>
-                        <p className="text-xs text-text-muted mt-1">This list is the source of truth for dropdowns in Experiments.</p>
-                    </div>
-
-                    {loading ? (
-                        <div className="py-10 text-center text-text-muted italic">Loading models...</div>
-                    ) : (
-                        <div className="space-y-6">
-                            {Object.keys(grouped).length === 0 && (
-                                <div className="py-10 text-center text-text-muted italic">No models yet. Click Sync.</div>
-                            )}
-                            {(Object.entries(grouped) as [string, ModelRegistry[]][]).map(([provider, items]) => (
-                                <div key={provider}>
-                                    <div className="text-[10px] font-bold uppercase tracking-widest text-text-muted opacity-60 mb-2">{provider}</div>
-                                    <div className="border border-border-base rounded-lg overflow-hidden bg-app">
-                                        <div className="grid grid-cols-12 gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-text-muted border-b border-border-base bg-app/60">
-                                            <div className="col-span-6">Model</div>
-                                            <div className="col-span-4">ID</div>
-                                            <div className="col-span-2 text-right">Enabled</div>
-                                        </div>
-                                        <div className="divide-y divide-border-base/50">
-                                            {items.map((m) => (
-                                                <div key={m.id} className="grid grid-cols-12 gap-4 px-5 py-3 text-xs text-text-main">
-                                                    <div className="col-span-6 font-semibold truncate">{m.display_name || m.model_id}</div>
-                                                    <div className="col-span-4 text-text-muted truncate">{m.model_id}</div>
-                                                    <div className="col-span-2 flex justify-end">
-                                                        <Button
-                                                            onClick={() => toggleModel(m.id, !m.enabled)}
-                                                            variant={m.enabled ? 'success' : 'secondary'}
-                                                            size="sm"
-                                                            className="rounded-full text-[10px] font-bold uppercase tracking-widest px-3"
-                                                        >
-                                                            {m.enabled ? 'On' : 'Off'}
-                                                        </Button>
-                                                    </div>
+                        {loading ? (
+                            <div className="py-10 text-center text-text-muted italic">Loading providers...</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {providers.map((p) => (
+                                    <Card key={p.provider} className="bg-app p-5">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <div className="text-xs font-bold uppercase tracking-widest opacity-70">{p.provider}</div>
+                                                <div className="mt-1 text-sm font-semibold text-text-main">
+                                                    {p.configured ? 'Configured' : 'Not configured'}
                                                 </div>
-                                            ))}
+                                                <div className="text-xs text-text-muted mt-1">
+                                                    Updated: {p.updated_at_ms ? new Date(p.updated_at_ms).toLocaleString() : '-'}
+                                                </div>
+                                            </div>
+                                            <Button
+                                                onClick={() => sync(p.provider)}
+                                                disabled={busyProvider !== null}
+                                                variant="secondary"
+                                                size="sm"
+                                            >
+                                                Sync
+                                            </Button>
+                                        </div>
+
+                                        <div className="mt-4 flex gap-3">
+                                            <div className="flex-1 relative">
+                                                <KeyIcon className="w-4 h-4 absolute left-3 top-3 text-text-muted opacity-60" />
+                                                <Input
+                                                    type="password"
+                                                    placeholder="Paste API key"
+                                                    value={apiKeys[p.provider] || ''}
+                                                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.provider]: e.target.value }))}
+                                                    className="pl-10"
+                                                />
+                                            </div>
+                                            <Button
+                                                onClick={() => setKey(p.provider)}
+                                                disabled={busyProvider !== null || !(apiKeys[p.provider] || '').trim()}
+                                                variant="primary"
+                                                size="sm"
+                                            >
+                                                Save
+                                            </Button>
+                                            <Button
+                                                onClick={() => clearKey(p.provider)}
+                                                disabled={busyProvider !== null}
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-rose-500 hover:text-rose-600"
+                                                title="Clear key"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+
+                    <Card className="p-6">
+                        <div className="mb-4">
+                            <h2 className="text-lg font-bold text-text-main">Model Registry</h2>
+                            <p className="text-xs text-text-muted mt-1">This list is the source of truth for dropdowns in Experiments.</p>
+                        </div>
+
+                        {loading ? (
+                            <div className="py-10 text-center text-text-muted italic">Loading models...</div>
+                        ) : (
+                            <div className="space-y-6">
+                                {Object.keys(grouped).length === 0 && (
+                                    <div className="py-10 text-center text-text-muted italic">No models yet. Click Sync.</div>
+                                )}
+                                {(Object.entries(grouped) as [string, ModelRegistry[]][]).map(([provider, items]) => (
+                                    <div key={provider}>
+                                        <div className="text-[10px] font-bold uppercase tracking-widest text-text-muted opacity-60 mb-2">{provider}</div>
+                                        <div className="border border-border-base rounded-lg overflow-hidden bg-app">
+                                            <div className="grid grid-cols-12 gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-text-muted border-b border-border-base bg-app/60">
+                                                <div className="col-span-6">Model</div>
+                                                <div className="col-span-4">ID</div>
+                                                <div className="col-span-2 text-right">Enabled</div>
+                                            </div>
+                                            <div className="divide-y divide-border-base/50">
+                                                {items.map((m) => (
+                                                    <div key={m.id} className="grid grid-cols-12 gap-4 px-5 py-3 text-xs text-text-main">
+                                                        <div className="col-span-6 font-semibold truncate">{m.display_name || m.model_id}</div>
+                                                        <div className="col-span-4 text-text-muted truncate">{m.model_id}</div>
+                                                        <div className="col-span-2 flex justify-end">
+                                                            <Button
+                                                                onClick={() => toggleModel(m.id, !m.enabled)}
+                                                                variant={m.enabled ? 'success' : 'secondary'}
+                                                                size="sm"
+                                                                className="rounded-full text-[10px] font-bold uppercase tracking-widest px-3"
+                                                            >
+                                                                {m.enabled ? 'On' : 'Off'}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+                </div>
             </div>
         </div>
     );

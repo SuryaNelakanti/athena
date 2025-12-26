@@ -14,6 +14,7 @@ import {
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { Badge, Button, Card, IconButton, Input, Modal, Tabs, Textarea } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 interface DatasetDetailProps {
     dataset: Dataset;
@@ -187,107 +188,86 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
     };
 
     return (
-        <div className="h-full flex flex-col">
-            {/* Header */}
+        <><div className="h-full flex flex-col">
+
             <div className="border-b border-border-hairline shrink-0">
-                <div className="px-6 py-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                            <IconButton onClick={onBack} variant="ghost" size="sm">
-                                <ChevronLeftIcon className="w-5 h-5" />
-                            </IconButton>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-md bg-primary flex items-center justify-center shadow-xs">
-                                    <CircleStackIcon className="w-5 h-5 text-white" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-serif font-black text-text-main leading-tight">{dataset.name}</h2>
-                                    <div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
-                                        <Badge variant="primary">v{dataset.version}</Badge>
-                                        {dataset.kind && (
-                                            <Badge variant="outline" className="uppercase">
-                                                {dataset.kind}
-                                            </Badge>
-                                        )}
-                                        <span>|</span>
-                                        <span className="text-emerald-500">{goldCount} gold</span>
-                                        {antiPatternCount > 0 && (
-                                            <>
-                                                <span>|</span>
-                                                <span className="text-rose-500">{antiPatternCount} anti-patterns</span>
-                                            </>
-                                        )}
-                                        {resourceCount > 0 && (
-                                            <>
-                                                <span>|</span>
-                                                <span className="text-sky-500">{resourceCount} resources</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {activeTab !== 'history' && (
-                            <Button
-                                onClick={() => setShowAddModal(true)}
-                                variant="primary"
-                                size="sm"
-                            >
-                                <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
-                            </Button>
+                <PageHeader
+                    title={dataset.name}
+                    subtitle={dataset.description}
+                    onBack={onBack}
+                    badge={<div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
+                        <Badge variant="primary">v{dataset.version}</Badge>
+                        {dataset.kind && (
+                            <Badge variant="outline" className="uppercase">
+                                {dataset.kind}
+                            </Badge>
                         )}
-                    </div>
-                    {dataset.description && (
-                        <p className="text-text-muted text-sm max-w-3xl leading-relaxed">{dataset.description}</p>
+                        {(goldCount > 0 || antiPatternCount > 0 || resourceCount > 0) && <span>|</span>}
+                        {goldCount > 0 && <span className="text-emerald-500">{goldCount} gold</span>}
+                        {antiPatternCount > 0 && (
+                            <>
+                                <span>|</span>
+                                <span className="text-rose-500">{antiPatternCount} anti-patterns</span>
+                            </>
+                        )}
+                        {resourceCount > 0 && (
+                            <>
+                                <span>|</span>
+                                <span className="text-sky-500">{resourceCount} resources</span>
+                            </>
+                        )}
+                    </div>}
+                    actions={activeTab !== 'history' && (
+                        <Button
+                            onClick={() => setShowAddModal(true)}
+                            variant="primary"
+                            size="sm"
+                        >
+                            <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
+                        </Button>
                     )}
-                </div>
-
-                {/* Explanation Banner */}
-                <div className="px-8 pb-4">
-                    <Card className="bg-primary/5 border-primary/20">
-                        <h4 className="text-sm font-bold text-text-main mb-1">What is this dataset?</h4>
-                        <p className="text-xs text-text-muted leading-relaxed">
-                            Eval rows store <strong className="text-primary">Inputs</strong> and <strong className="text-emerald-500">Expected Outputs</strong>.
-                            <strong className="text-emerald-500 ml-1">Gold</strong> entries are correct behaviors.
-                            <strong className="text-rose-500 ml-1">Anti-patterns</strong> are outputs the AI should avoid.
-                            <span className="ml-1">Resources store reference material for context.</span>
-                        </p>
-                    </Card>
-                </div>
-
-                <div className="px-8 pb-4">
-                    <Tabs
-                        options={MAIN_TABS}
-                        value={activeTab}
-                        onChange={(value) => setActiveTab(value as 'eval' | 'resources' | 'history')}
-                    />
-                </div>
-
-                {activeTab !== 'history' && (
-                    <div className="px-8 pb-4 flex gap-4">
-                        <div className="relative flex-1">
-                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                            <Input
-                                type="text"
-                                placeholder={activeTab === 'resources' ? 'Search resources...' : 'Search eval rows...'}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
-                        {activeTab === 'eval' && (
-                            <Tabs
-                                options={FILTER_TABS}
-                                value={filterType}
-                                onChange={(value) => setFilterType(value as 'all' | 'gold' | 'anti_pattern')}
-                            />
-                        )}
-                    </div>
-                )}
+                    className="pb-0 border-b-0" />
             </div>
 
-            {/* Examples List */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="px-8 pb-4">
+                <Card className="bg-primary/5 border-primary/20">
+                    <h4 className="text-sm font-bold text-text-main mb-1">What is this dataset?</h4>
+                    <p className="text-xs text-text-muted leading-relaxed">
+                        Eval rows store <strong className="text-primary">Inputs</strong> and <strong className="text-emerald-500">Expected Outputs</strong>.
+                        <strong className="text-emerald-500 ml-1">Gold</strong> entries are correct behaviors.
+                        <strong className="text-rose-500 ml-1">Anti-patterns</strong> are outputs the AI should avoid.
+                        <span className="ml-1">Resources store reference material for context.</span>
+                    </p>
+                </Card>
+            </div>
+
+            <div className="px-8 pb-4">
+                <Tabs
+                    options={MAIN_TABS}
+                    value={activeTab}
+                    onChange={(value) => setActiveTab(value as 'eval' | 'resources' | 'history')} />
+            </div>
+
+            {activeTab !== 'history' && (
+                <div className="px-8 pb-4 flex gap-4">
+                    <div className="relative flex-1">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                        <Input
+                            type="text"
+                            placeholder={activeTab === 'resources' ? 'Search resources...' : 'Search eval rows...'}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10" />
+                    </div>
+                    {activeTab === 'eval' && (
+                        <Tabs
+                            options={FILTER_TABS}
+                            value={filterType}
+                            onChange={(value) => setFilterType(value as 'all' | 'gold' | 'anti_pattern')} />
+                    )}
+                </div>
+            )}
+        </div><div className="flex-1 overflow-y-auto p-6">
                 {activeTab !== 'history' ? (
                     <>
                         {loading ? (
@@ -321,8 +301,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                     return (
                                         <div
                                             key={row.id}
-                                            className={`bg-panel border rounded-lg overflow-hidden transition-all ${isAntiPattern ? 'border-rose-500/30' : 'border-border-base hover:border-border-hover'
-                                                }`}
+                                            className={`bg-panel border rounded-lg overflow-hidden transition-all ${isAntiPattern ? 'border-rose-500/30' : 'border-border-base hover:border-border-hover'}`}
                                         >
                                             {/* Row Header */}
                                             <button
@@ -331,8 +310,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                             >
                                                 <div className={`flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold ${isAntiPattern
                                                     ? 'bg-rose-500/10 text-rose-500'
-                                                    : 'bg-primary/10 text-primary'
-                                                    }`}>
+                                                    : 'bg-primary/10 text-primary'}`}>
                                                     {isAntiPattern ? <XMarkIcon className="w-4 h-4" /> : idx + 1}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -408,8 +386,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                                                 </div>
                                                                 <div className={`rounded-md p-4 ${isAntiPattern
                                                                     ? 'bg-rose-500/5 border border-rose-500/20'
-                                                                    : 'bg-emerald-500/5 border border-emerald-500/20'
-                                                                    }`}>
+                                                                    : 'bg-emerald-500/5 border border-emerald-500/20'}`}>
                                                                     <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
                                                                 </div>
                                                             </div>
@@ -493,29 +470,25 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         )}
                     </div>
                 )}
-            </div>
-
-            <Modal
+            </div><Modal
                 open={showAddModal}
                 title={isResourceTab ? 'Add Resource' : 'Add Eval Row'}
                 description={isResourceTab ? 'Store reference material for context.' : 'Create an input-output pair for testing.'}
                 onClose={() => setShowAddModal(false)}
-                footer={
-                    <div className="flex items-center justify-end gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            variant={isEvalTab ? (newExample.example_type === 'gold' ? 'success' : 'danger') : 'primary'}
-                            size="sm"
-                            onClick={handleAddExample}
-                        >
-                            {isEvalTab
-                                ? (newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern')
-                                : 'Add Resource'}
-                        </Button>
-                    </div>
-                }
+                footer={<div className="flex items-center justify-end gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant={isEvalTab ? (newExample.example_type === 'gold' ? 'success' : 'danger') : 'primary'}
+                        size="sm"
+                        onClick={handleAddExample}
+                    >
+                        {isEvalTab
+                            ? (newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern')
+                            : 'Add Resource'}
+                    </Button>
+                </div>}
                 className="max-w-xl"
             >
                 <div className="space-y-4">
@@ -529,8 +502,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                             <Tabs
                                 options={EXAMPLE_TABS}
                                 value={newExample.example_type}
-                                onChange={(value) => setNewExample(p => ({ ...p, example_type: value as 'gold' | 'anti_pattern' }))}
-                            />
+                                onChange={(value) => setNewExample(p => ({ ...p, example_type: value as 'gold' | 'anti_pattern' }))} />
                             <p className="text-[11px] text-text-muted mt-2">
                                 {newExample.example_type === 'gold'
                                     ? 'Gold entries show correct AI behavior.'
@@ -547,8 +519,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                             value={newExample.input}
                             onChange={(e) => setNewExample(p => ({ ...p, input: e.target.value }))}
                             className="h-28 resize-none"
-                            placeholder={isResourceTab ? 'Paste the reference content or notes here.' : 'What question or prompt should be given to the AI?'}
-                        />
+                            placeholder={isResourceTab ? 'Paste the reference content or notes here.' : 'What question or prompt should be given to the AI?'} />
                     </div>
 
                     {isEvalTab && (
@@ -561,18 +532,17 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                                 onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
                                 className={`h-28 resize-none ${newExample.example_type === 'gold'
                                     ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
-                                    : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'
-                                    }`}
+                                    : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'}`}
                                 placeholder={newExample.example_type === 'gold'
                                     ? "What's the correct response?"
-                                    : "What output should the AI avoid?"}
-                            />
+                                    : "What output should the AI avoid?"} />
                         </div>
                     )}
                 </div>
             </Modal>
-        </div>
+        </>
     );
+    // </div >
 };
 
 export default DatasetDetail;
