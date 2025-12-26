@@ -37,14 +37,14 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
 
   const navItems = [
-    { name: 'Dashboard', icon: HomeIcon, path: '/' },
-    { name: 'Logs', icon: ListBulletIcon, path: '/logs' },
-    { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review' },
-    { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration' },
-    { name: 'Datasets', icon: CircleStackIcon, path: '/datasets' },
-    { name: 'Experiments', icon: BeakerIcon, path: '/experiments' },
-    { name: 'Labs', icon: CommandLineIcon, path: '/labs' },
-    { name: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
+    { name: 'Dashboard', icon: HomeIcon, path: '/', tone: 'sky' },
+    { name: 'Logs', icon: ListBulletIcon, path: '/logs', tone: 'mint' },
+    { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review', tone: 'amber' },
+    { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration', tone: 'coral' },
+    { name: 'Datasets', icon: CircleStackIcon, path: '/datasets', tone: 'indigo' },
+    { name: 'Experiments', icon: BeakerIcon, path: '/experiments', tone: 'copper' },
+    { name: 'Labs', icon: CommandLineIcon, path: '/labs', tone: 'slate' },
+    { name: 'Settings', icon: Cog6ToothIcon, path: '/settings', tone: 'slate' },
   ];
 
   // Theme Toggle Logic - Light mode is default
@@ -110,7 +110,9 @@ const Layout: React.FC<LayoutProps> = ({
                   : 'text-text-muted hover:bg-panel-hover hover:text-text-main'
                   }`}
               >
-                <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-primary' : 'text-text-muted'}`} />
+                <span className={`icon-chip icon-chip--${item.tone} ${isActive ? 'icon-chip--active' : ''}`}>
+                  <item.icon className="w-4 h-4" />
+                </span>
                 <span className={`transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}>
                   {item.name}
                 </span>
@@ -160,7 +162,9 @@ const Layout: React.FC<LayoutProps> = ({
       {/* Main Content - reduced padding for cleaner look */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-app p-2">
         <div className="flex-1 overflow-hidden bg-canvas rounded-lg border border-border-hairline shadow-sm">
-          {children}
+          <div key={currentPath} className="h-full animate-soft-in">
+            {children}
+          </div>
         </div>
       </main>
     </div>
@@ -168,4 +172,3 @@ const Layout: React.FC<LayoutProps> = ({
 };
 
 export default Layout;
-

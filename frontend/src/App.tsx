@@ -207,6 +207,7 @@ const App: React.FC = () => {
               <TraceDetail
                 trace={selectedTrace}
                 onClose={() => navigate('/logs')}
+                onOpenTrace={(traceId) => navigate('/logs', { trace_id: traceId })}
               />
             </div>
           )}
@@ -258,7 +259,7 @@ const App: React.FC = () => {
   if (creatingProject) {
     return (
       <div className="flex items-center justify-center h-screen bg-app text-text-main">
-        <div className="text-center">
+        <div className="text-center animate-soft-in">
           <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-primary flex items-center justify-center text-white font-bold animate-pulse shadow-xs">
             <span className="text-2xl font-serif">A</span>
           </div>
@@ -272,7 +273,7 @@ const App: React.FC = () => {
   if (showCreateProject || (!currentProject && projects.length === 0)) {
     return (
       <div className="flex items-center justify-center h-screen bg-app text-text-main">
-        <Card className="max-w-md w-full mx-4 p-8 shadow-lg">
+        <Card className="max-w-md w-full mx-4 p-8 shadow-lg animate-soft-in">
           <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-primary flex items-center justify-center text-white font-bold shadow-xs">
             <span className="text-2xl font-serif">A</span>
           </div>

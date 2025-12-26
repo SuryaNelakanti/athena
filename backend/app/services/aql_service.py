@@ -141,6 +141,7 @@ class AQLService:
             "fields": {
                 "id": TraceModel.id,
                 "project_id": TraceModel.project_id,
+                "parent_trace_id": TraceModel.parent_trace_id,
                 "timestamp": TraceModel.timestamp,
                 "total_latency": TraceModel.total_latency,
                 "total_cost": TraceModel.total_cost,
@@ -151,6 +152,7 @@ class AQLService:
             "field_types": {
                 "id": "string",
                 "project_id": "string",
+                "parent_trace_id": "string",
                 "status": "string",
                 "timestamp": "number",
                 "total_latency": "number",
@@ -160,6 +162,7 @@ class AQLService:
             "filter_fields": {
                 "id",
                 "project_id",
+                "parent_trace_id",
                 "timestamp",
                 "total_latency",
                 "total_cost",

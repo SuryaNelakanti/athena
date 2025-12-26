@@ -52,6 +52,7 @@ export interface Trace {
   root_span: Span;
   spans: Span[]; // Flat list of all spans in the trace
   project_id: string;
+  parent_trace_id?: string | null;
   timestamp: number;
   total_latency: number;
   total_cost: number;

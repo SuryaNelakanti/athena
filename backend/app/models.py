@@ -26,6 +26,59 @@ class OrganizationModel(SQLModel, table=True):
     updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
 
 
+# --- Auth Primitives ---
+class UserModel(SQLModel, table=True):
+    __tablename__ = "user"
+    __table_args__ = (UniqueConstraint("org_id", "email", name="uq_user_org_email"),)
+
+    id: str = Field(primary_key=True)
+    org_id: Optional[str] = Field(default=None, index=True)
+    email: str = Field(index=True)
+    name: Optional[str] = None
+    role: Optional[str] = Field(default="member", index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class SessionModel(SQLModel, table=True):
+    __tablename__ = "session"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_session_token_hash"),)
+
+    id: str = Field(primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    token_hash: str = Field(index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    expires_at: Optional[int] = Field(default=None, index=True)
+    revoked_at: Optional[int] = Field(default=None, index=True)
+    last_used_at: Optional[int] = Field(default=None)
+
+
+class ServiceAccountModel(SQLModel, table=True):
+    __tablename__ = "service_account"
+
+    id: str = Field(primary_key=True)
+    org_id: str = Field(index=True)
+    name: str
+    description: Optional[str] = None
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    revoked_at: Optional[int] = Field(default=None, index=True)
+
+
+class ServiceTokenModel(SQLModel, table=True):
+    __tablename__ = "service_token"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_service_token_hash"),)
+
+    id: str = Field(primary_key=True)
+    service_account_id: str = Field(foreign_key="service_account.id", index=True)
+    name: Optional[str] = None
+    token_hash: str = Field(index=True)
+    token_last4: Optional[str] = None
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    last_used_at: Optional[int] = Field(default=None)
+    revoked_at: Optional[int] = Field(default=None, index=True)
+
+
 # --- Audit Log Model ---
 class AuditLogModel(SQLModel, table=True):
     """
@@ -50,14 +103,28 @@ class Project(SQLModel, table=True):
     id: str = Field(primary_key=True)
     name: str
     org_id: str
-    
+
     traces: List["TraceModel"] = Relationship(back_populates="project")
+
+
+class EnvironmentModel(SQLModel, table=True):
+    __tablename__ = "environment"
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_environment_project_name"),)
+
+    id: str = Field(primary_key=True)
+    project_id: str = Field(foreign_key="project.id", index=True)
+    name: str
+    description: Optional[str] = None
+    is_default: bool = Field(default=False, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
 class TraceModel(SQLModel, table=True):
     __tablename__ = "trace" # Rename table to avoid keyword conflicts if any, though Trace is usually safe
     
     id: str = Field(primary_key=True)
     project_id: str = Field(foreign_key="project.id")
+    parent_trace_id: Optional[str] = Field(default=None, index=True)
     timestamp: int = Field(index=True)
     total_latency: float
     total_cost: float
@@ -452,6 +519,7 @@ class Trace(BaseModel):
     root_span: Span
     spans: List[Span]
     project_id: str
+    parent_trace_id: Optional[str] = None
     timestamp: int
     total_latency: float
     total_cost: float

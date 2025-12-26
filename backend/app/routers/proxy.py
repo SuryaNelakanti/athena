@@ -28,20 +28,31 @@ async def chat_completions(
     # Pass trace_id from header to request if provided (for parent context)
     if x_athena_trace_id and not request.trace_id:
         request.trace_id = x_athena_trace_id
-    
+    if x_athena_parent_span_id and not request.parent_span_id:
+        request.parent_span_id = x_athena_parent_span_id
+
     # Check cache bypass
     bypass_cache = x_athena_cache_control == "no-cache"
-    
+
     try:
         if request.stream:
             # For streaming, headers are sent with the SSE response
             # The trace context will be in the first chunk or aggregated output
             return StreamingResponse(
-                service.stream_chat_completion(request, project_id),
+                service.stream_chat_completion(
+                    request,
+                    project_id,
+                    parent_span_id=request.parent_span_id,
+                ),
                 media_type="text/event-stream"
             )
         else:
-            response = await service.chat_completion(request, project_id, bypass_cache=bypass_cache)
+            response = await service.chat_completion(
+                request,
+                project_id,
+                bypass_cache=bypass_cache,
+                parent_span_id=request.parent_span_id,
+            )
             
             # Return response with trace context headers for client correlation
             headers = {}

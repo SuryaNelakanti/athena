@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ExclamationTriangleIcon,
+  CheckCircleIcon,
+  XMarkIcon,
   MagnifyingGlassIcon,
   InboxArrowDownIcon,
   ArrowUpRightIcon,
@@ -103,6 +105,36 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
     }
   };
 
+  const getReviewTone = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'amber';
+      case 'in_review':
+        return 'sky';
+      case 'resolved':
+        return 'mint';
+      case 'dismissed':
+        return 'rose';
+      default:
+        return 'slate';
+    }
+  };
+
+  const getReviewIcon = (status: string) => {
+    switch (status) {
+      case 'open':
+        return <ExclamationTriangleIcon className="w-4 h-4" />;
+      case 'in_review':
+        return <MagnifyingGlassIcon className="w-4 h-4" />;
+      case 'resolved':
+        return <CheckCircleIcon className="w-4 h-4" />;
+      case 'dismissed':
+        return <XMarkIcon className="w-4 h-4" />;
+      default:
+        return <ArrowUpRightIcon className="w-4 h-4" />;
+    }
+  };
+
   const updateStatus = async (status: ReviewItem['status']) => {
     if (!selectedReview) return;
     setActionError(null);
@@ -197,6 +229,8 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
               <div className="p-4 space-y-3">
                 {filteredReviews.map((review) => {
                   const isSelected = review.id === selectedReviewId;
+                  const tone = getReviewTone(review.status);
+                  const icon = getReviewIcon(review.status);
                   return (
                     <button
                       key={review.id}
@@ -204,22 +238,29 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
                       className={`w-full text-left p-4 rounded-lg border transition-all ${isSelected ? 'bg-primary/5 border-primary/20' : 'bg-panel border-border-base hover:border-border-hover'
                         }`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <Badge variant={getStatusVariant(review.status)}>
-                          {review.status.replace('_', ' ')}
-                        </Badge>
-                        <span className="text-[10px] text-text-muted uppercase tracking-wider">{review.source_type}</span>
-                      </div>
-                      <div className="mt-2 text-sm text-text-main font-medium line-clamp-2">
-                        {review.meta?.input_preview || 'No input preview'}
-                      </div>
-                      <div className="text-[11px] text-text-muted mt-1 line-clamp-1">
-                        Output: {review.meta?.output_preview || 'No output preview'}
-                      </div>
-                      <div className="mt-2 text-[10px] text-text-muted flex items-center gap-2">
-                        <span>{new Date(review.created_at).toLocaleString()}</span>
-                        <span className="opacity-40">|</span>
-                        <span>Priority {review.priority}</span>
+                      <div className="flex items-start gap-3">
+                        <span className={`icon-chip icon-chip--${tone} ${isSelected ? 'icon-chip--active' : ''}`}>
+                          {icon}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <Badge variant={getStatusVariant(review.status)}>
+                              {review.status.replace('_', ' ')}
+                            </Badge>
+                            <span className="text-[10px] text-text-muted uppercase tracking-wider">{review.source_type}</span>
+                          </div>
+                          <div className="mt-2 text-sm text-text-main font-medium line-clamp-2">
+                            {review.meta?.input_preview || 'No input preview'}
+                          </div>
+                          <div className="text-[11px] text-text-muted mt-1 line-clamp-1">
+                            Output: {review.meta?.output_preview || 'No output preview'}
+                          </div>
+                          <div className="mt-2 text-[10px] text-text-muted flex items-center gap-2">
+                            <span>{new Date(review.created_at).toLocaleString()}</span>
+                            <span className="opacity-40">|</span>
+                            <span>Priority {review.priority}</span>
+                          </div>
+                        </div>
                       </div>
                     </button>
                   );
@@ -460,4 +501,3 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
 };
 
 export default ReviewQueue;
-

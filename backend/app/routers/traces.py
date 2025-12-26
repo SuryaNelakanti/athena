@@ -18,6 +18,7 @@ router = APIRouter(tags=["traces"])
 async def get_project_traces(
     project_id: str,
     status: Optional[str] = None,
+    parent_trace_id: Optional[str] = None,
     search: Optional[str] = None,
     start_time: Optional[int] = None,
     end_time: Optional[int] = None,
@@ -29,6 +30,9 @@ async def get_project_traces(
 
     if status and status != "all":
         query = query.where(TraceModel.status == status)
+
+    if parent_trace_id:
+        query = query.where(TraceModel.parent_trace_id == parent_trace_id)
 
     if start_time:
         query = query.where(TraceModel.timestamp >= start_time)
@@ -87,6 +91,7 @@ async def get_project_traces(
                     root_span=root_span,
                     spans=converted_spans,
                     project_id=tm.project_id,
+                    parent_trace_id=tm.parent_trace_id,
                     timestamp=tm.timestamp,
                     total_latency=tm.total_latency,
                     total_cost=tm.total_cost,

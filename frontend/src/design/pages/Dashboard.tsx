@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
+import { ChartBarIcon, ClockIcon, CurrencyDollarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { MonitorChart } from '../../types';
 import { Badge, Button, Card, Input, SectionHeader, Select, Textarea } from '../ui';
@@ -55,18 +56,45 @@ const formatAql = (query: string): string => {
     return lines.map((line, i) => i === 0 ? line : '  ' + line.trim()).join('\n');
 };
 
-const StatCard = ({ title, value, unit, change, loading }: { title: string, value: string, unit?: string, change?: string, loading?: boolean }) => (
+const StatCard = ({
+    title,
+    value,
+    unit,
+    change,
+    loading,
+    icon,
+    tone = 'slate',
+}: {
+    title: string;
+    value: string;
+    unit?: string;
+    change?: string;
+    loading?: boolean;
+    icon?: React.ReactNode;
+    tone?: string;
+}) => (
     <Card className="p-6">
-        <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-3 opacity-70">{title}</h3>
-        <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold text-text-main tracking-tight">{loading ? '--' : value}</span>
-            {unit && <span className="text-sm text-text-muted font-medium ml-1">{unit}</span>}
+        <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+                {icon && (
+                    <span className={`icon-chip icon-chip--${tone}`}>
+                        {icon}
+                    </span>
+                )}
+                <div className="min-w-0">
+                    <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-widest opacity-70">{title}</h3>
+                    <div className="mt-2 flex items-baseline gap-1">
+                        <span className="text-3xl font-bold text-text-main tracking-tight">{loading ? '--' : value}</span>
+                        {unit && <span className="text-sm text-text-muted font-medium ml-1">{unit}</span>}
+                    </div>
+                </div>
+            </div>
+            {change && (
+                <Badge variant="neutral" className="text-[9px]">
+                    {change}
+                </Badge>
+            )}
         </div>
-        {change && (
-            <Badge variant="success" className="mt-3">
-                {change}
-            </Badge>
-        )}
     </Card>
 );
 
@@ -305,7 +333,13 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         return String(value);
     };
 
-    const SERIES_COLORS = ['#6B8A5E', '#8BAF7E', '#A8C9A0', '#567048', '#415536'];
+    const SERIES_COLORS = [
+        'var(--accent-primary)',
+        '#3B82F6',
+        '#D16A3A',
+        '#5B5CE5',
+        '#E25778',
+    ];
 
     return (
         <div className="h-full flex flex-col bg-app">
@@ -316,11 +350,41 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
 
             <div className="flex-1 overflow-y-auto p-6">
 
-                <div className="grid grid-cols-4 gap-6 mb-8">
-                    <StatCard title="Total Requests" value={stats.totalRequests.toLocaleString()} change="Last 24h" loading={loading} />
-                    <StatCard title="Avg Latency" value={stats.avgLatency.toFixed(0)} unit="ms" change="Last 24h" loading={loading} />
-                    <StatCard title="Total Cost" value={`$${stats.totalCost.toFixed(2)}`} change="Last 24h" loading={loading} />
-                    <StatCard title="Error Rate" value={stats.errorRate.toFixed(2)} unit="%" change="Last 24h" loading={loading} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <StatCard
+                        title="Total Requests"
+                        value={stats.totalRequests.toLocaleString()}
+                        change="Last 24h"
+                        loading={loading}
+                        tone="sky"
+                        icon={<ChartBarIcon className="w-4 h-4" />}
+                    />
+                    <StatCard
+                        title="Avg Latency"
+                        value={stats.avgLatency.toFixed(0)}
+                        unit="ms"
+                        change="Last 24h"
+                        loading={loading}
+                        tone="slate"
+                        icon={<ClockIcon className="w-4 h-4" />}
+                    />
+                    <StatCard
+                        title="Total Cost"
+                        value={`$${stats.totalCost.toFixed(2)}`}
+                        change="Last 24h"
+                        loading={loading}
+                        tone="amber"
+                        icon={<CurrencyDollarIcon className="w-4 h-4" />}
+                    />
+                    <StatCard
+                        title="Error Rate"
+                        value={stats.errorRate.toFixed(2)}
+                        unit="%"
+                        change="Last 24h"
+                        loading={loading}
+                        tone="rose"
+                        icon={<ExclamationTriangleIcon className="w-4 h-4" />}
+                    />
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 h-80 mb-8">
@@ -330,8 +394,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                             <AreaChart data={requestChartData}>
                                 <defs>
                                     <linearGradient id="colorReq" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#6B8A5E" stopOpacity={0.25} />
-                                        <stop offset="95%" stopColor="#6B8A5E" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.22} />
+                                        <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-base)" vertical={false} />
@@ -339,9 +403,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                                 <YAxis stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '8px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    itemStyle={{ color: '#6B8A5E' }}
+                                    itemStyle={{ color: 'var(--accent-primary)' }}
                                 />
-                                <Area type="monotone" dataKey="requests" stroke="#6B8A5E" strokeWidth={2} fillOpacity={1} fill="url(#colorReq)" />
+                                <Area type="monotone" dataKey="requests" stroke="var(--accent-primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorReq)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </Card>
@@ -357,7 +421,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                                     cursor={{ fill: 'var(--bg-panel-hover)', radius: 8 }}
                                     contentStyle={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-base)', borderRadius: '8px', color: 'var(--text-main)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                 />
-                                <Bar dataKey="latency" fill="#10b981" radius={[6, 6, 0, 0]} />
+                                <Bar dataKey="latency" fill="var(--accent-primary)" radius={[6, 6, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </Card>

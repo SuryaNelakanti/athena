@@ -138,8 +138,8 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                     </div>
                 ) : datasets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20">
-                        <div className="w-12 h-12 rounded-full bg-border-base/50 flex items-center justify-center mb-4">
-                            <CircleStackIcon className="w-6 h-6 text-text-muted" />
+                        <div className="icon-chip icon-chip--indigo icon-chip-lg mb-4">
+                            <CircleStackIcon className="w-5 h-5" />
                         </div>
                         <h3 className="text-text-main font-medium mb-1">No datasets yet</h3>
                         <p className="text-text-muted text-sm mb-4">Create your first dataset to start collecting examples</p>
@@ -157,8 +157,8 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                                 className="px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group"
                             >
                                 {/* Icon */}
-                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                    <CircleStackIcon className="w-4 h-4 text-primary" />
+                                <div className="icon-chip icon-chip--indigo flex-shrink-0">
+                                    <CircleStackIcon className="w-4 h-4" />
                                 </div>
 
                                 {/* Main info */}

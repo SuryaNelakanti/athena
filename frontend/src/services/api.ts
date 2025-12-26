@@ -51,12 +51,13 @@ export const api = {
 
     getTraces: async (
         projectId: string,
-        filters?: { status?: string, search?: string, limit?: number }
+        filters?: { status?: string, search?: string, limit?: number, parent_trace_id?: string }
     ): Promise<Trace[]> => {
         const params = new URLSearchParams();
         if (filters?.status && filters.status !== 'all') params.append('status', filters.status);
         if (filters?.search) params.append('search', filters.search);
         if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.parent_trace_id) params.append('parent_trace_id', filters.parent_trace_id);
 
         const response = await fetch(`${API_BASE_URL}/projects/${projectId}/traces?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch traces');

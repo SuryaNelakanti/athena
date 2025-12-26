@@ -11,9 +11,11 @@ import {
   PlusIcon,
   UserPlusIcon,
   ChevronDownIcon,
+  ArrowUpRightIcon,
+  ArrowDownRightIcon,
 } from '@heroicons/react/24/outline';
 import { api, View } from '../../services/api';
-import { Badge, Button, IconButton, Input, Modal, Select, Textarea } from '../ui';
+import { Badge, Button, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
 
 interface LogTableProps {
@@ -173,6 +175,8 @@ const LogTable: React.FC<LogTableProps> = ({
   const [aqlResult, setAqlResult] = useState<AqlQueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [traceLineage, setTraceLineage] = useState<Record<string, { parent_trace_id?: string | null; child_count?: number }>>({});
+  const [lineageLoading, setLineageLoading] = useState(false);
 
   const [filters, setFilters] = useState<Filter[]>([]);
   const [searchInput, setSearchInput] = useState('');
@@ -238,6 +242,76 @@ const LogTable: React.FC<LogTableProps> = ({
       loadLogs();
     }
   }, [projectId, filters, queryMode]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const traceIds = Array.from(new Set(logs.map((log) => log.trace_id).filter(Boolean))) as string[];
+    if (traceIds.length === 0) {
+      setTraceLineage({});
+      setLineageLoading(false);
+      return;
+    }
+    let active = true;
+    setLineageLoading(true);
+
+    const cappedIds = traceIds.slice(0, 100);
+    const loadLineage = async () => {
+      try {
+        const [parents, children] = await Promise.all([
+          api.runAqlQuery({
+            builder: {
+              shape: 'project_traces',
+              params: { project_id: projectId },
+              select: ['id', 'parent_trace_id'],
+              filters: [{ field: 'id', op: 'in', value: cappedIds }],
+              limit: cappedIds.length,
+            },
+          }),
+          api.runAqlQuery({
+            builder: {
+              shape: 'project_traces',
+              params: { project_id: projectId },
+              dimensions: ['parent_trace_id'],
+              measures: [{ func: 'count', field: '*', alias: 'child_count' }],
+              filters: [{ field: 'parent_trace_id', op: 'in', value: cappedIds }],
+              limit: cappedIds.length,
+            },
+          }),
+        ]);
+
+        if (!active) return;
+        const next: Record<string, { parent_trace_id?: string | null; child_count?: number }> = {};
+        (parents.data || []).forEach((row) => {
+          if (!row.id) return;
+          next[row.id] = {
+            parent_trace_id: row.parent_trace_id ?? null,
+            child_count: 0,
+          };
+        });
+        (children.data || []).forEach((row) => {
+          const parentId = row.parent_trace_id;
+          if (!parentId) return;
+          const count = Number(row.child_count) || 0;
+          next[parentId] = {
+            parent_trace_id: next[parentId]?.parent_trace_id ?? null,
+            child_count: count,
+          };
+        });
+        setTraceLineage(next);
+      } catch (e) {
+        if (!active) return;
+        setTraceLineage({});
+      } finally {
+        if (!active) return;
+        setLineageLoading(false);
+      }
+    };
+
+    loadLineage();
+    return () => {
+      active = false;
+    };
+  }, [logs, projectId]);
 
   const loadViews = async () => {
     try {
@@ -932,6 +1006,9 @@ const LogTable: React.FC<LogTableProps> = ({
         ) : (
           logs.map((log) => {
             const isSelected = selectedLogId === log.id;
+            const lineage = log.trace_id ? traceLineage[log.trace_id] : undefined;
+            const hasParent = Boolean(lineage?.parent_trace_id);
+            const childCount = lineage?.child_count || 0;
 
             return (
               <div
@@ -963,6 +1040,29 @@ const LogTable: React.FC<LogTableProps> = ({
                     <Badge variant="neutral" className="text-[10px] flex-shrink-0">
                       {log.event_type}
                     </Badge>
+                  )}
+                  {(hasParent || childCount > 0 || (lineageLoading && log.trace_id)) && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {lineageLoading && (
+                        <div className="h-4 w-12 rounded-full bg-border-base/50 animate-pulse" />
+                      )}
+                      {!lineageLoading && hasParent && lineage?.parent_trace_id && (
+                        <Tooltip content={`Child of ${lineage.parent_trace_id}`}>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+                            <ArrowUpRightIcon className="w-3 h-3" />
+                            Child
+                          </span>
+                        </Tooltip>
+                      )}
+                      {!lineageLoading && childCount > 0 && (
+                        <Tooltip content={`Parent of ${childCount} trace${childCount > 1 ? 's' : ''}`}>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wide">
+                            <ArrowDownRightIcon className="w-3 h-3" />
+                            Parent {childCount}
+                          </span>
+                        </Tooltip>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1124,4 +1224,3 @@ const LogTable: React.FC<LogTableProps> = ({
 };
 
 export default LogTable;
-

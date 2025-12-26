@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../../services/api';
 import { ModelRegistry } from '../../types';
 import { ArrowPathIcon, KeyIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { Button, Card, Input, SectionHeader, Select } from '../ui';
+import { Badge, Button, Card, Input } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
+import { ACCENT_OPTIONS, AccentId, getStoredAccent, setAccent as applyAccent } from '../theme/accent';
 
 type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'mock';
 
@@ -13,6 +14,13 @@ type ProviderStatus = {
     updated_at_ms: number | null;
 };
 
+const ACCENT_PREVIEWS: Record<AccentId, { base: string; glow: string; subtle: string }> = {
+    sage: { base: '#10A37F', glow: '#7BDCB5', subtle: '#E6F5F1' },
+    amber: { base: '#D16A3A', glow: '#F4B894', subtle: '#F7E1D6' },
+    copper: { base: '#B7794A', glow: '#E3B88E', subtle: '#F3E7DC' },
+    coral: { base: '#E1705C', glow: '#F4B2A7', subtle: '#FCE4DF' },
+};
+
 const Settings: React.FC = () => {
     const [providers, setProviders] = useState<ProviderStatus[]>([]);
     const [models, setModels] = useState<ModelRegistry[]>([]);
@@ -20,6 +28,7 @@ const Settings: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [busyProvider, setBusyProvider] = useState<string | null>(null);
+    const [accent, setAccentState] = useState<AccentId>(() => getStoredAccent());
 
     const load = async () => {
         setLoading(true);
@@ -89,6 +98,11 @@ const Settings: React.FC = () => {
         }
     };
 
+    const handleAccentChange = (nextAccent: AccentId) => {
+        setAccentState(nextAccent);
+        applyAccent(nextAccent);
+    };
+
     const grouped = useMemo(() => {
         const groups: Record<string, ModelRegistry[]> = {};
         for (const m of models) {
@@ -114,6 +128,62 @@ const Settings: React.FC = () => {
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <Card className="p-6 lg:col-span-2">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-text-main">Appearance</h2>
+                                <p className="text-xs text-text-muted mt-1">Swap accent palettes for highlights, charts, and actions.</p>
+                            </div>
+                            <div className="hidden md:flex items-center gap-2 text-[10px] uppercase tracking-widest text-text-muted font-bold">
+                                <span className="px-2 py-1 rounded-full border border-border-base bg-app">A/B Palettes</span>
+                                <span className="text-[9px] opacity-60">Saved locally</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {ACCENT_OPTIONS.map((option) => {
+                                const preview = ACCENT_PREVIEWS[option.id];
+                                const isActive = accent === option.id;
+                                return (
+                                    <button
+                                        key={option.id}
+                                        onClick={() => handleAccentChange(option.id)}
+                                        aria-pressed={isActive}
+                                        className={`group relative text-left rounded-xl border px-4 py-4 transition-all ${isActive
+                                                ? 'border-primary/50 bg-primary/5 shadow-sm'
+                                                : 'border-border-base bg-panel hover:border-border-hover hover:-translate-y-0.5'
+                                            }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">{option.label}</div>
+                                                <div className="text-xs text-text-muted mt-1">Accent</div>
+                                            </div>
+                                            <div
+                                                className="h-10 w-10 rounded-xl border border-border-base shadow-sm"
+                                                style={{ background: `linear-gradient(135deg, ${preview.base}, ${preview.glow})` }}
+                                            />
+                                        </div>
+                                        <div className="mt-4 flex items-center gap-2">
+                                            <span
+                                                className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border"
+                                                style={{ color: preview.base, backgroundColor: preview.subtle, borderColor: preview.base }}
+                                            >
+                                                Primary
+                                            </span>
+                                            <span className="text-[10px] text-text-muted">Buttons & links</span>
+                                        </div>
+                                        <div className="mt-3 h-1.5 rounded-full" style={{ background: `linear-gradient(90deg, ${preview.base}, ${preview.glow})` }} />
+                                        {isActive && (
+                                            <div className="absolute top-3 right-3">
+                                                <Badge variant="primary">Active</Badge>
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </Card>
                     <Card className="p-6">
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -246,4 +316,3 @@ const Settings: React.FC = () => {
 };
 
 export default Settings;
-

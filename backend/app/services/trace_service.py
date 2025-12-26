@@ -28,6 +28,7 @@ class TraceService:
         trace_model = TraceModel(
             id=trace.id,
             project_id=trace.project_id,
+            parent_trace_id=trace.parent_trace_id,
             timestamp=trace.timestamp,
             total_latency=trace.total_latency,
             total_cost=trace.total_cost,

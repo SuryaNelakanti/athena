@@ -26,6 +26,8 @@ from .routers import reviews as reviews_router
 from .routers import traces as traces_router
 from .routers import aql as aql_router
 from .routers import charts as charts_router
+from .routers import environments as environments_router
+from .routers import service_accounts as service_accounts_router
 from .services.job_worker import JobWorker
 
 # --- Startup ---
@@ -108,6 +110,8 @@ app.include_router(reviews_router.router)
 app.include_router(traces_router.router)
 app.include_router(aql_router.router)
 app.include_router(charts_router.router)
+app.include_router(environments_router.router)
+app.include_router(service_accounts_router.router)
 
 # --- Endpoints (Async) ---
 

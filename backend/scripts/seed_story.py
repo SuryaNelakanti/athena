@@ -715,7 +715,95 @@ async def seed_support_traces(session: AsyncSession) -> dict:
                "You used 15,420 API calls last month, which is 5,420 over your 10,000 included calls. That's where the $27.10 overage came from (at $0.005/call). To avoid this, you can either:\n\n1. **Upgrade to Pro** ($149/mo) which includes 100K calls\n2. **Set usage alerts** in Settings > API > Alerts to notify you at 80% usage\n\nWould you like me to help with either option?")
     trace, spans = tb.build()
     add(trace, spans)
-    
+
+    # 16. Lineage: Incident follow-up (child of bad_001)
+    tb = TraceBuilder(
+        "trace_sup_refund_followup_001",
+        proj,
+        minutes_ago(40),
+        "Support: Refund Incident - Follow-up analysis [TCK-90012-A]",
+        ["env:prod", "area:refunds", "story:lineage", "severity:high"],
+    )
+    tb.add_root(
+        {"ticket_id": "TCK-90012-A", "parent_trace": "trace_sup_refund_bad_001", "owner": PERSONAS["maya"]["email"]},
+        {"status": "completed", "next_step": "draft_customer_update"},
+    )
+    tb.add_retriever(
+        "Policy KB",
+        "refund policy summary for incident follow-up",
+        [{"doc": POLICY_DOCS["refunds"], "section": "4.1", "text": "Refunds within 30 days of cancellation."}],
+    )
+    tb.add_llm(
+        "Draft customer update",
+        [{"role": "user", "content": "Draft a concise customer update acknowledging the policy miss."}],
+        "We identified an error in our previous response. Our refund policy allows refunds within 30 days of cancellation. We are escalating your request for review and will follow up within 24 hours.",
+        model="gpt-4o",
+        tokens=180,
+        cost=0.004,
+    )
+    trace, spans = tb.build()
+    trace.parent_trace_id = "trace_sup_refund_bad_001"
+    add(trace, spans)
+
+    # 17. Lineage: Parallel follow-up (sibling of followup_001)
+    tb = TraceBuilder(
+        "trace_sup_refund_followup_002",
+        proj,
+        minutes_ago(38),
+        "Support: Refund Incident - Parallel response draft [TCK-90012-B]",
+        ["env:prod", "area:refunds", "story:lineage", "severity:high"],
+    )
+    tb.add_root(
+        {"ticket_id": "TCK-90012-B", "parent_trace": "trace_sup_refund_bad_001", "owner": PERSONAS["maya"]["email"]},
+        {"status": "completed", "next_step": "guardrail_update"},
+    )
+    tb.add_tool(
+        "PolicyGuard: Simulate",
+        {"policy": "refund_window", "prompt_variant": "tight_30_days"},
+        {"eligible": False, "days_since_cancel": 62},
+    )
+    tb.add_llm(
+        "Draft guardrail note",
+        [{"role": "user", "content": "Summarize why the guardrail should block this refund."}],
+        "Guardrail should block because cancellation was 62 days ago, outside the 30-day window. Recommend escalation to billing for exceptions.",
+        model="gpt-4o-mini",
+        status="success",
+        tokens=140,
+        cost=0.003,
+    )
+    trace, spans = tb.build()
+    trace.parent_trace_id = "trace_sup_refund_bad_001"
+    add(trace, spans)
+
+    # 18. Lineage: Fix validation (child of followup_001)
+    tb = TraceBuilder(
+        "trace_sup_refund_followup_fix_001",
+        proj,
+        minutes_ago(25),
+        "Support: Refund Incident - Fix validation [TCK-90012-C]",
+        ["env:prod", "area:refunds", "story:lineage", "guardrail"],
+    )
+    tb.add_root(
+        {"ticket_id": "TCK-90012-C", "parent_trace": "trace_sup_refund_followup_001", "test_run": True},
+        {"status": "completed", "guardrail": "passed"},
+    )
+    tb.add_tool(
+        "PolicyGuard: CheckRefundWindow",
+        {"cancelled_at": "2024-10-20", "requested_at": "2024-12-21"},
+        {"eligible": False, "policy_window_days": 30, "days_since_cancel": 62},
+    )
+    tb.add_llm(
+        "Draft corrected response",
+        [{"role": "user", "content": "Provide the policy-correct response for this request."}],
+        "Our policy allows refunds within 30 days of cancellation. Since this request is outside that window, we have escalated it to billing for review.",
+        model="gpt-4o",
+        tokens=190,
+        cost=0.004,
+    )
+    trace, spans = tb.build()
+    trace.parent_trace_id = "trace_sup_refund_followup_001"
+    add(trace, spans)
+
     await session.commit()
     return bad_traces
 
@@ -1414,6 +1502,9 @@ async def seed_logs(session: AsyncSession) -> None:
         ("log_sup_003", "proj_support", "trace_sup_refund_triage_001", "alert", "success", "Refund leakage spike detected ($47k/24h)", "gpt-4o", "openai", 900, 260, 0.006),
         ("log_sup_004", "proj_support", "trace_sup_refund_postfix_001", "guardrail", "success", "Guardrail blocked out-of-policy refund", "gpt-4o", "openai", 700, 210, 0.004),
         ("log_sup_005", "proj_support", "trace_sup_refund_postfix_002", "llm_call", "success", "Refund issued after guardrail pass", "gpt-4o", "openai", 650, 200, 0.003),
+        ("log_sup_006", "proj_support", "trace_sup_refund_followup_001", "audit", "success", "Incident follow-up analysis completed", "gpt-4o", "openai", 720, 240, 0.004),
+        ("log_sup_007", "proj_support", "trace_sup_refund_followup_002", "audit", "success", "Parallel follow-up response drafted", "gpt-4o-mini", "openai", 680, 210, 0.003),
+        ("log_sup_008", "proj_support", "trace_sup_refund_followup_fix_001", "guardrail", "success", "Fix validation passed for refund response", "gpt-4o", "openai", 600, 200, 0.003),
         ("log_legal_001", "proj_legal", "trace_legal_clause_good_001", "audit", "success", "Clause extraction completed with valid citations", "gpt-4o", "openai", 800, 320, 0.008),
         ("log_legal_002", "proj_legal", "trace_legal_redline_bad_001", "audit", "error", "HALLUCINATION: Referenced non-existent Section 19.4", "gpt-4o-mini", "openai", 1200, 400, 0.005),
         ("log_legal_003", "proj_legal", "trace_legal_citation_audit_001", "audit", "success", "Citation audit flagged 2 invalid references", "gpt-4o", "openai", 950, 280, 0.007),

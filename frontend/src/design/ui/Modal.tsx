@@ -24,8 +24,8 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className={cx('w-full max-w-lg rounded-lg border border-border-base bg-panel shadow-lg', className)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-soft-fade">
+      <div className={cx('w-full max-w-lg rounded-lg border border-border-base bg-panel shadow-lg animate-soft-pop', className)}>
         <div className="flex items-start justify-between border-b border-border-base px-5 py-4">
           <div>
             <h3 className="text-base font-semibold text-text-main">{title}</h3>

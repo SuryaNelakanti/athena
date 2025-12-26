@@ -17,6 +17,7 @@ async def init_db():
         # await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
         await _ensure_log_columns(conn)
+        await _ensure_trace_columns(conn)
 
 
 async def _ensure_log_columns(conn) -> None:
@@ -45,6 +46,13 @@ async def _ensure_log_columns(conn) -> None:
         "END "
         "WHERE event_type IS NULL"
     )
+
+
+async def _ensure_trace_columns(conn) -> None:
+    result = await conn.exec_driver_sql("PRAGMA table_info(trace)")
+    columns = {row[1] for row in result.fetchall()}
+    if "parent_trace_id" not in columns:
+        await conn.exec_driver_sql("ALTER TABLE trace ADD COLUMN parent_trace_id TEXT")
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_sessionmaker() as session:
