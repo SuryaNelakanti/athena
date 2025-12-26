@@ -47,6 +47,12 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   const [compareResult, setCompareResult] = useState<any | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
 
+  // Cross-version comparison state
+  const [compareBaselineVersionId, setCompareBaselineVersionId] = useState<string | null>(null);
+  const [compareCandidateVersionId, setCompareCandidateVersionId] = useState<string | null>(null);
+  const [baselineRuns, setBaselineRuns] = useState<ExperimentRun[]>([]);
+  const [candidateRuns, setCandidateRuns] = useState<ExperimentRun[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,13 +143,42 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
 
   useEffect(() => {
     if (runs.length === 0) return;
+    // Default the comparison selection to the first two runs of the *current* view if not set
+    // But only if we haven't explicitly set versions yet.
+    if (!compareBaselineVersionId) setCompareBaselineVersionId(selectedVersionId);
+    if (!compareCandidateVersionId) setCompareCandidateVersionId(selectedVersionId);
+
     const candidateId = selectedRunId || runs[0].id;
     if (!compareCandidateId) setCompareCandidateId(candidateId);
     if (!compareBaselineId) {
       const other = runs.find((r) => r.id !== candidateId);
       setCompareBaselineId(other ? other.id : candidateId);
     }
-  }, [runs, selectedRunId, compareBaselineId, compareCandidateId]);
+  }, [runs, selectedRunId, compareBaselineId, compareCandidateId, selectedVersionId, compareBaselineVersionId, compareCandidateVersionId]);
+
+  // Fetch baseline runs when baseline version changes
+  useEffect(() => {
+    if (!compareBaselineVersionId) return;
+    if (compareBaselineVersionId === selectedVersionId) {
+      setBaselineRuns(runs);
+    } else {
+      api.getVersionRuns(exp.id, compareBaselineVersionId)
+        .then(setBaselineRuns)
+        .catch(console.error);
+    }
+  }, [compareBaselineVersionId, selectedVersionId, runs, exp.id]);
+
+  // Fetch candidate runs when candidate version changes
+  useEffect(() => {
+    if (!compareCandidateVersionId) return;
+    if (compareCandidateVersionId === selectedVersionId) {
+      setCandidateRuns(runs);
+    } else {
+      api.getVersionRuns(exp.id, compareCandidateVersionId)
+        .then(setCandidateRuns)
+        .catch(console.error);
+    }
+  }, [compareCandidateVersionId, selectedVersionId, runs, exp.id]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -542,33 +577,80 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
               </Button>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Baseline Run</label>
-                <Select
-                  value={compareBaselineId || ''}
-                  onChange={(e) => setCompareBaselineId(e.target.value)}
-                >
-                  <option value="">Select baseline...</option>
-                  {runs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {new Date(r.created_at).toLocaleString()} ({r.status})
-                    </option>
-                  ))}
-                </Select>
+              {/* Baseline Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-text-muted" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Baseline</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-text-muted mb-1">Version</label>
+                    <Select
+                      value={compareBaselineVersionId || ''}
+                      onChange={(e) => {
+                        setCompareBaselineVersionId(e.target.value);
+                        setCompareBaselineId(null); // Reset run selection
+                      }}
+                    >
+                      {versions.map((v) => (
+                        <option key={v.id} value={v.id}>v{v.version_number}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-text-muted mb-1">Run</label>
+                    <Select
+                      value={compareBaselineId || ''}
+                      onChange={(e) => setCompareBaselineId(e.target.value)}
+                    >
+                      <option value="">Select run...</option>
+                      {baselineRuns.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {new Date(r.created_at).toLocaleString()} ({(Number(r.summary?.avg_score || 0) * 100).toFixed(0)}%)
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Candidate Run</label>
-                <Select
-                  value={compareCandidateId || ''}
-                  onChange={(e) => setCompareCandidateId(e.target.value)}
-                >
-                  <option value="">Select candidate...</option>
-                  {runs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {new Date(r.created_at).toLocaleString()} ({r.status})
-                    </option>
-                  ))}
-                </Select>
+
+              {/* Candidate Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Candidate</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-text-muted mb-1">Version</label>
+                    <Select
+                      value={compareCandidateVersionId || ''}
+                      onChange={(e) => {
+                        setCompareCandidateVersionId(e.target.value);
+                        setCompareCandidateId(null); // Reset run selection
+                      }}
+                    >
+                      {versions.map((v) => (
+                        <option key={v.id} value={v.id}>v{v.version_number}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-text-muted mb-1">Run</label>
+                    <Select
+                      value={compareCandidateId || ''}
+                      onChange={(e) => setCompareCandidateId(e.target.value)}
+                    >
+                      <option value="">Select run...</option>
+                      {candidateRuns.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {new Date(r.created_at).toLocaleString()} ({(Number(r.summary?.avg_score || 0) * 100).toFixed(0)}%)
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
 
