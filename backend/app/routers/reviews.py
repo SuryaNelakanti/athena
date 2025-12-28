@@ -10,6 +10,7 @@ from sqlmodel import select
 from ..database import get_session
 from ..models import ReviewItemModel, TraceModel, SpanModel
 from ..services.dataset_service import DatasetService
+from ..services.trace_service import extract_trace_io
 
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
@@ -228,36 +229,38 @@ async def promote_review_to_dataset(
     if review.source_type != "trace":
         raise HTTPException(status_code=400, detail="Only trace-based reviews are supported for promotion")
 
-    trace, spans = await _load_trace_with_spans(session, review.source_id)
-    first_span = spans[0]
-    last_span = spans[-1]
+    try:
+        input_data, output_data, input_span_id, output_span_id = await extract_trace_io(
+            session,
+            review.source_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-    input_data = first_span.input or {}
-    if payload.corrected_expected is not None:
-        expected_data = payload.corrected_expected
-    else:
-        output = last_span.output or {}
-        if isinstance(output, dict):
-            if "output_text" in output:
-                expected_data = {"answer": output["output_text"]}
-            elif "value" in output:
-                expected_data = {"answer": output["value"]}
-            else:
-                expected_data = output
-        else:
-            expected_data = {"answer": str(output)}
+    expected_data = payload.corrected_expected if payload.corrected_expected is not None else output_data
 
     service = DatasetService(session)
     row = await service.add_row(
         dataset_id=payload.dataset_id,
         input_data=input_data,
         expected_data=expected_data,
-        meta={"promoted_from_review": True, "review_id": review.id},
+        meta={
+            "promoted_from_review": True,
+            "review_id": review.id,
+            "input_span_id": input_span_id,
+            "output_span_id": output_span_id,
+        },
         example_type=payload.example_type,
         row_kind=payload.row_kind,
         eval_label=payload.eval_label,
-        source_trace_id=trace.id,
-        version_meta={"source": "review", "review_id": review.id, "trace_id": trace.id},
+        source_trace_id=review.source_id,
+        version_meta={
+            "source": "review",
+            "review_id": review.id,
+            "trace_id": review.source_id,
+            "input_span_id": input_span_id,
+            "output_span_id": output_span_id,
+        },
     )
 
     review.dataset_id = payload.dataset_id

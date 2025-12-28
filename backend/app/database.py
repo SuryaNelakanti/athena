@@ -53,6 +53,12 @@ async def _ensure_trace_columns(conn) -> None:
     columns = {row[1] for row in result.fetchall()}
     if "parent_trace_id" not in columns:
         await conn.exec_driver_sql("ALTER TABLE trace ADD COLUMN parent_trace_id TEXT")
+    if "trace_group_id" not in columns:
+        await conn.exec_driver_sql("ALTER TABLE trace ADD COLUMN trace_group_id TEXT")
+    if "input_span_id" not in columns:
+        await conn.exec_driver_sql("ALTER TABLE trace ADD COLUMN input_span_id TEXT")
+    if "output_span_id" not in columns:
+        await conn.exec_driver_sql("ALTER TABLE trace ADD COLUMN output_span_id TEXT")
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_sessionmaker() as session:

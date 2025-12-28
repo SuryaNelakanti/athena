@@ -27,6 +27,7 @@ class ChatCompletionRequest(BaseModel):
     provider: Optional[str] = None # Force specific provider if model name is ambiguous
     trace_id: Optional[str] = None # Parent trace ID for context propagation
     parent_span_id: Optional[str] = None # Parent span ID for span nesting
+    trace_group_id: Optional[str] = None # Group or session identifier for related traces
     project_id: Optional[str] = None # Target project for this request
 
 class ChatCompletionChoice(BaseModel):

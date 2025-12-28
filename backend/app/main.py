@@ -4,7 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from sqlmodel import select
 
-from .database import init_db, AsyncSessionLocal
+from .database import init_db, AsyncSessionLocal, get_session
 from .models import Project, OrganizationModel
 from .routers import proxy as proxy_router
 from .routers import views as views_router

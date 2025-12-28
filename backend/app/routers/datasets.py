@@ -8,6 +8,7 @@ import uuid
 from ..database import get_session
 from ..models import DatasetModel, DatasetRowModel, DatasetVersionModel
 from ..services.dataset_service import DatasetService
+from ..services.trace_service import extract_trace_io
 
 
 # Request body for promote endpoint
@@ -320,61 +321,43 @@ async def promote_trace_to_dataset(
     row_kind = body.row_kind if body else None
     eval_label = body.eval_label if body else None
 
-    from ..models import TraceModel, SpanModel
-
-    
-    # Get the trace
-    trace = await session.get(TraceModel, trace_id)
-    if not trace:
-        raise HTTPException(status_code=404, detail=f"Trace {trace_id} not found")
-    
     # Get the dataset
     dataset = await session.get(DatasetModel, dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found")
-    
-    # Get spans to extract input/output
-    stmt = select(SpanModel).where(SpanModel.trace_id == trace_id).order_by(SpanModel.start_time)
-    result = await session.execute(stmt)
-    spans = result.scalars().all()
-    
-    if not spans:
-        raise HTTPException(status_code=400, detail="Trace has no spans")
-    
-    # Extract input from first span, output from last span
-    first_span = spans[0]
-    last_span = spans[-1]
-    
-    input_data = first_span.input or {}
-    
-    # For expected: use corrected_expected if provided, otherwise use last span's output
-    if corrected_expected is not None:
-        expected_data = corrected_expected
-    else:
-        output = last_span.output or {}
-        # Try to extract the text output
-        if isinstance(output, dict):
-            if "output_text" in output:
-                expected_data = {"answer": output["output_text"]}
-            elif "value" in output:
-                expected_data = {"answer": output["value"]}
-            else:
-                expected_data = output
-        else:
-            expected_data = {"answer": str(output)}
-    
+
+    try:
+        input_data, output_data, input_span_id, output_span_id = await extract_trace_io(
+            session,
+            trace_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # For expected: use corrected_expected if provided, otherwise use raw output
+    expected_data = corrected_expected if corrected_expected is not None else output_data
+
     service = DatasetService(session)
     try:
         return await service.add_row(
             dataset_id=dataset_id,
             input_data=input_data,
             expected_data=expected_data,
-            meta={"promoted_from_trace": True},
+            meta={
+                "promoted_from_trace": True,
+                "input_span_id": input_span_id,
+                "output_span_id": output_span_id,
+            },
             example_type=example_type,
             row_kind=row_kind,
             eval_label=eval_label,
             source_trace_id=trace_id,
-            version_meta={"source": "trace", "trace_id": trace_id},
+            version_meta={
+                "source": "trace",
+                "trace_id": trace_id,
+                "input_span_id": input_span_id,
+                "output_span_id": output_span_id,
+            },
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

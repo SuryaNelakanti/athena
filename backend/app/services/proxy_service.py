@@ -5,9 +5,11 @@ import json
 import os
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ProviderConfig, ModelCard
 from app.providers.factory import get_envoy
 from app.models import TraceModel, SpanModel, SpanType, DatasetRowModel, LogModel  # Trace, Span, Dataset, Log DB models
+from app.services.trace_service import extract_trace_io
 from app.services.provider_keys import ProviderKeyStore
 from app.services.job_service import JobService
 from app.services.cache import get_cache
@@ -101,6 +103,29 @@ class ProxyService:
 
         return None
 
+    async def _update_trace_aggregates(self, trace_id: str) -> None:
+        """Recompute trace aggregates from all spans."""
+        stmt = select(SpanModel).where(SpanModel.trace_id == trace_id)
+        result = await self.session.execute(stmt)
+        spans = result.scalars().all()
+        if not spans:
+            return
+
+        total_tokens = sum((span.metrics or {}).get("total_tokens", 0) or 0 for span in spans)
+        total_cost = sum((span.metrics or {}).get("cost", 0) or 0 for span in spans)
+        start_times = [span.start_time for span in spans if span.start_time is not None]
+        end_times = [span.end_time for span in spans if span.end_time is not None]
+        total_latency = 0.0
+        if start_times and end_times:
+            total_latency = max(end_times) - min(start_times)
+
+        trace = await self.session.get(TraceModel, trace_id)
+        if trace:
+            trace.total_tokens = int(total_tokens)
+            trace.total_cost = float(total_cost)
+            trace.total_latency = float(total_latency)
+            self.session.add(trace)
+
     async def chat_completion(
         self,
         request: ChatCompletionRequest,
@@ -132,10 +157,19 @@ class ProxyService:
         
         trace = existing_trace
         if not trace:
+            trace_group_id = request.trace_group_id
+            if not trace_group_id and parent_trace_id:
+                parent_trace = await self.session.get(TraceModel, parent_trace_id)
+                trace_group_id = parent_trace.trace_group_id if parent_trace else parent_trace_id
+            if not trace_group_id:
+                trace_group_id = trace_id
             trace = TraceModel(
                 id=trace_id,
                 project_id=project_id,
                 parent_trace_id=parent_trace_id,
+                trace_group_id=trace_group_id,
+                input_span_id=span_id,
+                output_span_id=span_id,
                 timestamp=start_time,
                 total_latency=0.0,
                 total_cost=0.0,
@@ -240,6 +274,9 @@ class ProxyService:
              self.session.add(span)
              self.session.add(trace)
              await self.session.commit()
+             if existing_trace:
+                 await self._update_trace_aggregates(trace_id)
+                 await self.session.commit()
 
              try:
                  job_service = JobService(self.session)
@@ -287,7 +324,10 @@ class ProxyService:
             self.session.add(span)
             self.session.add(trace)
             await self.session.commit()
-            
+            if existing_trace:
+                await self._update_trace_aggregates(trace_id)
+                await self.session.commit()
+
             raise e
 
     async def stream_chat_completion(
@@ -309,10 +349,19 @@ class ProxyService:
 
         trace = existing_trace
         if not trace:
+            trace_group_id = request.trace_group_id
+            if not trace_group_id and parent_trace_id:
+                parent_trace = await self.session.get(TraceModel, parent_trace_id)
+                trace_group_id = parent_trace.trace_group_id if parent_trace else parent_trace_id
+            if not trace_group_id:
+                trace_group_id = trace_id
             trace = TraceModel(
                 id=trace_id,
                 project_id=project_id,
                 parent_trace_id=parent_trace_id,
+                trace_group_id=trace_group_id,
+                input_span_id=span_id,
+                output_span_id=span_id,
                 timestamp=start_time,
                 total_latency=0.0,
                 total_cost=0.0,
@@ -422,6 +471,9 @@ class ProxyService:
             self.session.add(span)
             self.session.add(trace)
             await self.session.commit()
+            if existing_trace:
+                await self._update_trace_aggregates(trace_id)
+                await self.session.commit()
 
             try:
                 job_service = JobService(self.session)
@@ -466,6 +518,9 @@ class ProxyService:
             self.session.add(span)
             self.session.add(trace)
             await self.session.commit()
+            if existing_trace:
+                await self._update_trace_aggregates(trace_id)
+                await self.session.commit()
             raise e
 
     async def list_models(self) -> List[ModelCard]:
@@ -497,25 +552,27 @@ class ProxyService:
 
     async def promote_to_dataset(self, trace_id: str, dataset_id: str) -> DatasetRowModel:
         """
-        Promotes the root span of a trace to a dataset row.
+        Promotes canonical trace input/output to a dataset row.
         """
-        from sqlmodel import select
         from app.services.dataset_service import DatasetService
-        statement = select(SpanModel).where(
-            SpanModel.trace_id == trace_id, 
-            SpanModel.parent_id == None
+        input_data, output_data, input_span_id, output_span_id = await extract_trace_io(
+            self.session,
+            trace_id,
         )
-        result = await self.session.execute(statement)
-        root_span = result.scalar_one_or_none()
-        
-        if not root_span:
-            raise ValueError(f"Root span not found for trace {trace_id}")
-            
         service = DatasetService(self.session)
         return await service.add_row(
             dataset_id=dataset_id,
-            input_data=root_span.input,
-            expected_data=root_span.output,
-            meta={"source_trace_id": trace_id},
-            version_meta={"source": "trace", "trace_id": trace_id},
+            input_data=input_data,
+            expected_data=output_data,
+            meta={
+                "source_trace_id": trace_id,
+                "input_span_id": input_span_id,
+                "output_span_id": output_span_id,
+            },
+            version_meta={
+                "source": "trace",
+                "trace_id": trace_id,
+                "input_span_id": input_span_id,
+                "output_span_id": output_span_id,
+            },
         )

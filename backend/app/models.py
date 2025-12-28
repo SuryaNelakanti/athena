@@ -121,10 +121,13 @@ class EnvironmentModel(SQLModel, table=True):
 
 class TraceModel(SQLModel, table=True):
     __tablename__ = "trace" # Rename table to avoid keyword conflicts if any, though Trace is usually safe
-    
+
     id: str = Field(primary_key=True)
     project_id: str = Field(foreign_key="project.id")
     parent_trace_id: Optional[str] = Field(default=None, index=True)
+    trace_group_id: Optional[str] = Field(default=None, index=True)
+    input_span_id: Optional[str] = Field(default=None, index=True)
+    output_span_id: Optional[str] = Field(default=None, index=True)
     timestamp: int = Field(index=True)
     total_latency: float
     total_cost: float
@@ -520,6 +523,9 @@ class Trace(BaseModel):
     spans: List[Span]
     project_id: str
     parent_trace_id: Optional[str] = None
+    trace_group_id: Optional[str] = None
+    input_span_id: Optional[str] = None
+    output_span_id: Optional[str] = None
     timestamp: int
     total_latency: float
     total_cost: float
