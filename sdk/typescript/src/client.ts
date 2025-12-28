@@ -35,7 +35,7 @@ export class AthenaClient {
 
   async chatCompletion(
     request: ChatCompletionRequest,
-    opts: { traceContext?: TraceContext; bypassCache?: boolean } = {}
+    opts: { traceContext?: TraceContext; bypassCache?: boolean; cacheKey?: string } = {}
   ): Promise<ChatCompletionResponse> {
     if (request.stream) {
       throw new Error("Streaming is not supported in the minimal SDK.");
@@ -72,6 +72,9 @@ export class AthenaClient {
     }
     if (opts.bypassCache) {
       headers["X-Athena-Cache-Control"] = "no-cache";
+    }
+    if (opts.cacheKey) {
+      headers["X-Athena-Cache-Key"] = opts.cacheKey;
     }
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
@@ -112,7 +115,7 @@ export class AthenaClient {
 
   async *streamChatCompletion(
     request: ChatCompletionRequest,
-    opts: { traceContext?: TraceContext; bypassCache?: boolean } = {}
+    opts: { traceContext?: TraceContext; bypassCache?: boolean; cacheKey?: string } = {}
   ): AsyncGenerator<StreamChunk> {
     const context = this.resolveContext(request, opts.traceContext);
     const body = {
@@ -146,6 +149,9 @@ export class AthenaClient {
     }
     if (opts.bypassCache) {
       headers["X-Athena-Cache-Control"] = "no-cache";
+    }
+    if (opts.cacheKey) {
+      headers["X-Athena-Cache-Key"] = opts.cacheKey;
     }
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {

@@ -16,3 +16,6 @@ Trace ID Format
 Retries and Streaming
 - Both SDKs support configurable retry/backoff and streaming calls.
 - Python retry config uses seconds; TypeScript uses milliseconds.
+
+Cache Encryption
+- Both SDKs accept `cache_key`/`cacheKey` to enable AES-256-GCM cache encryption (base64url or hex for 32-byte key).

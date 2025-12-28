@@ -3,6 +3,9 @@ Athena is an AI proxy + observability + evaluation platform with a closed-loop w
 
 
 
+## SDKs
+Minimal Python and TypeScript SDKs live under `sdk/`. See `sdk/README.md` for setup, retry/backoff, and streaming usage.
+
 ## Configuration
 
 To use real AI providers, you need to configure your API keys.

@@ -40,3 +40,4 @@ Notes
 - `trace_id` format is `trace_{uuid}`.
 - Use `stream_chat_completion()` for streaming responses.
 - Retry/backoff settings use seconds in Python.
+- `cache_key` enables AES-256-GCM cache encryption (base64url or hex for 32-byte key).

@@ -64,6 +64,15 @@ class ProxyService:
         # Fallback or error
         raise ValueError(f"Could not resolve provider for model: {request.model}")
 
+    def _normalize_messages(self, messages: list) -> list:
+        normalized = []
+        for msg in messages:
+            if hasattr(msg, "model_dump"):
+                normalized.append(msg.model_dump(exclude_none=True))
+            else:
+                normalized.append(msg)
+        return normalized
+
     def _env_float(self, key: str) -> Optional[float]:
         raw = os.getenv(key)
         if raw is None:
@@ -132,9 +141,11 @@ class ProxyService:
         project_id: str = "default",
         bypass_cache: bool = False,
         parent_span_id: Optional[str] = None,
+        cache_encryption_key: Optional[str] = None,
     ) -> ChatCompletionResponse:
         provider_name = self._resolve_provider(request)
         envoy = get_envoy(provider_name, self._provider_config(provider_name))
+        cache = get_cache()
         
         # --- Start Trace ---
         trace_id, parent_trace_id, resolved_parent_span_id, existing_trace = await self._resolve_trace_context(
@@ -204,8 +215,118 @@ class ProxyService:
         )
         self.session.add(span)
         # Checkpoint (optional, maybe skip commit to save IO, commit at end)
-        
+
         try:
+             normalized_messages = self._normalize_messages(request.messages)
+             cache_kwargs = {
+                 "provider": provider_name,
+                 "temperature": request.temperature,
+                 "max_tokens": request.max_tokens,
+                 "top_p": request.top_p,
+                 "presence_penalty": request.presence_penalty,
+                 "frequency_penalty": request.frequency_penalty,
+                 "stop": request.stop,
+                 "n": request.n,
+                 "logit_bias": request.logit_bias,
+                 "user": request.user,
+                 "stream": False,
+             }
+             cache_key_bytes = None
+             if not bypass_cache and cache_encryption_key is not None:
+                 cache_key_bytes = cache.normalize_encryption_key(cache_encryption_key)
+             cached_payload = None
+             if not bypass_cache:
+                 cached_payload = await cache.get(
+                     model=request.model,
+                     messages=normalized_messages,
+                     encryption_key=cache_key_bytes,
+                     **cache_kwargs,
+                 )
+             if cached_payload is not None:
+                 response = ChatCompletionResponse.model_validate(cached_payload)
+                 end_time = int(time.time() * 1000)
+                 latency = end_time - start_time
+
+                 span.end_time = end_time
+                 span.status = "success"
+                 span.output = response.model_dump(exclude_none=True)
+                 attributes = {
+                     **(span.attributes or {}),
+                     "cache_hit": True,
+                     "cache_encrypted": bool(cache_key_bytes),
+                 }
+                 if response.athena_reasoning:
+                     attributes.update({
+                         "reasoning_content": response.athena_reasoning,
+                         "reasoning_enabled": True,
+                     })
+                 span.attributes = attributes
+
+                 cost = self._estimate_cost(response.usage)
+                 if response.usage and cost is not None:
+                     response.usage.cost = cost
+
+                 if response.usage:
+                     span.metrics = {
+                         "prompt_tokens": response.usage.prompt_tokens,
+                         "completion_tokens": response.usage.completion_tokens,
+                         "total_tokens": response.usage.total_tokens,
+                         "latency_ms": latency,
+                         **({"cost": cost} if cost is not None else {}),
+                     }
+                     if not existing_trace:
+                         trace.total_tokens = response.usage.total_tokens
+                         if cost is not None:
+                             trace.total_cost = cost
+
+                 if not existing_trace:
+                     trace.total_latency = latency
+                     trace.status = "success"
+
+                 log = LogModel(
+                     id=f"log_{uuid.uuid4().hex[:16]}",
+                     project_id=project_id,
+                     trace_id=trace_id,
+                     span_id=span_id,
+                     level="INFO",
+                     event_type="llm_call",
+                     status="success",
+                     message=f"LLM call to {request.model} (cache)",
+                     timestamp=start_time,
+                     latency_ms=latency,
+                     prompt_tokens=response.usage.prompt_tokens if response.usage else None,
+                     completion_tokens=response.usage.completion_tokens if response.usage else None,
+                     total_tokens=response.usage.total_tokens if response.usage else None,
+                     cost=cost,
+                     model=request.model,
+                     provider=provider_name,
+                     attributes={
+                         "cache_hit": True,
+                         "cache_encrypted": bool(cache_key_bytes),
+                         "has_reasoning": bool(response.athena_reasoning),
+                     },
+                     log_metadata={},
+                     created_at=end_time,
+                 )
+                 self.session.add(log)
+
+                 self.session.add(span)
+                 self.session.add(trace)
+                 await self.session.commit()
+                 if existing_trace:
+                     await self._update_trace_aggregates(trace_id)
+                     await self.session.commit()
+
+                 try:
+                     job_service = JobService(self.session)
+                     await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
+                 except Exception:
+                     pass
+
+                 response.trace_id = trace_id
+                 response.span_id = span_id
+                 return response
+
              response = await envoy.chat_completion(request)
              
              # Success
@@ -284,6 +405,18 @@ class ProxyService:
              except Exception:
                  pass
              
+                 if not bypass_cache:
+                     cached_payload = response.model_dump(exclude_none=True)
+                     cached_payload.pop("trace_id", None)
+                     cached_payload.pop("span_id", None)
+                     await cache.set(
+                         model=request.model,
+                         messages=normalized_messages,
+                         response=cached_payload,
+                         encryption_key=cache_key_bytes,
+                         **cache_kwargs,
+                     )
+
              # Return response with trace context for client correlation
              response.trace_id = trace_id
              response.span_id = span_id

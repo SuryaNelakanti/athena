@@ -33,3 +33,4 @@ Notes
 - Use `streamChatCompletion()` for streaming responses.
 - `traceId` format is `trace_{uuid}`.
 - Retry/backoff settings use milliseconds in TypeScript.
+- `cacheKey` enables AES-256-GCM cache encryption (base64url or hex for 32-byte key).

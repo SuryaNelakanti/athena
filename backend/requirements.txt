@@ -9,3 +9,4 @@ anthropic
 google-generativeai
 pytest
 pytest-asyncio
+cryptography

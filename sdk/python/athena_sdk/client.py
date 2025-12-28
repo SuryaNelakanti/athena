@@ -40,6 +40,7 @@ class AthenaClient:
         request: dict[str, Any],
         trace_context: Optional[TraceContext] = None,
         bypass_cache: bool = False,
+        cache_key: Optional[str] = None,
     ) -> dict[str, Any]:
         if request.get("stream"):
             raise AthenaClientError("Use stream_chat_completion for streaming requests.")
@@ -55,6 +56,8 @@ class AthenaClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
         if bypass_cache:
             headers["X-Athena-Cache-Control"] = "no-cache"
+        if cache_key:
+            headers["X-Athena-Cache-Key"] = cache_key
 
         url = f"{self.base_url}/v1/chat/completions"
         payload = json.dumps(resolved_request).encode("utf-8")
@@ -83,6 +86,7 @@ class AthenaClient:
         request: dict[str, Any],
         trace_context: Optional[TraceContext] = None,
         bypass_cache: bool = False,
+        cache_key: Optional[str] = None,
     ) -> Iterator[dict[str, Any]]:
         resolved_request, context = self._apply_trace_context(request, trace_context)
         resolved_request["stream"] = True
@@ -98,6 +102,8 @@ class AthenaClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
         if bypass_cache:
             headers["X-Athena-Cache-Control"] = "no-cache"
+        if cache_key:
+            headers["X-Athena-Cache-Key"] = cache_key
 
         url = f"{self.base_url}/v1/chat/completions"
         payload = json.dumps(resolved_request).encode("utf-8")

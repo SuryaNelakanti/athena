@@ -18,7 +18,8 @@ async def chat_completions(
     x_athena_project_id: Annotated[Optional[str], Header()] = None,
     x_athena_trace_id: Annotated[Optional[str], Header()] = None,
     x_athena_parent_span_id: Annotated[Optional[str], Header()] = None,
-    x_athena_cache_control: Annotated[Optional[str], Header()] = None  # "no-cache" to bypass
+    x_athena_cache_control: Annotated[Optional[str], Header()] = None,  # "no-cache" to bypass
+    x_athena_cache_key: Annotated[Optional[str], Header()] = None,  # base64url/hex 32-byte key
 ):
     service = ProxyService(session)
     
@@ -52,6 +53,7 @@ async def chat_completions(
                 project_id,
                 bypass_cache=bypass_cache,
                 parent_span_id=request.parent_span_id,
+                cache_encryption_key=x_athena_cache_key,
             )
             
             # Return response with trace context headers for client correlation
