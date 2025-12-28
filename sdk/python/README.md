@@ -36,3 +36,4 @@ Notes
 - The SDK uses the Python standard library only.
 - `trace_group_id` defaults to `trace_id` unless provided.
 - Use `context_from_response` to chain spans with `parent_span_id`.
+- `trace_id` format is `trace_{uuid}`.

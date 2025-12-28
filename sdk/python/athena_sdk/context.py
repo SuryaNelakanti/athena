@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import functools
 import contextvars
 import inspect
 import uuid
@@ -83,6 +84,7 @@ def observe(func: Optional[F] = None) -> F:
     def decorator(fn: F) -> F:
         if inspect.iscoroutinefunction(fn):
 
+            @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 existing = get_current_trace_context()
                 context = existing or new_trace_context()
@@ -98,6 +100,7 @@ def observe(func: Optional[F] = None) -> F:
 
             return cast(F, async_wrapper)
 
+        @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             existing = get_current_trace_context()
             context = existing or new_trace_context()

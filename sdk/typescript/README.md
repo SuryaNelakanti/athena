@@ -30,3 +30,4 @@ await client.chatCompletion(
 Notes
 - Uses `fetch` (Node 18+ or a fetch polyfill).
 - Streaming is not supported in this minimal SDK.
+- `traceId` format is `trace_{uuid}`.
