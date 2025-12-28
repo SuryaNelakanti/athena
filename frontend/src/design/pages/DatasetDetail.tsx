@@ -267,7 +267,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     )}
                 </div>
             )}
-        </div><div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6">
                 {activeTab !== 'history' ? (
                     <>
                         {loading ? (
@@ -470,7 +470,9 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         )}
                     </div>
                 )}
-            </div><Modal
+            </div>
+        </div>
+            <Modal
                 open={showAddModal}
                 title={isResourceTab ? 'Add Resource' : 'Add Eval Row'}
                 description={isResourceTab ? 'Store reference material for context.' : 'Create an input-output pair for testing.'}
