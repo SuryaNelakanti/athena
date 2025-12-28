@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Athena is an AI proxy, observability, and evaluation platform with a closed-loop workflow from logs to datasets to experiments.">
+    <title>Athena | AI Proxy + Observability + Evaluation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg: #f7f9fc;
+        --bg-2: #eef3fb;
+        --ink: #0b1220;
+        --muted: #536276;
+        --accent: #2bd3c6;
+        --accent-2: #5f8bff;
+        --accent-3: #ff9f6e;
+        --surface: #ffffff;
+        --surface-2: #f2f6fb;
+        --border: rgba(11, 18, 32, 0.08);
+        --shadow: 0 24px 50px rgba(14, 23, 36, 0.12);
+        --radius: 22px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: "Sora", sans-serif;
+        color: var(--ink);
+        background-color: var(--bg);
+        background-image:
+          radial-gradient(900px 600px at 10% -5%, rgba(43, 211, 198, 0.18), transparent 60%),
+          radial-gradient(900px 600px at 90% -10%, rgba(95, 139, 255, 0.2), transparent 60%),
+          linear-gradient(180deg, #f9fbff 0%, #eef3fb 55%, #f8fbff 100%);
+        min-height: 100%;
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        max-width: 100%;
+        display: block;
+      }
+
+      .page {
+        position: relative;
+        isolation: isolate;
+      }
+
+      .bg-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(11, 18, 32, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(11, 18, 32, 0.05) 1px, transparent 1px);
+        background-size: 140px 140px;
+        opacity: 0.3;
+        pointer-events: none;
+        mask-image: radial-gradient(circle at 30% 0%, black 0%, transparent 70%);
+        z-index: 0;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(18px);
+        background: rgba(249, 251, 255, 0.8);
+        border-bottom: 1px solid rgba(11, 18, 32, 0.08);
+      }
+
+      .nav-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .logo-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        box-shadow: 0 12px 24px rgba(43, 211, 198, 0.25);
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 18px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .nav-actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .button {
+        padding: 12px 20px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 14px;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .button.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #041018;
+        box-shadow: 0 18px 40px rgba(95, 139, 255, 0.25);
+      }
+
+      .button.secondary {
+        border-color: rgba(11, 18, 32, 0.12);
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--ink);
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+      }
+
+      main {
+        position: relative;
+        z-index: 2;
+      }
+
+      .section {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 90px 24px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 32px;
+        align-items: center;
+        padding-top: 110px;
+      }
+
+      .hero-copy {
+        grid-column: span 6;
+        display: grid;
+        gap: 22px;
+      }
+
+      .eyebrow {
+        font-family: "Chakra Petch", sans-serif;
+        font-size: 12px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1, h2, h3 {
+        font-family: "Chakra Petch", sans-serif;
+        margin: 0;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.8rem, 5vw, 4.6rem);
+        line-height: 1.02;
+      }
+
+      .hero h1 span {
+        color: var(--accent-2);
+      }
+
+      .hero p {
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.7;
+        margin: 0;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .hero-highlights {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+      }
+
+      .highlight {
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(11, 18, 32, 0.08);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+      }
+
+      .highlight strong {
+        display: block;
+        font-size: 0.9rem;
+      }
+
+      .highlight span {
+        font-size: 0.75rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .hero-visual {
+        grid-column: span 6;
+        position: relative;
+        min-height: 520px;
+        display: grid;
+        align-items: center;
+      }
+
+      .hero-frame {
+        padding: 12px;
+        border-radius: 26px;
+        background: linear-gradient(135deg, rgba(43, 211, 198, 0.45), rgba(95, 139, 255, 0.4), rgba(255, 159, 110, 0.3));
+        box-shadow: var(--shadow);
+      }
+
+      .hero-frame img {
+        border-radius: 18px;
+        border: 1px solid rgba(11, 18, 32, 0.08);
+      }
+
+      [data-tilt] {
+        transform: perspective(1200px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+        transition: transform 0.25s ease;
+      }
+
+      .float-card {
+        position: absolute;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(11, 18, 32, 0.08);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+        font-size: 12px;
+      }
+
+      .float-card strong {
+        display: block;
+        font-size: 0.95rem;
+      }
+
+      .float-card span {
+        color: var(--muted);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 10px;
+      }
+
+      .float-card.one {
+        top: 12%;
+        left: -6%;
+      }
+
+      .float-card.two {
+        bottom: 10%;
+        right: -6%;
+      }
+
+      .signal-band {
+        border-top: 1px solid rgba(11, 18, 32, 0.08);
+        border-bottom: 1px solid rgba(11, 18, 32, 0.08);
+        overflow: hidden;
+        padding: 18px 0;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .signal-track {
+        display: flex;
+        gap: 32px;
+        white-space: nowrap;
+        animation: marquee 18s linear infinite;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.28em;
+        color: var(--muted);
+      }
+
+      @keyframes marquee {
+        to {
+          transform: translateX(-50%);
+        }
+      }
+
+      .section-head {
+        display: grid;
+        gap: 12px;
+        max-width: 680px;
+        margin-bottom: 36px;
+      }
+
+      .section-head h2 {
+        font-size: clamp(2rem, 3.2vw, 3rem);
+      }
+
+      .section-head p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .product-grid,
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 20px;
+      }
+
+      .panel,
+      .feature-card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        border: 1px solid rgba(11, 18, 32, 0.08);
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+        box-shadow: var(--shadow);
+      }
+
+      .panel-meta {
+        font-family: "Chakra Petch", sans-serif;
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--accent-2);
+      }
+
+      .panel span,
+      .feature-card p {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0;
+      }
+
+      .panel img {
+        border-radius: 16px;
+        border: 1px solid rgba(11, 18, 32, 0.08);
+      }
+
+      .feature-card h3 {
+        margin: 0;
+      }
+
+      .span-7 { grid-column: span 7; }
+      .span-5 { grid-column: span 5; }
+      .span-4 { grid-column: span 4; }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .workflow-step {
+        border-radius: 18px;
+        padding: 20px;
+        border: 1px solid rgba(11, 18, 32, 0.1);
+        background: rgba(255, 255, 255, 0.85);
+        display: grid;
+        gap: 10px;
+      }
+
+      .workflow-step strong {
+        font-family: "Chakra Petch", sans-serif;
+        font-size: 0.9rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent-2);
+      }
+
+      .workflow-step span {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .security-callout {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 20px;
+        align-items: center;
+      }
+
+      .security-text {
+        grid-column: span 6;
+      }
+
+      .security-list {
+        grid-column: span 6;
+        display: grid;
+        gap: 12px;
+      }
+
+      .security-item {
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(11, 18, 32, 0.1);
+        background: rgba(255, 255, 255, 0.85);
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+      }
+
+      .metric {
+        padding: 20px;
+        border-radius: 18px;
+        border: 1px solid rgba(11, 18, 32, 0.1);
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .metric strong {
+        font-size: 2rem;
+      }
+
+      .testimonial {
+        margin-top: 24px;
+        padding: 28px;
+        border-radius: var(--radius);
+        border: 1px solid rgba(11, 18, 32, 0.1);
+        background: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(240, 246, 255, 0.9));
+        display: grid;
+        gap: 12px;
+      }
+
+      .testimonial p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .cta {
+        text-align: center;
+        padding: 60px 32px;
+        border-radius: 28px;
+        border: 1px solid rgba(95, 139, 255, 0.2);
+        background: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(238, 245, 255, 0.9));
+        box-shadow: 0 30px 80px rgba(14, 23, 36, 0.12);
+      }
+
+      .footer {
+        text-align: center;
+        padding: 40px 24px 60px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      [data-reveal] {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.8s ease, transform 0.8s ease;
+      }
+
+      [data-reveal].visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 980px) {
+        .nav-links {
+          display: none;
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-copy,
+        .hero-visual,
+        .security-text,
+        .security-list {
+          grid-column: span 12;
+        }
+
+        .hero-visual {
+          min-height: 420px;
+        }
+
+        .product-grid,
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .span-7,
+        .span-5,
+        .span-4 {
+          grid-column: span 1;
+        }
+
+        .workflow {
+          grid-template-columns: 1fr;
+        }
+
+        .float-card.one,
+        .float-card.two {
+          position: static;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hero-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .signal-track {
+          animation: none;
+        }
+
+        [data-tilt] {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="bg-grid" aria-hidden="true"></div>
+
+      <header class="nav">
+        <div class="nav-inner">
+          <div class="logo">
+            <div class="logo-mark"></div>
+            <span>Athena</span>
+          </div>
+          <nav class="nav-links">
+            <a href="#platform">Platform</a>
+            <a href="#product">Product</a>
+            <a href="#workflow">Workflow</a>
+            <a href="#security">Security</a>
+            <a href="#demo">Demo</a>
+          </nav>
+          <div class="nav-actions">
+            <a class="button secondary" href="#demo">Request demo</a>
+            <a class="button primary" href="#demo">Start free</a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="section hero" id="platform">
+          <div class="hero-copy" data-reveal>
+            <div class="eyebrow">ATHENA // AI ENGINEERING LOOP</div>
+            <h1>Ship reliable AI faster with <span>one loop</span>.</h1>
+            <p>
+              Athena unifies AI proxy, observability, and evaluation so production data flows
+              directly into experiments. Close the loop from logs to datasets to experiments,
+              with MCP tooling built for IDE agents.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#demo">Book a 20 minute walkthrough</a>
+              <a class="button secondary" href="#workflow">See the workflow</a>
+            </div>
+            <div class="hero-highlights">
+              <div class="highlight">
+                <span>Unified</span>
+                <strong>Provider proxy</strong>
+              </div>
+              <div class="highlight">
+                <span>Separated</span>
+                <strong>Reasoning traces</strong>
+              </div>
+              <div class="highlight">
+                <span>Private</span>
+                <strong>Data plane</strong>
+              </div>
+            </div>
+          </div>
+          <div class="hero-visual" data-reveal>
+            <div class="hero-frame" data-tilt>
+              <img src="assets/2025-12-28%2000.14.17%20localhost%20103d45eb2847.png" alt="Athena trace detail view with lineage and span metrics">
+            </div>
+            <div class="float-card one">
+              <span>Trace health</span>
+              <strong>92% passing</strong>
+            </div>
+            <div class="float-card two">
+              <span>P95 latency</span>
+              <strong>761ms</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="signal-band" aria-hidden="true">
+          <div class="signal-track">
+            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
+            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
+            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
+          </div>
+        </section>
+
+        <section class="section" id="product">
+          <div class="section-head" data-reveal>
+            <div class="eyebrow">PRODUCT SURFACES</div>
+            <h2>Every surface is designed to reduce time-to-trust.</h2>
+            <p>Move from production issues to scored experiments with context intact across the platform.</p>
+          </div>
+          <div class="product-grid">
+            <article class="panel span-7" data-reveal>
+              <div class="panel-meta">Logs + traces</div>
+              <img src="assets/2025-12-28%2000.08.37%20localhost%2064dd3eeef57f.png" alt="Athena logs table with filters and trace links" loading="lazy">
+              <span>Filter, drill, and share traces in seconds with saved views and AQL filters.</span>
+            </article>
+            <article class="panel span-5" data-reveal>
+              <div class="panel-meta">Dashboard</div>
+              <img src="assets/2025-12-28%2000.08.53%20localhost%20d57fde690784.png" alt="Athena dashboard with request volume and latency charts" loading="lazy">
+              <span>Monitor latency, cost, and error rates in real time with live dashboards.</span>
+            </article>
+            <article class="panel span-4" data-reveal>
+              <div class="panel-meta">Review queue</div>
+              <img src="assets/2025-12-28%2000.09.03%20localhost%20106ec700cd3f.png" alt="Athena review queue with input and output previews" loading="lazy">
+              <span>Route high-impact failures to reviewers, label them, and promote to datasets.</span>
+            </article>
+            <article class="panel span-4" data-reveal>
+              <div class="panel-meta">Experiments</div>
+              <img src="assets/2025-12-28%2000.09.48%20localhost%204cf407d6d4fb.png" alt="Athena experiment results with scoring summaries" loading="lazy">
+              <span>Run multi-scorer experiments and compare baselines with clarity.</span>
+            </article>
+            <article class="panel span-4" data-reveal>
+              <div class="panel-meta">Playground</div>
+              <img src="assets/2025-12-28%2000.10.24%20localhost%20114518c88116.png" alt="Athena playground for prompt and model experimentation" loading="lazy">
+              <span>Experiment with prompts, models, and parameters side-by-side.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="workflow">
+          <div class="section-head" data-reveal>
+            <div class="eyebrow">THE LOOP</div>
+            <h2>A single workflow from live data to trusted launches.</h2>
+            <p>Athena keeps production and development in sync, so every release is backed by evidence.</p>
+          </div>
+          <div class="workflow">
+            <div class="workflow-step" data-reveal>
+              <strong>Capture</strong>
+              <span>Proxy logs, traces, and spans across every provider.</span>
+            </div>
+            <div class="workflow-step" data-reveal>
+              <strong>Curate</strong>
+              <span>Review outputs, label failures, and build datasets fast.</span>
+            </div>
+            <div class="workflow-step" data-reveal>
+              <strong>Evaluate</strong>
+              <span>Run LLM judges, criteria checks, and tool correctness.</span>
+            </div>
+            <div class="workflow-step" data-reveal>
+              <strong>Ship</strong>
+              <span>Compare baselines, prove quality, and deploy confidently.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head" data-reveal>
+            <div class="eyebrow">CORE CAPABILITIES</div>
+            <h2>Infrastructure that makes quality obvious.</h2>
+            <p>Everything you need to operate AI in production and prove every release.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card span-4" data-reveal>
+              <h3>Athena proxy</h3>
+              <p>Unified API, streaming SSE, fail-open resilience, and encrypted caching.</p>
+            </article>
+            <article class="feature-card span-4" data-reveal>
+              <h3>Observability</h3>
+              <p>Trace trees, span metrics, and shareable permalinks for every run.</p>
+            </article>
+            <article class="feature-card span-4" data-reveal>
+              <h3>Evaluation</h3>
+              <p>LLM judges, criteria checklists, and weighted scoring in one experiment.</p>
+            </article>
+            <article class="feature-card span-4" data-reveal>
+              <h3>MCP server</h3>
+              <p>IDE agents can query logs, infer schemas, and generate permalinks.</p>
+            </article>
+            <article class="feature-card span-4" data-reveal>
+              <h3>Playgrounds</h3>
+              <p>Compare prompts, models, and scorers with side-by-side runs.</p>
+            </article>
+            <article class="feature-card span-4" data-reveal>
+              <h3>Governance</h3>
+              <p>Org-level permissions, service tokens, and environment separation.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="security">
+          <div class="security-callout" data-reveal>
+            <div class="security-text">
+              <div class="eyebrow">SECURITY</div>
+              <h2>Control plane speed, data plane privacy.</h2>
+              <p>
+                Keep sensitive logs inside your cloud with a first class data plane. Athena handles auth,
+                routing, and observability while your data stays where compliance expects.
+              </p>
+            </div>
+            <div class="security-list">
+              <div class="security-item">Org and object level access control, with scoped service tokens.</div>
+              <div class="security-item">Data plane deployment keeps raw telemetry in customer cloud.</div>
+              <div class="security-item">Attachments stored in your object store, with external support.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="proof">
+          <div class="section-head" data-reveal>
+            <div class="eyebrow">PROOF</div>
+            <h2>Metrics that make quality visible.</h2>
+            <p>Monitor latency, cost, and quality together so every team sees the same truth.</p>
+          </div>
+          <div class="metrics">
+            <div class="metric" data-reveal>
+              <strong>42%</strong>
+              <p>Faster iteration cycles after moving logs to datasets.</p>
+            </div>
+            <div class="metric" data-reveal>
+              <strong>28%</strong>
+              <p>Lower inference cost with routing and cache controls.</p>
+            </div>
+            <div class="metric" data-reveal>
+              <strong>17</strong>
+              <p>Teams onboarded in two weeks without re-platforming.</p>
+            </div>
+          </div>
+          <div class="testimonial" data-reveal>
+            <h3>"The loop is obvious, and the proxy never gets in the way."</h3>
+            <p>Athena gave us a single place to debug, score, and improve our AI assistant. We ship more with less anxiety.</p>
+            <span><strong>VP of AI</strong>, Global fintech platform</span>
+          </div>
+        </section>
+
+        <section class="section" id="demo">
+          <div class="cta" data-reveal>
+            <div class="eyebrow">READY TO MOVE FASTER</div>
+            <h2>Stop guessing. Start proving.</h2>
+            <p>Get a live walkthrough of Athena, custom to your stack. We will help you design the loop from raw logs to production ready evals.</p>
+            <div class="hero-actions" style="justify-content: center;">
+              <a class="button primary" href="mailto:hello@athena.dev">Schedule a demo</a>
+              <a class="button secondary" href="mailto:hello@athena.dev">Ask for pricing</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">Athena. Build, observe, and improve AI with confidence.</footer>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>
