@@ -10,6 +10,7 @@ from athena_sdk import AthenaClient, observe, context_from_response
 client = AthenaClient(
     base_url="http://localhost:8000",
     project_id="proj_alpha",
+    max_retries=2,
 )
 
 @observe
@@ -37,3 +38,5 @@ Notes
 - `trace_group_id` defaults to `trace_id` unless provided.
 - Use `context_from_response` to chain spans with `parent_span_id`.
 - `trace_id` format is `trace_{uuid}`.
+- Use `stream_chat_completion()` for streaming responses.
+- Retry/backoff settings use seconds in Python.

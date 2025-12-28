@@ -55,3 +55,5 @@ export interface TraceContext {
   traceGroupId: string;
   parentSpanId?: string | null;
 }
+
+export type StreamChunk = Record<string, unknown>;

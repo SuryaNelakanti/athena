@@ -12,3 +12,7 @@ call uses a `trace_group_id` (defaults to `trace_id`) and supports
 
 Trace ID Format
 - `trace_id` values are generated as `trace_{uuid}` unless you supply one.
+
+Retries and Streaming
+- Both SDKs support configurable retry/backoff and streaming calls.
+- Python retry config uses seconds; TypeScript uses milliseconds.

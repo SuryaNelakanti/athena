@@ -10,6 +10,7 @@ import { AthenaClient, createTraceContext, contextFromResponse } from "athena-sd
 const client = new AthenaClient({
   baseUrl: "http://localhost:8000",
   projectId: "proj_alpha",
+  maxRetries: 2,
 });
 
 const response = await client.chatCompletion({
@@ -29,5 +30,6 @@ await client.chatCompletion(
 
 Notes
 - Uses `fetch` (Node 18+ or a fetch polyfill).
-- Streaming is not supported in this minimal SDK.
+- Use `streamChatCompletion()` for streaming responses.
 - `traceId` format is `trace_{uuid}`.
+- Retry/backoff settings use milliseconds in TypeScript.
