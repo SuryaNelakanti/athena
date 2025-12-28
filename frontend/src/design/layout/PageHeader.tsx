@@ -21,7 +21,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     children,
 }) => {
     return (
-        <div className={cx('flex flex-col gap-4 border-b border-border-hairline px-6 py-5 bg-panel', className)}>
+        <div className={cx('flex flex-col gap-4 border-b border-border-hairline px-6 py-5 pb-4 bg-panel', className)}>
             {breadcrumbs && (
                 <div className="text-xs text-text-muted mb-1 flex items-center gap-2">
                     {breadcrumbs}

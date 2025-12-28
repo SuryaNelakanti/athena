@@ -229,7 +229,7 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     className="pb-0 border-b-0" />
             </div>
 
-            <div className="px-8 pb-4">
+            <div className="px-8 pb-4 pt-4">
                 <Card className="bg-primary/5 border-primary/20">
                     <h4 className="text-sm font-bold text-text-main mb-1">What is this dataset?</h4>
                     <p className="text-xs text-text-muted leading-relaxed">
