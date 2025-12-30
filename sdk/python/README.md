@@ -3,6 +3,11 @@
 This SDK provides a lightweight client for Athena's proxy API plus trace context
 helpers. It guarantees a `trace_id` is always sent with proxy calls.
 
+Quickstart
+1. Start the Athena backend (`npm run dev` from the repo root or `uvicorn` from `backend/`).
+2. Install the SDK: `pip install -e sdk/python`
+3. Run the example below.
+
 Usage
 ```python
 from athena_sdk import AthenaClient, observe, context_from_response
@@ -32,6 +37,19 @@ def run():
 
 run()
 ```
+
+Fail-open (optional)
+If the proxy is unreachable, the SDK can fall back to an OpenAI-compatible endpoint.
+```python
+client = AthenaClient(
+    base_url="http://localhost:8000",
+    project_id="proj_alpha",
+    fail_open=True,
+    fallback_base_url="https://api.openai.com/v1",
+    fallback_api_key="YOUR_OPENAI_API_KEY",
+)
+```
+Note: Fail-open calls bypass Athena logging and do not return span or trace IDs.
 
 Notes
 - The SDK uses the Python standard library only.

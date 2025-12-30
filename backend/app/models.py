@@ -79,6 +79,40 @@ class ServiceTokenModel(SQLModel, table=True):
     revoked_at: Optional[int] = Field(default=None, index=True)
 
 
+# --- MCP OAuth Models ---
+class McpAuthCodeModel(SQLModel, table=True):
+    __tablename__ = "mcp_auth_code"
+    __table_args__ = (UniqueConstraint("code_hash", name="uq_mcp_auth_code_hash"),)
+
+    id: str = Field(primary_key=True)
+    client_id: str = Field(index=True)
+    redirect_uri: str
+    code_hash: str = Field(index=True)
+    code_challenge: str
+    code_challenge_method: str = Field(default="S256")
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    expires_at: int = Field(index=True)
+    consumed_at: Optional[int] = Field(default=None, index=True)
+
+
+class McpTokenModel(SQLModel, table=True):
+    __tablename__ = "mcp_token"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_mcp_token_hash"),)
+
+    id: str = Field(primary_key=True)
+    client_id: str = Field(index=True)
+    token_hash: str = Field(index=True)
+    token_last4: Optional[str] = None
+    org_id: Optional[str] = Field(default=None, index=True)
+    project_id: Optional[str] = Field(default=None, index=True)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    last_used_at: Optional[int] = Field(default=None)
+    expires_at: Optional[int] = Field(default=None, index=True)
+    revoked_at: Optional[int] = Field(default=None, index=True)
+
+
 # --- Audit Log Model ---
 class AuditLogModel(SQLModel, table=True):
     """

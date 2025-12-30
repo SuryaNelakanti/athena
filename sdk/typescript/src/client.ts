@@ -10,6 +10,10 @@ export interface AthenaClientOptions {
   retryBackoffMs?: number;
   retryMaxDelayMs?: number;
   retryJitterMs?: number;
+  failOpen?: boolean;
+  fallbackBaseUrl?: string;
+  fallbackApiKey?: string;
+  fallbackHeaders?: Record<string, string>;
 }
 
 export class AthenaClient {
@@ -21,6 +25,10 @@ export class AthenaClient {
   private retryBackoffMs: number;
   private retryMaxDelayMs: number;
   private retryJitterMs: number;
+  private failOpen: boolean;
+  private fallbackBaseUrl: string;
+  private fallbackApiKey?: string;
+  private fallbackHeaders: Record<string, string>;
 
   constructor(options: AthenaClientOptions = {}) {
     this.baseUrl = (options.baseUrl || "http://localhost:8000").replace(/\/+$/, "");
@@ -31,6 +39,10 @@ export class AthenaClient {
     this.retryBackoffMs = options.retryBackoffMs ?? 200;
     this.retryMaxDelayMs = options.retryMaxDelayMs ?? 2000;
     this.retryJitterMs = options.retryJitterMs ?? 100;
+    this.failOpen = options.failOpen ?? false;
+    this.fallbackBaseUrl = (options.fallbackBaseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
+    this.fallbackApiKey = options.fallbackApiKey;
+    this.fallbackHeaders = options.fallbackHeaders || {};
   }
 
   async chatCompletion(
@@ -77,6 +89,8 @@ export class AthenaClient {
       headers["X-Athena-Cache-Key"] = opts.cacheKey;
     }
 
+    const fallbackBody = this.buildFallbackBody(body, false);
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       const controller = this.timeoutMs ? new AbortController() : undefined;
       const timeout = this.timeoutMs
@@ -96,11 +110,17 @@ export class AthenaClient {
             await this.sleepBackoff(attempt);
             continue;
           }
+          if (this.shouldFailOpen(response.status)) {
+            return this.requestFallback(fallbackBody);
+          }
           throw new Error(`HTTP ${response.status}: ${payload}`);
         }
         return JSON.parse(payload) as ChatCompletionResponse;
       } catch (err) {
         if (attempt >= this.maxRetries) {
+          if (this.shouldFailOpen()) {
+            return this.requestFallback(fallbackBody);
+          }
           throw err;
         }
         await this.sleepBackoff(attempt);
@@ -154,6 +174,8 @@ export class AthenaClient {
       headers["X-Athena-Cache-Key"] = opts.cacheKey;
     }
 
+    const fallbackBody = this.buildFallbackBody(body, true);
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       let yielded = false;
       const controller = this.timeoutMs ? new AbortController() : undefined;
@@ -175,48 +197,24 @@ export class AthenaClient {
             await this.sleepBackoff(attempt);
             continue;
           }
+          if (this.shouldFailOpen(response.status)) {
+            yield* this.streamFallback(fallbackBody);
+            return;
+          }
           throw new Error(`HTTP ${response.status}: ${payload}`);
         }
 
-        if (!response.body) {
-          throw new Error("Streaming response missing body.");
+        for await (const chunk of this.parseStream(response)) {
+          yielded = true;
+          yield chunk;
         }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) {
-            return;
-          }
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop() || "";
-
-          for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line.startsWith("data:")) {
-              continue;
-            }
-            const data = line.slice(5).trim();
-            if (!data) {
-              continue;
-            }
-            if (data === "[DONE]") {
-              return;
-            }
-            yielded = true;
-            try {
-              yield JSON.parse(data) as StreamChunk;
-            } catch {
-              yield { raw: data };
-            }
-          }
-        }
+        return;
       } catch (err) {
         if (yielded || attempt >= this.maxRetries) {
+          if (!yielded && this.shouldFailOpen()) {
+            yield* this.streamFallback(fallbackBody);
+            return;
+          }
           throw err;
         }
         await this.sleepBackoff(attempt);
@@ -243,6 +241,147 @@ export class AthenaClient {
       });
     }
     return createTraceContext();
+  }
+
+  private shouldFailOpen(status?: number): boolean {
+    if (!this.failOpen) {
+      return false;
+    }
+    if (status === undefined) {
+      return true;
+    }
+    return [408, 429, 500, 502, 503, 504].includes(status);
+  }
+
+  private buildFallbackBody(body: Record<string, unknown>, stream: boolean): Record<string, unknown> {
+    const fallbackBody = { ...body };
+    delete fallbackBody.trace_id;
+    delete fallbackBody.trace_group_id;
+    delete fallbackBody.parent_span_id;
+    delete fallbackBody.project_id;
+    delete fallbackBody.provider;
+    fallbackBody.stream = stream;
+    return fallbackBody;
+  }
+
+  private getFallbackHeaders(stream: boolean): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.fallbackHeaders,
+    };
+    if (stream) {
+      headers.Accept = headers.Accept || "text/event-stream";
+    }
+    if (!headers.Authorization) {
+      if (!this.fallbackApiKey) {
+        throw new Error("Fail-open enabled but fallbackApiKey is not set.");
+      }
+      headers.Authorization = `Bearer ${this.fallbackApiKey}`;
+    }
+    return headers;
+  }
+
+  private async requestFallback(body: Record<string, unknown>): Promise<ChatCompletionResponse> {
+    const url = `${this.fallbackBaseUrl}/chat/completions`;
+    const headers = this.getFallbackHeaders(false);
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        const payload = await response.text();
+        if (!response.ok) {
+          if (this.shouldRetry(response.status) && attempt < this.maxRetries) {
+            await this.sleepBackoff(attempt);
+            continue;
+          }
+          throw new Error(`Fail-open HTTP ${response.status}: ${payload}`);
+        }
+        return JSON.parse(payload) as ChatCompletionResponse;
+      } catch (err) {
+        if (attempt >= this.maxRetries) {
+          throw err;
+        }
+        await this.sleepBackoff(attempt);
+      }
+    }
+    throw new Error("Fail-open request failed after retries.");
+  }
+
+  private async *streamFallback(body: Record<string, unknown>): AsyncGenerator<StreamChunk> {
+    const url = `${this.fallbackBaseUrl}/chat/completions`;
+    const headers = this.getFallbackHeaders(true);
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      let yielded = false;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          const payload = await response.text();
+          if (this.shouldRetry(response.status) && attempt < this.maxRetries) {
+            await this.sleepBackoff(attempt);
+            continue;
+          }
+          throw new Error(`Fail-open HTTP ${response.status}: ${payload}`);
+        }
+
+        for await (const chunk of this.parseStream(response)) {
+          yielded = true;
+          yield chunk;
+        }
+        return;
+      } catch (err) {
+        if (yielded || attempt >= this.maxRetries) {
+          throw err;
+        }
+        await this.sleepBackoff(attempt);
+      }
+    }
+    throw new Error("Fail-open stream failed after retries.");
+  }
+
+  private async *parseStream(response: Response): AsyncGenerator<StreamChunk> {
+    if (!response.body) {
+      throw new Error("Streaming response missing body.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        return;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line.startsWith("data:")) {
+          continue;
+        }
+        const data = line.slice(5).trim();
+        if (!data) {
+          continue;
+        }
+        if (data === "[DONE]") {
+          return;
+        }
+        try {
+          yield JSON.parse(data) as StreamChunk;
+        } catch {
+          yield { raw: data };
+        }
+      }
+    }
   }
 
   private shouldRetry(status: number): boolean {

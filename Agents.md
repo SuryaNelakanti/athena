@@ -96,7 +96,10 @@ This architecture is required to support privacy-sensitive production logs at sc
    - Persist reasoning content separately from user-visible content.
    - Store/stream a distinct reasoning channel (do not mix into content).
 4. **Request context propagation**
-   - Allow nesting traces/spans across downstream calls by passing a “parent trace” context header.
+   - Allow nesting traces/spans across downstream calls via trace + parent span context.
+   - Accept `X-Athena-Trace-ID` and `X-Athena-Parent-Span-ID` headers (or `trace_id`/`parent_span_id` in the request body).
+   - Return `X-Athena-Trace-ID` and `X-Athena-Span-ID` headers plus `trace_id`/`span_id` in the response for correlation.
+   - `trace_group_id` groups related traces (session-style); defaults to the current trace id or parent trace id when not provided.
 5. **Optional caching**
    - Allow explicit cache enablement and explicit bypass.
    - Support end-to-end encryption for cache values (AES-GCM) so Athena cannot read cached content.
@@ -155,7 +158,15 @@ Datasets are:
 Dataset row schema:
 - **input**: inputs to reproduce an example
 - **expected** (optional): output or reference (not necessarily ground truth)
-- **metadata** (optional): key/value attributes for filtering/grouping
+- **meta** (optional): key/value attributes for filtering/grouping and provenance
+- **row_kind**: `eval` or `resource`
+- **eval_label** (optional): `gold` or `anti_pattern`
+- **example_type**: `gold` or `anti_pattern` (human labeling convention)
+- **source_trace_id** (optional): trace id if promoted from production
+- **logical_id**: stable id that groups revisions of the same row
+- **version**: revision number for the logical row
+- **dataset_version**: dataset version when this revision was added
+- **is_deleted**: tombstone marker for soft deletes
 
 Support:
 - Insert/update/delete/flush
