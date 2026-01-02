@@ -114,6 +114,16 @@ export interface DatasetVersion {
   created_at: number;
 }
 
+export interface Playground {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  config: Record<string, any>;
+  created_at: number;
+  updated_at: number;
+}
+
 
 export interface Experiment {
   id: string;

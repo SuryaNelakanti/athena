@@ -6,8 +6,10 @@ import {
     ChevronDownIcon,
     ChevronUpIcon
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Select, Textarea, cx } from '../ui';
+import { Badge, Button, Card, IconButton, Select, Textarea, Input, cx } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
+import { api } from '../../services/api';
+import { Dataset, ModelRegistry, Playground } from '../../types';
 
 // Simple types for the playground
 interface Message {
@@ -21,6 +23,11 @@ interface ModelOption {
     name: string;
     provider: string;
 }
+
+type SnapshotStatus = {
+    kind: 'error' | 'success' | 'info';
+    message: string;
+};
 
 const DEFAULT_MODELS: ModelOption[] = [
     // OpenAI Upcoming/Hypothetical
@@ -70,21 +77,50 @@ const PROVIDERS = [
     { id: 'mock', name: 'Mock' },
 ];
 
-const Labs: React.FC = () => {
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant.';
+const DEFAULT_TEMPERATURE = 0.7;
+const DEFAULT_TOP_P = 1.0;
+const NEW_PLAYGROUND_VALUE = '__new__';
+
+interface LabsProps {
+    projectId: string;
+}
+
+const Labs: React.FC<LabsProps> = ({ projectId }) => {
     const [availableModels, setAvailableModels] = useState<ModelOption[]>(DEFAULT_MODELS);
     const [provider, setProvider] = useState<string>('openai');
     const [model, setModel] = useState('gpt-4o');
 
-    const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant.');
+    const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
 
     // Model parameters
-    const [temperature, setTemperature] = useState(0.7);
+    const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
     const [maxTokens, setMaxTokens] = useState<number | undefined>(undefined);
-    const [topP, setTopP] = useState(1.0);
+    const [topP, setTopP] = useState(DEFAULT_TOP_P);
     const [showAdvanced, setShowAdvanced] = useState(false);
+
+    // Playground persistence
+    const [playgrounds, setPlaygrounds] = useState<Playground[]>([]);
+    const [activePlaygroundId, setActivePlaygroundId] = useState<string | null>(null);
+    const [selectedPlaygroundId, setSelectedPlaygroundId] = useState<string>(NEW_PLAYGROUND_VALUE);
+    const [playgroundName, setPlaygroundName] = useState('Untitled Playground');
+    const [playgroundStatus, setPlaygroundStatus] = useState<string | null>(null);
+    const [loadingPlaygrounds, setLoadingPlaygrounds] = useState(false);
+    const [savingPlayground, setSavingPlayground] = useState(false);
+
+    // Snapshot to experiment
+    const [datasets, setDatasets] = useState<Dataset[]>([]);
+    const [modelRegistry, setModelRegistry] = useState<ModelRegistry[]>([]);
+    const [snapshotDatasetId, setSnapshotDatasetId] = useState('');
+    const [snapshotExperimentName, setSnapshotExperimentName] = useState('');
+    const [snapshotNameTouched, setSnapshotNameTouched] = useState(false);
+    const [snapshotStatus, setSnapshotStatus] = useState<SnapshotStatus | null>(null);
+    const [snapshotLoading, setSnapshotLoading] = useState(false);
+    const [snapshotExperimentId, setSnapshotExperimentId] = useState<string | null>(null);
+    const [loadingSnapshotRefs, setLoadingSnapshotRefs] = useState(false);
 
     // Ref for scrolling
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -113,7 +149,7 @@ const Labs: React.FC = () => {
     useEffect(() => {
         const fetchModels = async () => {
             try {
-                const res = await fetch('http://localhost:8000/v1/models');
+                const res = await fetch('http://localhost:8000/v1/models');     
                 if (res.ok) {
                     const json = await res.json();
                     if (json.data && Array.isArray(json.data)) {
@@ -139,6 +175,219 @@ const Labs: React.FC = () => {
         fetchModels();
     }, []);
 
+    useEffect(() => {
+        if (!projectId) return;
+        const loadPlaygrounds = async () => {
+            setLoadingPlaygrounds(true);
+            try {
+                const data = await api.getPlaygrounds(projectId);
+                setPlaygrounds(data);
+            } catch (e) {
+                console.error("Failed to load playgrounds", e);
+            } finally {
+                setLoadingPlaygrounds(false);
+            }
+        };
+        loadPlaygrounds();
+    }, [projectId]);
+
+    useEffect(() => {
+        if (!projectId) return;
+        const loadSnapshotRefs = async () => {
+            setLoadingSnapshotRefs(true);
+            try {
+                const [datasetsData, registryData] = await Promise.all([
+                    api.getDatasets(projectId),
+                    api.getModelRegistry(true),
+                ]);
+                setDatasets(datasetsData);
+                setModelRegistry(registryData);
+                setSnapshotDatasetId(prev => {
+                    if (datasetsData.length === 1) {
+                        return datasetsData[0].id;
+                    }
+                    if (prev && datasetsData.some(d => d.id === prev)) {
+                        return prev;
+                    }
+                    return '';
+                });
+            } catch (e) {
+                console.error("Failed to load snapshot references", e);
+            } finally {
+                setLoadingSnapshotRefs(false);
+            }
+        };
+        loadSnapshotRefs();
+    }, [projectId]);
+
+    useEffect(() => {
+        if (snapshotNameTouched) return;
+        const trimmed = playgroundName.trim();
+        setSnapshotExperimentName(trimmed || 'Playground Snapshot');
+    }, [playgroundName, snapshotNameTouched]);
+
+    useEffect(() => {
+        setSelectedPlaygroundId(activePlaygroundId ?? NEW_PLAYGROUND_VALUE);
+    }, [activePlaygroundId]);
+
+    const buildConfig = () => ({
+        provider,
+        model,
+        system_prompt: systemPrompt,
+        temperature,
+        max_tokens: maxTokens ?? null,
+        top_p: topP,
+        messages,
+    });
+
+    const applyConfig = (config: any) => {
+        setProvider(config?.provider || 'openai');
+        setModel(config?.model || 'gpt-4o');
+        setSystemPrompt(config?.system_prompt || DEFAULT_SYSTEM_PROMPT);
+        setTemperature(typeof config?.temperature === 'number' ? config.temperature : DEFAULT_TEMPERATURE);
+        setMaxTokens(typeof config?.max_tokens === 'number' ? config.max_tokens : undefined);
+        setTopP(typeof config?.top_p === 'number' ? config.top_p : DEFAULT_TOP_P);
+        setMessages(Array.isArray(config?.messages) ? config.messages : []);
+    };
+
+    const resetPlayground = () => {
+        setActivePlaygroundId(null);
+        setSelectedPlaygroundId(NEW_PLAYGROUND_VALUE);
+        setPlaygroundName('Untitled Playground');
+        applyConfig({});
+        setPlaygroundStatus(null);
+        setSnapshotNameTouched(false);
+        setSnapshotStatus(null);
+        setSnapshotExperimentId(null);
+    };
+
+    const handleLoadPlayground = async (playgroundId: string) => {
+        if (!playgroundId) return;
+        setPlaygroundStatus(null);
+        try {
+            const existing = playgrounds.find(pg => pg.id === playgroundId);
+            const playground = existing || await api.getPlayground(playgroundId);
+            setActivePlaygroundId(playground.id);
+            setSelectedPlaygroundId(playground.id);
+            setPlaygroundName(playground.name);
+            applyConfig(playground.config || {});
+            setSnapshotNameTouched(false);
+            setSnapshotStatus(null);
+            setSnapshotExperimentId(null);
+        } catch (e: any) {
+            setPlaygroundStatus(e?.message || "Failed to load playground");
+        }
+    };
+
+    const handleLoadSelectedPlayground = async () => {
+        if (selectedPlaygroundId === NEW_PLAYGROUND_VALUE) {
+            resetPlayground();
+            return;
+        }
+        await handleLoadPlayground(selectedPlaygroundId);
+    };
+
+    const handleSavePlayground = async () => {
+        if (!projectId) return;
+        const name = playgroundName.trim();
+        if (!name) {
+            setPlaygroundStatus("Playground name is required");
+            return;
+        }
+        setSavingPlayground(true);
+        setPlaygroundStatus(null);
+        const config = buildConfig();
+        try {
+            if (!activePlaygroundId) {
+                const created = await api.createPlayground({
+                    project_id: projectId,
+                    name,
+                    config,
+                });
+                setActivePlaygroundId(created.id);
+                setSelectedPlaygroundId(created.id);
+            } else {
+                await api.updatePlayground(activePlaygroundId, { name, config });
+            }
+            const data = await api.getPlaygrounds(projectId);
+            setPlaygrounds(data);
+        } catch (e: any) {
+            setPlaygroundStatus(e?.message || "Failed to save playground");
+        } finally {
+            setSavingPlayground(false);
+        }
+    };
+
+    const handleDeletePlayground = async () => {
+        if (!activePlaygroundId || !projectId) return;
+        setSavingPlayground(true);
+        setPlaygroundStatus(null);
+        try {
+            await api.deletePlayground(activePlaygroundId);
+            const data = await api.getPlaygrounds(projectId);
+            setPlaygrounds(data);
+            resetPlayground();
+        } catch (e: any) {
+            setPlaygroundStatus(e?.message || "Failed to delete playground");
+        } finally {
+            setSavingPlayground(false);
+        }
+    };
+
+    const handleSnapshotToExperiment = async () => {
+        if (!projectId) return;
+        const name = snapshotExperimentName.trim() || playgroundName.trim() || 'Playground Snapshot';
+        if (!snapshotDatasetId) {
+            setSnapshotStatus({ kind: 'error', message: 'Select a dataset to snapshot.' });
+            return;
+        }
+        const modelRegistryId = modelRegistry.find(
+            entry => entry.provider === provider && entry.model_id === model
+        )?.id;
+        if (!modelRegistryId) {
+            setSnapshotStatus({ kind: 'error', message: 'Model is not in the registry. Enable it in Settings.' });
+            return;
+        }
+
+        setSnapshotLoading(true);
+        setSnapshotStatus(null);
+        setSnapshotExperimentId(null);
+        try {
+            const experiment = await api.createExperiment({
+                project_id: projectId,
+                dataset_id: snapshotDatasetId,
+                name,
+                summary: {
+                    source: 'playground',
+                    playground_id: activePlaygroundId,
+                    playground_name: playgroundName,
+                },
+            });
+            await api.createExperimentVersion(experiment.id, {
+                model_registry_id: modelRegistryId,
+                temperature,
+                max_tokens: maxTokens ?? undefined,
+                top_p: topP,
+                system_prompt: systemPrompt,
+                scorers: ['exact_match'],
+                notes: activePlaygroundId
+                    ? `Snapshot from playground ${playgroundName} (${activePlaygroundId})`
+                    : `Snapshot from playground ${playgroundName}`,
+            });
+            setSnapshotExperimentId(experiment.id);
+            setSnapshotStatus({ kind: 'success', message: `Created experiment "${experiment.name}".` });
+        } catch (e: any) {
+            setSnapshotStatus({ kind: 'error', message: e?.message || 'Failed to snapshot to experiment.' });
+        } finally {
+            setSnapshotLoading(false);
+        }
+    };
+
+    const handleOpenSnapshotExperiment = () => {
+        if (!snapshotExperimentId) return;
+        window.location.hash = `#/experiments?experiment_id=${encodeURIComponent(snapshotExperimentId)}`;
+    };
+
     const handleSubmit = async () => {
         if (!input.trim()) return;
 
@@ -161,7 +410,10 @@ const Labs: React.FC = () => {
         try {
             const res = await fetch('http://localhost:8000/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(projectId ? { 'X-Athena-Project-ID': projectId } : {}),
+                },
                 body: JSON.stringify({
                     model: model,
                     provider: provider || undefined,
@@ -170,6 +422,7 @@ const Labs: React.FC = () => {
                     temperature: temperature,
                     max_tokens: maxTokens || undefined,
                     top_p: topP !== 1.0 ? topP : undefined,
+                    project_id: projectId || undefined,
                 }),
                 signal: abortControllerRef.current.signal
             });
@@ -258,6 +511,15 @@ const Labs: React.FC = () => {
 
     // Filtered models for UI
     const displayedModels = availableModels.filter(m => m.provider === provider);
+    const matchedRegistry = modelRegistry.find(
+        entry => entry.provider === provider && entry.model_id === model
+    );
+    const snapshotDisabled = snapshotLoading || !snapshotDatasetId || !matchedRegistry;
+    const snapshotStatusClass = snapshotStatus?.kind === 'error'
+        ? 'text-rose-500'
+        : snapshotStatus?.kind === 'success'
+            ? 'text-emerald-500'
+            : 'text-text-muted';
 
     return (
         <div className="flex h-full">
@@ -269,6 +531,138 @@ const Labs: React.FC = () => {
                 />
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-6">
+                    <div>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Playground</label>
+                        <Card padded={false} className="bg-app p-4 space-y-3">
+                            <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Name</label>
+                                <Input
+                                    value={playgroundName}
+                                    onChange={(e) => setPlaygroundName(e.target.value)}
+                                    placeholder="Untitled Playground"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Load</label>
+                                <div className="relative">
+                                    <Select
+                                        value={selectedPlaygroundId}
+                                        onChange={(e) => setSelectedPlaygroundId(e.target.value)}
+                                        className="pr-9"
+                                    >
+                                        <option value={NEW_PLAYGROUND_VALUE}>New playground</option>
+                                        {playgrounds.map(pg => (
+                                            <option key={pg.id} value={pg.id}>{pg.name}</option>
+                                        ))}
+                                    </Select>
+                                    <ChevronDownIcon className="absolute right-3 top-2.5 w-4 h-4 text-text-muted pointer-events-none" />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={handleSavePlayground}
+                                    disabled={savingPlayground || !playgroundName.trim()}
+                                >
+                                    {savingPlayground ? 'Saving...' : 'Save'}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={handleLoadSelectedPlayground}
+                                    disabled={savingPlayground || loadingPlaygrounds}
+                                >
+                                    Load
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDeletePlayground}
+                                    disabled={!activePlaygroundId || savingPlayground}
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+
+                            {playgroundStatus && (
+                                <p className="text-[11px] text-rose-500 font-medium">{playgroundStatus}</p>
+                            )}
+                        </Card>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Snapshot to Experiment</label>
+                        <Card padded={false} className="bg-app p-4 space-y-3">
+                            <p className="text-[11px] text-text-muted">
+                                Create an experiment version from the current model and prompt settings.
+                            </p>
+                            <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Dataset</label>
+                                <div className="relative">
+                                    <Select
+                                        value={snapshotDatasetId}
+                                        onChange={(e) => setSnapshotDatasetId(e.target.value)}
+                                        disabled={loadingSnapshotRefs || datasets.length === 0}
+                                        className="pr-9"
+                                    >
+                                        <option value="">
+                                            {loadingSnapshotRefs
+                                                ? 'Loading datasets...'
+                                                : datasets.length === 0
+                                                    ? 'No datasets available'
+                                                    : 'Select a dataset'}
+                                        </option>
+                                        {datasets.map(ds => (
+                                            <option key={ds.id} value={ds.id}>{ds.name}</option>
+                                        ))}
+                                    </Select>
+                                    <ChevronDownIcon className="absolute right-3 top-2.5 w-4 h-4 text-text-muted pointer-events-none" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Experiment Name</label>
+                                <Input
+                                    value={snapshotExperimentName}
+                                    onChange={(e) => {
+                                        setSnapshotExperimentName(e.target.value);
+                                        setSnapshotNameTouched(true);
+                                    }}
+                                    placeholder="Experiment name"
+                                />
+                            </div>
+                            {!loadingSnapshotRefs && !matchedRegistry && (
+                                <p className="text-[11px] text-amber-500">
+                                    Model not in registry. Enable it in Settings to snapshot.
+                                </p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={handleSnapshotToExperiment}
+                                    disabled={snapshotDisabled}
+                                >
+                                    {snapshotLoading ? 'Snapshotting...' : 'Snapshot'}
+                                </Button>
+                                {snapshotExperimentId && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleOpenSnapshotExperiment}
+                                    >
+                                        Open
+                                    </Button>
+                                )}
+                            </div>
+                            {snapshotStatus && (
+                                <p className={`text-[11px] font-medium ${snapshotStatusClass}`}>
+                                    {snapshotStatus.message}
+                                </p>
+                            )}
+                        </Card>
+                    </div>
                     <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Provider</label>
                         <div className="grid grid-cols-3 gap-2">

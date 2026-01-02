@@ -1,4 +1,4 @@
-import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest, MonitorChart } from '../types';
+import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest, MonitorChart, Playground } from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -83,6 +83,60 @@ export const api = {
     deleteView: async (viewId: string): Promise<void> => {
         const response = await fetch(`${API_BASE_URL}/views/${viewId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete view');
+    },
+
+    // Playgrounds
+    getPlaygrounds: async (
+        projectId: string,
+        filters?: { search?: string; limit?: number }
+    ): Promise<Playground[]> => {
+        const params = new URLSearchParams({ project_id: projectId });
+        if (filters?.search) params.append('search', filters.search);
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        const response = await fetch(`${API_BASE_URL}/playgrounds?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch playgrounds');
+        return response.json();
+    },
+
+    getPlayground: async (playgroundId: string): Promise<Playground> => {
+        const response = await fetch(`${API_BASE_URL}/playgrounds/${playgroundId}`);
+        if (!response.ok) throw new Error('Failed to fetch playground');
+        return response.json();
+    },
+
+    createPlayground: async (payload: {
+        project_id: string;
+        name: string;
+        description?: string;
+        config?: Record<string, any>;
+    }): Promise<Playground> => {
+        const response = await fetch(`${API_BASE_URL}/playgrounds`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create playground');
+        return response.json();
+    },
+
+    updatePlayground: async (
+        playgroundId: string,
+        payload: { name?: string; description?: string; config?: Record<string, any> }
+    ): Promise<Playground> => {
+        const response = await fetch(`${API_BASE_URL}/playgrounds/${playgroundId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update playground');
+        return response.json();
+    },
+
+    deletePlayground: async (playgroundId: string): Promise<void> => {
+        const response = await fetch(`${API_BASE_URL}/playgrounds/${playgroundId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete playground');
     },
 
     // Monitor charts

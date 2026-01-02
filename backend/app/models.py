@@ -153,6 +153,17 @@ class EnvironmentModel(SQLModel, table=True):
     created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
     updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
+class PlaygroundModel(SQLModel, table=True):
+    __tablename__ = "playground"
+
+    id: str = Field(primary_key=True)
+    project_id: str = Field(foreign_key="project.id", index=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    config: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
 class TraceModel(SQLModel, table=True):
     __tablename__ = "trace" # Rename table to avoid keyword conflicts if any, though Trace is usually safe
 

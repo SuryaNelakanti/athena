@@ -29,6 +29,7 @@ from .routers import charts as charts_router
 from .routers import environments as environments_router
 from .routers import service_accounts as service_accounts_router
 from .routers import mcp as mcp_router
+from .routers import playgrounds as playgrounds_router
 from .services.job_worker import JobWorker
 
 # --- Startup ---
@@ -114,6 +115,7 @@ app.include_router(charts_router.router)
 app.include_router(environments_router.router)
 app.include_router(service_accounts_router.router)
 app.include_router(mcp_router.router)
+app.include_router(playgrounds_router.router)
 
 # --- Endpoints (Async) ---
 

@@ -182,8 +182,8 @@ const App: React.FC = () => {
     if (currentPath === '/') {
       return <Dashboard projectId={currentProject?.id || ''} />;
     }
-    if (currentPath === '/labs') {
-      return <Labs />;
+    if (currentPath === '/labs' || currentPath === '/playgrounds') {
+      return <Labs projectId={currentProject?.id || ''} />;
     }
     if (currentPath === '/review') {
       return <ReviewQueue projectId={currentProject?.id || ''} />;

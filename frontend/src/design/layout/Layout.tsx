@@ -43,7 +43,7 @@ const Layout: React.FC<LayoutProps> = ({
     { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration', tone: 'coral' },
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets', tone: 'indigo' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments', tone: 'copper' },
-    { name: 'Labs', icon: CommandLineIcon, path: '/labs', tone: 'slate' },
+    { name: 'Playgrounds', icon: CommandLineIcon, path: '/playgrounds', tone: 'slate' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings', tone: 'slate' },
   ];
 
