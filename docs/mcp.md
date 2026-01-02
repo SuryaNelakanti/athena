@@ -3,6 +3,10 @@
 Athena exposes MCP tools over HTTP at `http://localhost:8000/mcp`.
 The local server auto-approves OAuth requests (no login UI).
 
+## IDE Integration
+For Cursor, VS Code, and Claude Code setup, see `docs/mcp-ide-setup.md`.
+If your IDE only supports MCP over stdio, use `scripts/mcp_http_bridge.mjs`.
+
 ## OAuth2 PKCE Flow
 
 1) Generate a code verifier and challenge (S256).

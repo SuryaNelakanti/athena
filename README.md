@@ -6,6 +6,16 @@ Athena is an AI proxy + observability + evaluation platform with a closed-loop w
 ## SDKs
 Minimal Python and TypeScript SDKs live under `sdk/`. See `sdk/README.md` for setup, retry/backoff, and streaming usage.
 
+## SDK Quickstart (Local)
+1. Start the Athena backend (`npm run dev` from the repo root or `uvicorn` from `backend/`).
+2. Python: `pip install -e sdk/python`
+3. TypeScript: `npm install ./sdk/typescript`
+4. Run the language-specific examples in `sdk/python/README.md` or `sdk/typescript/README.md`.
+
+## MCP Server (Local)
+See `docs/mcp.md` for OAuth PKCE setup and MCP tool usage.
+See `docs/mcp-ide-setup.md` for Cursor/VS Code/Claude Code setup.
+
 ## Configuration
 
 To use real AI providers, you need to configure your API keys.
