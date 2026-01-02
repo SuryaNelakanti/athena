@@ -26,6 +26,7 @@ from app.models import (
     MentionModel,
     ModelRegistryModel,
     OrganizationModel,
+    PlaygroundModel,
     Project,
     ReviewItemModel,
     ShareLinkModel,
@@ -334,6 +335,123 @@ async def seed_core(session: AsyncSession) -> None:
     ]
     for idx, (pid, name, cfg) in enumerate(views, start=1):
         session.add(ViewModel(id=f"view_{idx:02d}", project_id=pid, name=name, config=cfg, entity_type="traces", created_at=base - idx * 1000))
+
+    # Playgrounds (saved prompt workspaces)
+    playgrounds = [
+        {
+            "id": "pg_support_refund_guardrails",
+            "project_id": "proj_support",
+            "name": "Refund Guardrail Tuning",
+            "description": "Maya and Jordan refine refund handling with policy-safe escalation.",
+            "config": {
+                "version": 1,
+                "system_prompt": "You are OctoWorks Support. Follow the refund policy strictly: verify charges, refunds allowed within 30 days of cancellation, and escalate exceptions.",
+                "input": "I canceled 45 days ago. Can you refund my last two invoices?",
+                "messages": [
+                    {"role": "user", "content": "I canceled last month but still see a charge."},
+                    {"role": "assistant", "content": "I can help. Let me check the cancellation date and policy window."},
+                ],
+                "variants": [
+                    {
+                        "id": "variant_support_policy",
+                        "name": "Policy First",
+                        "model": "gpt-4o",
+                        "provider": "openai",
+                        "temperature": 0.3,
+                        "top_p": 1.0,
+                        "max_tokens": 420,
+                    },
+                    {
+                        "id": "variant_support_speed",
+                        "name": "Fast Triage",
+                        "model": "gpt-4o-mini",
+                        "provider": "openai",
+                        "temperature": 0.2,
+                        "top_p": 1.0,
+                        "max_tokens": 320,
+                    },
+                ],
+            },
+            "created_at": base - 900_000,
+            "updated_at": base - 600_000,
+        },
+        {
+            "id": "pg_legal_citation_guard",
+            "project_id": "proj_legal",
+            "name": "Clause Citation Guard",
+            "description": "David validates clause extraction prompts with strict citation rules.",
+            "config": {
+                "version": 1,
+                "system_prompt": "You are OctoWorks Legal. Extract clauses only when cited from the contract. Never invent sections.",
+                "input": "Summarize termination rights for Nexus MSA with section citations.",
+                "messages": [
+                    {"role": "user", "content": "What does the MSA say about termination?"},
+                    {"role": "assistant", "content": "I will quote the exact section and summarize its obligations."},
+                ],
+                "variants": [
+                    {
+                        "id": "variant_legal_precision",
+                        "name": "Precision",
+                        "model": "claude-3-5-sonnet-20241022",
+                        "provider": "anthropic",
+                        "temperature": 0.4,
+                        "top_p": 1.0,
+                        "max_tokens": 520,
+                    },
+                    {
+                        "id": "variant_legal_fast",
+                        "name": "Fast Draft",
+                        "model": "gpt-4o-mini",
+                        "provider": "openai",
+                        "temperature": 0.5,
+                        "top_p": 1.0,
+                        "max_tokens": 420,
+                    },
+                ],
+            },
+            "created_at": base - 850_000,
+            "updated_at": base - 500_000,
+        },
+        {
+            "id": "pg_gtm_recovery_outreach",
+            "project_id": "proj_gtm",
+            "name": "Deliverability Recovery Outreach",
+            "description": "Priya iterates recovery email tone to regain inbox placement.",
+            "config": {
+                "version": 1,
+                "system_prompt": "You are OctoWorks RevOps. Write compliant outbound emails with clear opt-out language. Avoid spammy phrasing.",
+                "input": "Draft a short recovery email for prospects after Gmail blocking.",
+                "messages": [
+                    {"role": "user", "content": "Our domain got blocked. We need to recover deliverability."},
+                    {"role": "assistant", "content": "I will keep the message concise, compliant, and opt-out friendly."},
+                ],
+                "variants": [
+                    {
+                        "id": "variant_gtm_polite",
+                        "name": "Polite Recovery",
+                        "model": "gemini-2.0-flash",
+                        "provider": "gemini",
+                        "temperature": 0.6,
+                        "top_p": 1.0,
+                        "max_tokens": 300,
+                    },
+                    {
+                        "id": "variant_gtm_brief",
+                        "name": "Brief Note",
+                        "model": "gpt-4o-mini",
+                        "provider": "openai",
+                        "temperature": 0.4,
+                        "top_p": 1.0,
+                        "max_tokens": 260,
+                    },
+                ],
+            },
+            "created_at": base - 780_000,
+            "updated_at": base - 420_000,
+        },
+    ]
+    for pg in playgrounds:
+        session.add(PlaygroundModel(**pg))
 
     # Built-in Scorers
     for scorer in BUILTIN_SCORERS:

@@ -107,6 +107,66 @@ async def get_project_traces(
     return api_traces
 
 
+@router.get("/traces/{trace_id}", response_model=Trace)
+async def get_trace(
+    trace_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    trace_model = await session.get(TraceModel, trace_id)
+    if not trace_model:
+        raise HTTPException(status_code=404, detail="Trace not found")
+
+    spans_statement = (
+        select(SpanModel)
+        .where(SpanModel.trace_id == trace_id)
+        .order_by(SpanModel.start_time)
+    )
+    spans_result = await session.execute(spans_statement)
+    spans = spans_result.scalars().all()
+    if not spans:
+        raise HTTPException(status_code=404, detail="Trace has no spans")
+
+    def to_span_pydantic(sm: SpanModel) -> Span:
+        return Span(
+            id=sm.id,
+            trace_id=sm.trace_id,
+            parent_id=sm.parent_id,
+            name=sm.name,
+            type=sm.type,
+            start_time=sm.start_time,
+            end_time=sm.end_time,
+            status=sm.status,
+            input=sm.input,
+            output=sm.output,
+            metrics=SpanMetrics(**sm.metrics),
+            attributes=SpanAttributes(**sm.attributes),
+            tags=sm.tags or [],
+            error_message=sm.error_message,
+        )
+
+    converted_spans = [to_span_pydantic(s) for s in spans]
+    root_span = next((s for s in converted_spans if not s.parent_id), None)
+    if not root_span:
+        raise HTTPException(status_code=404, detail="Trace root span not found")
+
+    return Trace(
+        id=trace_model.id,
+        root_span=root_span,
+        spans=converted_spans,
+        project_id=trace_model.project_id,
+        parent_trace_id=trace_model.parent_trace_id,
+        trace_group_id=trace_model.trace_group_id,
+        input_span_id=trace_model.input_span_id,
+        output_span_id=trace_model.output_span_id,
+        timestamp=trace_model.timestamp,
+        total_latency=trace_model.total_latency,
+        total_cost=trace_model.total_cost,
+        total_tokens=trace_model.total_tokens,
+        status=trace_model.status,
+        tags=trace_model.tags or [],
+    )
+
+
 @router.post("/traces", response_model=Dict[str, str])
 async def create_trace(trace: Trace, session: AsyncSession = Depends(get_session)):
     service = TraceService()

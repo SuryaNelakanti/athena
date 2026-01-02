@@ -1,6 +1,6 @@
 import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest, MonitorChart, Playground } from '../types';
 
-const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = 'http://localhost:8000';
 
 export interface View {
     id: string;
@@ -61,6 +61,12 @@ export const api = {
 
         const response = await fetch(`${API_BASE_URL}/projects/${projectId}/traces?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch traces');
+        return response.json();
+    },
+
+    getTrace: async (traceId: string): Promise<Trace> => {
+        const response = await fetch(`${API_BASE_URL}/traces/${traceId}`);
+        if (!response.ok) throw new Error('Failed to fetch trace');
         return response.json();
     },
 
