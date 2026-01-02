@@ -446,6 +446,14 @@ Each task is a logically atomic unit that only adds on top of the previous work.
 8.4 Data retention policies + export APIs
 8.5 Compliance hardening (SOC2 posture; audit log UX)
 
+### Phase 9 — Agentic Ops (Autopilot / Loop Guardian)
+9.1 Define background agent framework: schedules, triggers, permissions, audit trail, run limits
+9.2 Implement anomaly detection for quality/cost/latency/error drift with alerting + assignments
+9.3 Add automated dataset curation suggestions from logs (edge cases, low scores)
+9.4 Enable continuous eval triggers (post-deploy, scheduled, or drift-based)
+9.5 Provide remediation suggestions with human approval (prompt/model routing, tool suggestions)
+9.6 Add governance controls: opt-in policies, explainability, rate limits, rollback
+
 ---
 
 ## 14. MVP definition (ship criteria)
@@ -476,3 +484,4 @@ Athena v1 is “shippable” when:
 - Minimum provider set for Proxy v1 (2 providers + OpenAI-style responses adapter)?
 - What is the default retention policy for raw logs in hosted mode?
 - Do we ship remote evals in v1 or v2?
+
