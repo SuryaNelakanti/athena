@@ -7,21 +7,22 @@
     <title>Athena | AI Proxy + Observability + Evaluation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       :root {
-        --bg: #f7f9fc;
-        --bg-2: #eef3fb;
-        --ink: #0b1220;
-        --muted: #536276;
-        --accent: #2bd3c6;
-        --accent-2: #5f8bff;
-        --accent-3: #ff9f6e;
+        --bg: #ffffff;
+        --bg-2: #f4f4f0;
+        --ink: #0c0c0c;
+        --muted: #3b3b3b;
+        --accent: #0c0c0c;
+        --accent-2: #e53935;
+        --accent-3: #e53935;
         --surface: #ffffff;
-        --surface-2: #f2f6fb;
-        --border: rgba(11, 18, 32, 0.08);
-        --shadow: 0 24px 50px rgba(14, 23, 36, 0.12);
-        --radius: 22px;
+        --surface-2: #f2f2ee;
+        --border: #0c0c0c;
+        --shadow-hero: 10px 10px 0 #0c0c0c;
+        --shadow-card: 6px 6px 0 #0c0c0c;
+        --radius: 2px;
       }
 
       * {
@@ -31,13 +32,10 @@
       html, body {
         margin: 0;
         padding: 0;
-        font-family: "Sora", sans-serif;
+        font-family: "IBM Plex Mono", monospace;
         color: var(--ink);
         background-color: var(--bg);
-        background-image:
-          radial-gradient(900px 600px at 10% -5%, rgba(43, 211, 198, 0.18), transparent 60%),
-          radial-gradient(900px 600px at 90% -10%, rgba(95, 139, 255, 0.2), transparent 60%),
-          linear-gradient(180deg, #f9fbff 0%, #eef3fb 55%, #f8fbff 100%);
+        background-image: none;
         min-height: 100%;
       }
 
@@ -64,12 +62,11 @@
         position: absolute;
         inset: 0;
         background-image:
-          linear-gradient(rgba(11, 18, 32, 0.05) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(11, 18, 32, 0.05) 1px, transparent 1px);
-        background-size: 140px 140px;
-        opacity: 0.3;
+          linear-gradient(rgba(12, 12, 12, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(12, 12, 12, 0.08) 1px, transparent 1px);
+        background-size: 72px 72px;
+        opacity: 0.18;
         pointer-events: none;
-        mask-image: radial-gradient(circle at 30% 0%, black 0%, transparent 70%);
         z-index: 0;
       }
 
@@ -77,9 +74,8 @@
         position: sticky;
         top: 0;
         z-index: 10;
-        backdrop-filter: blur(18px);
-        background: rgba(249, 251, 255, 0.8);
-        border-bottom: 1px solid rgba(11, 18, 32, 0.08);
+        background: var(--bg);
+        border-bottom: 2px solid var(--border);
       }
 
       .nav-inner {
@@ -96,23 +92,28 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
+        font-family: "Space Grotesk", sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
 
       .logo-mark {
         width: 34px;
         height: 34px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        box-shadow: 0 12px 24px rgba(43, 211, 198, 0.25);
+        border-radius: 4px;
+        background: var(--ink);
+        border: 2px solid var(--accent-2);
       }
 
       .nav-links {
         display: flex;
         gap: 18px;
-        font-size: 14px;
-        color: var(--muted);
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--ink);
       }
 
       .nav-actions {
@@ -123,32 +124,43 @@
 
       .button {
         padding: 12px 20px;
-        border-radius: 999px;
+        border-radius: 2px;
+        font-family: "Space Grotesk", sans-serif;
         font-weight: 600;
-        font-size: 14px;
-        border: 1px solid transparent;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        border: 2px solid var(--ink);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: background 0.2s ease, color 0.2s ease;
       }
 
       .button.primary {
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        color: #041018;
-        box-shadow: 0 18px 40px rgba(95, 139, 255, 0.25);
+        background: var(--ink);
+        color: var(--bg);
       }
 
       .button.secondary {
-        border-color: rgba(11, 18, 32, 0.12);
-        background: rgba(255, 255, 255, 0.8);
+        background: transparent;
         color: var(--ink);
       }
 
       .button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+        transform: none;
+        box-shadow: none;
+      }
+
+      .button.primary:hover {
+        background: var(--accent-2);
+        color: var(--ink);
+      }
+
+      .button.secondary:hover {
+        background: var(--ink);
+        color: var(--bg);
       }
 
       main {
@@ -160,6 +172,17 @@
         max-width: 1200px;
         margin: 0 auto;
         padding: 90px 24px;
+        position: relative;
+      }
+
+      .section::after {
+        content: "";
+        position: absolute;
+        left: -100vw;
+        right: -100vw;
+        height: 2px;
+        background: var(--ink);
+        bottom: 0;
       }
 
       .hero {
@@ -177,21 +200,42 @@
       }
 
       .eyebrow {
-        font-family: "Chakra Petch", sans-serif;
-        font-size: 12px;
-        letter-spacing: 0.28em;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.32em;
         text-transform: uppercase;
         color: var(--accent);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        border: 2px solid var(--ink);
+        background: var(--surface-2);
+        flex-wrap: wrap;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        background: var(--ink);
+        display: inline-block;
       }
 
       h1, h2, h3 {
-        font-family: "Chakra Petch", sans-serif;
+        font-family: "Space Grotesk", sans-serif;
         margin: 0;
+      }
+
+      h3 {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
       }
 
       .hero h1 {
         font-size: clamp(2.8rem, 5vw, 4.6rem);
         line-height: 1.02;
+        text-transform: uppercase;
       }
 
       .hero h1 span {
@@ -211,6 +255,61 @@
         flex-wrap: wrap;
       }
 
+      .code-card {
+        border-radius: 2px;
+        border: 2px solid var(--ink);
+        background: var(--surface);
+        box-shadow: var(--shadow-card);
+        padding: 14px 16px;
+        overflow: hidden;
+      }
+
+      .code-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: -14px -16px 12px;
+        padding: 10px 12px;
+        border-bottom: 2px solid var(--ink);
+        background: var(--surface-2);
+      }
+
+      .code-pill {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        padding: 6px 10px;
+        border-radius: 2px;
+        border: 2px solid var(--ink);
+        background: var(--accent-2);
+        color: var(--ink);
+      }
+
+      .code-meta {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+      }
+
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 2px;
+        border: 2px solid var(--ink);
+        background: var(--bg-2);
+        overflow: auto;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--ink);
+      }
+
       .hero-highlights {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -219,20 +318,20 @@
 
       .highlight {
         padding: 14px 16px;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.85);
-        border: 1px solid rgba(11, 18, 32, 0.08);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        border-radius: 2px;
+        background: var(--surface-2);
+        border: 2px solid var(--ink);
       }
 
       .highlight strong {
         display: block;
+        font-family: "Space Grotesk", sans-serif;
         font-size: 0.9rem;
       }
 
       .highlight span {
         font-size: 0.75rem;
-        letter-spacing: 0.18em;
+        letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--muted);
       }
@@ -247,14 +346,130 @@
 
       .hero-frame {
         padding: 12px;
-        border-radius: 26px;
-        background: linear-gradient(135deg, rgba(43, 211, 198, 0.45), rgba(95, 139, 255, 0.4), rgba(255, 159, 110, 0.3));
-        box-shadow: var(--shadow);
+        border-radius: 4px;
+        border: 2px solid var(--ink);
+        background: var(--surface);
+        box-shadow: var(--shadow-hero);
+        position: relative;
       }
 
-      .hero-frame img {
-        border-radius: 18px;
-        border: 1px solid rgba(11, 18, 32, 0.08);
+      .frame-corner {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        pointer-events: none;
+      }
+
+      .frame-corner.tl {
+        top: 8px;
+        left: 8px;
+        border-top: 2px solid var(--ink);
+        border-left: 2px solid var(--ink);
+      }
+
+      .frame-corner.tr {
+        top: 8px;
+        right: 8px;
+        border-top: 2px solid var(--ink);
+        border-right: 2px solid var(--ink);
+      }
+
+      .frame-corner.bl {
+        bottom: 8px;
+        left: 8px;
+        border-bottom: 2px solid var(--ink);
+        border-left: 2px solid var(--ink);
+      }
+
+      .frame-corner.br {
+        bottom: 8px;
+        right: 8px;
+        border-bottom: 2px solid var(--ink);
+        border-right: 2px solid var(--ink);
+      }
+
+      .loop-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 2px;
+        border: 2px solid var(--ink);
+        background: var(--surface);
+      }
+
+      .loop-path {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 10;
+        stroke-linecap: round;
+        opacity: 0.22;
+      }
+
+      .loop-path-anim {
+        fill: none;
+        stroke: var(--accent-2);
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-dasharray: 22 14;
+        animation: dash 2.6s linear infinite;
+        filter: drop-shadow(0 0 8px rgba(229, 57, 53, 0.35));
+      }
+
+      .node circle {
+        fill: rgba(255, 255, 255, 0.95);
+        stroke: rgba(12, 12, 12, 0.22);
+        stroke-width: 2;
+        transform-origin: center;
+        transform-box: fill-box;
+      }
+
+      .node text {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 14px;
+        fill: rgba(12, 12, 12, 0.78);
+        text-anchor: middle;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .node.logs circle {
+        animation: pulse 2.6s infinite;
+      }
+
+      .node.dataset circle {
+        animation: pulse 2.6s infinite;
+        animation-delay: 0.65s;
+      }
+
+      .node.exp circle {
+        animation: pulse 2.6s infinite;
+        animation-delay: 1.3s;
+      }
+
+      .node.ship circle {
+        animation: pulse 2.6s infinite;
+        animation-delay: 1.95s;
+      }
+
+      .trace rect {
+        fill: rgba(12, 12, 12, 0.04);
+        stroke: rgba(12, 12, 12, 0.28);
+      }
+
+      .trace path {
+        stroke: rgba(12, 12, 12, 0.65);
+        stroke-width: 2;
+      }
+
+      .trace circle {
+        fill: var(--accent-3);
+      }
+
+      .trace text {
+        font-size: 12px;
+        fill: rgba(12, 12, 12, 0.6);
+        font-family: "IBM Plex Mono", monospace;
+        letter-spacing: 0.1em;
       }
 
       [data-tilt] {
@@ -265,11 +480,11 @@
       .float-card {
         position: absolute;
         padding: 12px 14px;
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid rgba(11, 18, 32, 0.08);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
-        font-size: 12px;
+        border-radius: 2px;
+        background: var(--surface);
+        border: 2px solid var(--ink);
+        box-shadow: none;
+        font-size: 11px;
       }
 
       .float-card strong {
@@ -279,9 +494,9 @@
 
       .float-card span {
         color: var(--muted);
-        letter-spacing: 0.16em;
+        letter-spacing: 0.2em;
         text-transform: uppercase;
-        font-size: 10px;
+        font-size: 9px;
       }
 
       .float-card.one {
@@ -295,11 +510,11 @@
       }
 
       .signal-band {
-        border-top: 1px solid rgba(11, 18, 32, 0.08);
-        border-bottom: 1px solid rgba(11, 18, 32, 0.08);
+        border-top: 2px solid var(--ink);
+        border-bottom: 2px solid var(--ink);
         overflow: hidden;
         padding: 18px 0;
-        background: rgba(255, 255, 255, 0.7);
+        background: var(--ink);
       }
 
       .signal-track {
@@ -307,15 +522,30 @@
         gap: 32px;
         white-space: nowrap;
         animation: marquee 18s linear infinite;
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.28em;
-        color: var(--muted);
+        color: var(--bg);
       }
 
       @keyframes marquee {
         to {
           transform: translateX(-50%);
+        }
+      }
+
+      @keyframes dash {
+        to {
+          stroke-dashoffset: -72;
+        }
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.06);
         }
       }
 
@@ -326,8 +556,19 @@
         margin-bottom: 36px;
       }
 
+      .section-head[data-step]::before {
+        content: attr(data-step);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
       .section-head h2 {
         font-size: clamp(2rem, 3.2vw, 3rem);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
       }
 
       .section-head p {
@@ -347,19 +588,18 @@
       .feature-card {
         background: var(--surface);
         border-radius: var(--radius);
-        border: 1px solid rgba(11, 18, 32, 0.08);
+        border: 2px solid var(--ink);
         padding: 20px;
         display: grid;
         gap: 16px;
-        box-shadow: var(--shadow);
       }
 
       .panel-meta {
-        font-family: "Chakra Petch", sans-serif;
-        font-size: 11px;
-        letter-spacing: 0.2em;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.24em;
         text-transform: uppercase;
-        color: var(--accent-2);
+        color: var(--accent);
       }
 
       .panel span,
@@ -371,8 +611,8 @@
       }
 
       .panel img {
-        border-radius: 16px;
-        border: 1px solid rgba(11, 18, 32, 0.08);
+        border-radius: 2px;
+        border: 2px solid var(--ink);
       }
 
       .feature-card h3 {
@@ -390,20 +630,20 @@
       }
 
       .workflow-step {
-        border-radius: 18px;
+        border-radius: var(--radius);
         padding: 20px;
-        border: 1px solid rgba(11, 18, 32, 0.1);
-        background: rgba(255, 255, 255, 0.85);
+        border: 2px solid var(--ink);
+        background: var(--surface);
         display: grid;
         gap: 10px;
       }
 
       .workflow-step strong {
-        font-family: "Chakra Petch", sans-serif;
-        font-size: 0.9rem;
-        letter-spacing: 0.18em;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
-        color: var(--accent-2);
+        color: var(--accent);
       }
 
       .workflow-step span {
@@ -416,6 +656,17 @@
         grid-template-columns: repeat(12, minmax(0, 1fr));
         gap: 20px;
         align-items: center;
+        position: relative;
+      }
+
+      .security-callout[data-step]::before {
+        content: attr(data-step);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--muted);
+        grid-column: span 12;
       }
 
       .security-text {
@@ -430,9 +681,9 @@
 
       .security-item {
         padding: 16px;
-        border-radius: 16px;
-        border: 1px solid rgba(11, 18, 32, 0.1);
-        background: rgba(255, 255, 255, 0.85);
+        border-radius: var(--radius);
+        border: 2px solid var(--ink);
+        background: var(--surface);
       }
 
       .metrics {
@@ -443,21 +694,47 @@
 
       .metric {
         padding: 20px;
-        border-radius: 18px;
-        border: 1px solid rgba(11, 18, 32, 0.1);
-        background: rgba(255, 255, 255, 0.9);
+        border-radius: var(--radius);
+        border: 2px solid var(--ink);
+        background: var(--surface);
       }
 
       .metric strong {
-        font-size: 2rem;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 1.4rem;
+        letter-spacing: 0.04em;
+      }
+
+      .early-access {
+        margin-top: 24px;
+        padding: 20px;
+        border-radius: var(--radius);
+        border: 2px solid var(--ink);
+        background: var(--surface-2);
+        display: grid;
+        gap: 8px;
+      }
+
+      .early-access strong {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.75rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .early-access p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
       }
 
       .testimonial {
         margin-top: 24px;
         padding: 28px;
         border-radius: var(--radius);
-        border: 1px solid rgba(11, 18, 32, 0.1);
-        background: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(240, 246, 255, 0.9));
+        border: 2px solid var(--ink);
+        background: var(--surface);
         display: grid;
         gap: 12px;
       }
@@ -471,17 +748,19 @@
       .cta {
         text-align: center;
         padding: 60px 32px;
-        border-radius: 28px;
-        border: 1px solid rgba(95, 139, 255, 0.2);
-        background: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(238, 245, 255, 0.9));
-        box-shadow: 0 30px 80px rgba(14, 23, 36, 0.12);
+        border-radius: 4px;
+        border: 2px solid var(--ink);
+        background: var(--surface);
+        box-shadow: var(--shadow-card);
       }
 
       .footer {
         text-align: center;
         padding: 40px 24px 60px;
         color: var(--muted);
-        font-size: 14px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
       }
 
       [data-reveal] {
@@ -541,6 +820,10 @@
           flex-direction: column;
           align-items: stretch;
         }
+
+        .code-card code {
+          font-size: 11px;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -550,6 +833,14 @@
 
         [data-tilt] {
           transform: none;
+        }
+
+        .loop-path-anim,
+        .node.logs circle,
+        .node.dataset circle,
+        .node.exp circle,
+        .node.ship circle {
+          animation: none;
         }
       }
     </style>
@@ -572,7 +863,7 @@
             <a href="#demo">Demo</a>
           </nav>
           <div class="nav-actions">
-            <a class="button secondary" href="#demo">Request demo</a>
+            <a class="button secondary" href="#demo">Book a walkthrough</a>
             <a class="button primary" href="#demo">Start free</a>
           </div>
         </div>
@@ -581,16 +872,32 @@
       <main>
         <section class="section hero" id="platform">
           <div class="hero-copy" data-reveal>
-            <div class="eyebrow">ATHENA // AI ENGINEERING LOOP</div>
-            <h1>Ship reliable AI faster with <span>one loop</span>.</h1>
+            <div class="eyebrow">ATHENA // LOGS  DATASETS  EXPERIMENTS</div>
+            <h1>Debug, evaluate, ship from <span>production truth</span>.</h1>
             <p>
-              Athena unifies AI proxy, observability, and evaluation so production data flows
-              directly into experiments. Close the loop from logs to datasets to experiments,
-              with MCP tooling built for IDE agents.
+              Athena is an LLM proxy + observability + evaluation system. Capture traces in prod,
+              promote failures to datasets, and run scored experiments before you ship.
             </p>
             <div class="hero-actions">
-              <a class="button primary" href="#demo">Book a 20 minute walkthrough</a>
-              <a class="button secondary" href="#workflow">See the workflow</a>
+              <a class="button primary" href="#demo">Start free</a>
+              <a class="button secondary" href="#demo">Book a walkthrough</a>
+            </div>
+            <div class="code-card" aria-label="Quickstart">
+              <div class="code-head">
+                <span class="code-pill">Quickstart</span>
+                <span class="code-meta">~10 min to instrument</span>
+              </div>
+              <pre><code>npm i @athena/sdk
+
+import { Athena } from "@athena/sdk";
+
+const athena = new Athena({ apiKey: process.env.ATHENA_KEY });
+
+const res = await athena.chat.completions.create({
+  model: "gpt-4.1",
+  messages: [{ role: "user", content: "..." }],
+  trace: { trace_group_id: "session_123" }
+});</code></pre>
             </div>
             <div class="hero-highlights">
               <div class="highlight">
@@ -609,15 +916,44 @@
           </div>
           <div class="hero-visual" data-reveal>
             <div class="hero-frame" data-tilt>
-              <img src="assets/2025-12-28%2000.14.17%20localhost%20103d45eb2847.png" alt="Athena trace detail view with lineage and span metrics">
-            </div>
-            <div class="float-card one">
-              <span>Trace health</span>
-              <strong>92% passing</strong>
-            </div>
-            <div class="float-card two">
-              <span>P95 latency</span>
-              <strong>761ms</strong>
+              <svg class="loop-svg" viewBox="0 0 720 520" role="img" aria-label="Athena loop: Logs to Datasets to Experiments">
+                <path class="loop-path" d="M140,260 C180,120 340,80 430,150 C520,220 560,360 460,400 C360,440 220,400 190,320" fill="none"></path>
+                <path class="loop-path-anim" d="M140,260 C180,120 340,80 430,150 C520,220 560,360 460,400 C360,440 220,400 190,320" fill="none"></path>
+
+                <g class="node logs" transform="translate(120 235)">
+                  <circle r="30" cx="30" cy="30"></circle>
+                  <text x="30" y="68">LOGS</text>
+                </g>
+
+                <g class="node dataset" transform="translate(410 120)">
+                  <circle r="30" cx="30" cy="30"></circle>
+                  <text x="30" y="68">DATASET</text>
+                </g>
+
+                <g class="node exp" transform="translate(470 360)">
+                  <circle r="30" cx="30" cy="30"></circle>
+                  <text x="30" y="68">EXPERIMENT</text>
+                </g>
+
+                <g class="node ship" transform="translate(220 340)">
+                  <circle r="30" cx="30" cy="30"></circle>
+                  <text x="30" y="68">SHIP</text>
+                </g>
+
+                <g class="trace" transform="translate(255 190)">
+                  <rect x="0" y="0" width="210" height="120" rx="14"></rect>
+                  <path d="M30,30 L70,30 L70,55 L115,55" fill="none"></path>
+                  <path d="M30,30 L70,30 L70,85 L150,85" fill="none"></path>
+                  <circle cx="30" cy="30" r="6"></circle>
+                  <circle cx="115" cy="55" r="6"></circle>
+                  <circle cx="150" cy="85" r="6"></circle>
+                  <text x="18" y="110">TRACE + SPANS</text>
+                </g>
+              </svg>
+              <span class="frame-corner tl" aria-hidden="true"></span>
+              <span class="frame-corner tr" aria-hidden="true"></span>
+              <span class="frame-corner bl" aria-hidden="true"></span>
+              <span class="frame-corner br" aria-hidden="true"></span>
             </div>
           </div>
         </section>
@@ -631,7 +967,7 @@
         </section>
 
         <section class="section" id="product">
-          <div class="section-head" data-reveal>
+          <div class="section-head" data-reveal data-step="01 - PRODUCT">
             <div class="eyebrow">PRODUCT SURFACES</div>
             <h2>Every surface is designed to reduce time-to-trust.</h2>
             <p>Move from production issues to scored experiments with context intact across the platform.</p>
@@ -666,7 +1002,7 @@
         </section>
 
         <section class="section" id="workflow">
-          <div class="section-head" data-reveal>
+          <div class="section-head" data-reveal data-step="02 - WORKFLOW">
             <div class="eyebrow">THE LOOP</div>
             <h2>A single workflow from live data to trusted launches.</h2>
             <p>Athena keeps production and development in sync, so every release is backed by evidence.</p>
@@ -692,7 +1028,7 @@
         </section>
 
         <section class="section">
-          <div class="section-head" data-reveal>
+          <div class="section-head" data-reveal data-step="03 - CAPABILITIES">
             <div class="eyebrow">CORE CAPABILITIES</div>
             <h2>Infrastructure that makes quality obvious.</h2>
             <p>Everything you need to operate AI in production and prove every release.</p>
@@ -726,7 +1062,7 @@
         </section>
 
         <section class="section" id="security">
-          <div class="security-callout" data-reveal>
+          <div class="security-callout" data-reveal data-step="04 - SECURITY">
             <div class="security-text">
               <div class="eyebrow">SECURITY</div>
               <h2>Control plane speed, data plane privacy.</h2>
@@ -744,29 +1080,32 @@
         </section>
 
         <section class="section" id="proof">
-          <div class="section-head" data-reveal>
-            <div class="eyebrow">PROOF</div>
-            <h2>Metrics that make quality visible.</h2>
-            <p>Monitor latency, cost, and quality together so every team sees the same truth.</p>
+          <div class="section-head" data-reveal data-step="05 - PROOF">
+            <div class="eyebrow">CAPABILITY PROOF</div>
+            <h2>Proof that comes from the platform itself.</h2>
+            <p>Capabilities you can verify in the product from day one.</p>
           </div>
           <div class="metrics">
             <div class="metric" data-reveal>
-              <strong>42%</strong>
-              <p>Faster iteration cycles after moving logs to datasets.</p>
+              <strong>&lt;30 min install</strong>
+              <p>SDK + proxy drop-in with a single client call.</p>
             </div>
             <div class="metric" data-reveal>
-              <strong>28%</strong>
-              <p>Lower inference cost with routing and cache controls.</p>
+              <strong>Hybrid: customer data plane</strong>
+              <p>Keep raw logs in your cloud while Athena runs the control plane.</p>
             </div>
             <div class="metric" data-reveal>
-              <strong>17</strong>
-              <p>Teams onboarded in two weeks without re-platforming.</p>
+              <strong>Trace trees + tool calls</strong>
+              <p>See nested spans, retries, and tool arguments in one view.</p>
+            </div>
+            <div class="metric" data-reveal>
+              <strong>LLM judge + criteria scoring</strong>
+              <p>Run semantic and checklist scoring side by side.</p>
             </div>
           </div>
-          <div class="testimonial" data-reveal>
-            <h3>"The loop is obvious, and the proxy never gets in the way."</h3>
-            <p>Athena gave us a single place to debug, score, and improve our AI assistant. We ship more with less anxiety.</p>
-            <span><strong>VP of AI</strong>, Global fintech platform</span>
+          <div class="early-access" data-reveal>
+            <strong>Design partner program</strong>
+            <p>We are onboarding a small set of teams for early access. References shared on request.</p>
           </div>
         </section>
 
@@ -776,7 +1115,7 @@
             <h2>Stop guessing. Start proving.</h2>
             <p>Get a live walkthrough of Athena, custom to your stack. We will help you design the loop from raw logs to production ready evals.</p>
             <div class="hero-actions" style="justify-content: center;">
-              <a class="button primary" href="mailto:hello@athena.dev">Schedule a demo</a>
+              <a class="button primary" href="mailto:hello@athena.dev">Book a walkthrough</a>
               <a class="button secondary" href="mailto:hello@athena.dev">Ask for pricing</a>
             </div>
           </div>
