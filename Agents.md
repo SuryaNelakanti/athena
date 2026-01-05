@@ -1,6 +1,8 @@
 # Athena — Agents.MD
 
-This document is the single source of truth for building **Athena**, an AI engineering platform that couples **running** AI (proxy + observability) with **improving** AI (datasets + evaluation), plus an IDE-integrated **MCP server**.
+Canonical project context + reconciled roadmap: `docs/project-context.md`.
+
+This file is kept as a legacy overview for **Athena**, an AI engineering platform that couples **running** AI (proxy + observability) with **improving** AI (datasets + evaluation), plus an IDE-integrated **MCP server**.
 
 ---
 
@@ -68,7 +70,7 @@ Athena is split into:
 - Auth, organizations/projects, billing, feature flags
 - SDK distribution + configuration
 - MCP server (hosted) and OAuth discovery
-- Provider registry and org-level provider enablement (for use in Athena Loop)
+- Provider registry and org-level provider enablement (for Proxy, Playgrounds, and OwlWidget)
 
 ### 4.2 Data Plane (customer-owned, optional but first-class)
 - API layer + database deployed in the customer’s cloud environment
@@ -146,7 +148,7 @@ This architecture is required to support privacy-sensitive production logs at sc
 
 ---
 
-## 7. Pillar C — Evaluation (the Loop)
+## 7. Pillar C — Evaluation (closed-loop workflow)
 
 ### 7.1 Datasets
 Datasets are:
@@ -285,18 +287,15 @@ Do not build a bespoke OLAP engine.
 
 ---
 
-## 9. Loop assistant (Athena Loop)
+## 9. OwlWidget (in-app assistant)
 
-Athena ships an in-product assistant (“Loop”) that can:
-- generate and optimize prompts
-- generate and optimize scorers
-- generate/optimize datasets
-- summarize and improve experiments
-- analyze/filter logs and help author queries in AQL
-- create custom charts on the Monitor page
-- search documentation
+Athena ships an in-product assistant (“Owl”) surfaced as `OwlWidget`, which appears on every screen for fast, page-aware help.
 
-Loop runs through the Athena AI Proxy and only uses org-enabled models, which admins can restrict.
+In this repo, OwlWidget:
+- Injects per-page context (route, params, project) into the system prompt.
+- Provides playbooks: AQL Author, Prompt Optimizer, Scorer Draft, Dataset Ideas, Experiment Summary, Docs Search.
+- Calls the Proxy chat endpoint (`/v1/chat/completions`) and includes `trace_id` for correlation.
+- Uses `POST /owl/search-docs` for simple in-repo docs search.
 
 ---
 
@@ -343,29 +342,25 @@ Self-hosted:
 
 ## 12. Product surfaces (UI map)
 
-### 12.1 Core navigation
-- Organizations
+### 12.1 Current navigation (as implemented in this repo)
 - Projects
+  - Dashboard (includes monitor charts)
   - Logs
-  - Monitor
   - Review
-  - Playgrounds
-  - Experiments
+  - Collaboration
   - Datasets
-  - Functions (scorers/tools)
-  - Loop
-- Context
-  - Views
-  - Attachments
-  - Environments
-  - Assignments & mentions
-  - Remote evals (v2)
-  - Automations (v2)
-- Settings
-  - Access control
-  - AI providers / proxy config
-  - API keys / service tokens
-  - MCP integration
+  - Experiments
+  - Playgrounds
+  - Settings
+- Global
+  - OwlWidget (page-aware assistant)
+
+### 12.2 Planned surfaces (roadmap)
+- Sessions (agent-native)
+- Runs (graph debugging)
+- Functions (scorers/tools)
+- Automations
+- Context: views, attachments, environments, assignments & mentions, share links
 
 ---
 
@@ -431,10 +426,10 @@ Each task is a logically atomic unit that only adds on top of the previous work.
 6.4 Implement “snapshot to experiment” (convert playground run to experiment)
 6.5 Enforce UI run timeout; route long runs to programmatic runner
 
-### Phase 7 — Loop assistant + MCP server
-7.1 Implement Loop chat surface (data-source selection, auto-accept toggle)
-7.2 Implement Loop actions: prompt optimize, scorer generate, dataset generate, experiment summarize, AQL author
-7.3 Implement documentation search index for Loop + MCP
+### Phase 7 — OwlWidget assistant + MCP server
+7.1 Implement OwlWidget global assistant (per-page context)
+7.2 Implement Owl playbooks: AQL author, prompt optimize, scorer draft, dataset ideas, experiment summary, docs search
+7.3 Implement documentation search index for Owl + MCP
 7.4 Implement MCP server endpoints (HTTP MCP + OAuth2 PKCE)
 7.5 Implement MCP tools: search_docs, resolve_object, list_recent_objects, infer_schema, aql_query, summarize_experiment, generate_permalink
 7.6 Ship tool-specific setup docs (Cursor/VS Code/Claude Code/etc.)
@@ -446,7 +441,7 @@ Each task is a logically atomic unit that only adds on top of the previous work.
 8.4 Data retention policies + export APIs
 8.5 Compliance hardening (SOC2 posture; audit log UX)
 
-### Phase 9 — Agentic Ops (Autopilot / Loop Guardian)
+### Phase 9 — Agentic Ops (Autopilot / Guardian)
 9.1 Define background agent framework: schedules, triggers, permissions, audit trail, run limits
 9.2 Implement anomaly detection for quality/cost/latency/error drift with alerting + assignments
 9.3 Add automated dataset curation suggestions from logs (edge cases, low scores)
