@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 
 *.pyc
+*cache
 
 package-lock.json
