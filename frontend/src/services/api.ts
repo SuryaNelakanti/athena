@@ -1,4 +1,18 @@
-import { Project, Trace, Log, AqlQueryResponse, AqlQueryRequest, MonitorChart, Playground } from '../types';
+import {
+    Project,
+    Trace,
+    Log,
+    AqlQueryResponse,
+    AqlQueryRequest,
+    MonitorChart,
+    Playground,
+    AgentSession,
+    AgentSessionDetail,
+    AgentRun,
+    SessionEvent,
+    SessionAnnotation,
+    RunGraph,
+} from '../types';
 
 export const API_BASE_URL = 'http://localhost:8000';
 
@@ -67,6 +81,106 @@ export const api = {
     getTrace: async (traceId: string): Promise<Trace> => {
         const response = await fetch(`${API_BASE_URL}/traces/${traceId}`);
         if (!response.ok) throw new Error('Failed to fetch trace');
+        return response.json();
+    },
+
+    // Sessions (agent-native)
+    getSessions: async (
+        projectId: string,
+        filters?: {
+            agent_name?: string;
+            env?: string;
+            status?: string;
+            start_time?: number;
+            end_time?: number;
+            limit?: number;
+            offset?: number;
+        }
+    ): Promise<AgentSession[]> => {
+        const params = new URLSearchParams({ project_id: projectId });
+        if (filters?.agent_name) params.append('agent_name', filters.agent_name);
+        if (filters?.env) params.append('env', filters.env);
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.start_time) params.append('start_time', filters.start_time.toString());
+        if (filters?.end_time) params.append('end_time', filters.end_time.toString());
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.offset) params.append('offset', filters.offset.toString());
+        const response = await fetch(`${API_BASE_URL}/sessions?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch sessions');
+        return response.json();
+    },
+
+    getSession: async (sessionId: string): Promise<AgentSessionDetail> => {
+        const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
+        if (!response.ok) throw new Error('Failed to fetch session');
+        return response.json();
+    },
+
+    getRun: async (runId: string): Promise<AgentRun> => {
+        const response = await fetch(`${API_BASE_URL}/runs/${runId}`);
+        if (!response.ok) throw new Error('Failed to fetch run');
+        return response.json();
+    },
+
+    getRunGraph: async (runId: string): Promise<RunGraph> => {
+        const response = await fetch(`${API_BASE_URL}/runs/${runId}/graph`);
+        if (!response.ok) throw new Error('Failed to fetch run graph');
+        return response.json();
+    },
+
+    getSessionTimeline: async (
+        sessionId: string,
+        filters?: { limit?: number; offset?: number }
+    ): Promise<SessionEvent[]> => {
+        const params = new URLSearchParams();
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.offset) params.append('offset', filters.offset.toString());
+        const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/timeline?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch session timeline');
+        return response.json();
+    },
+
+    getSessionAnnotations: async (sessionId: string): Promise<SessionAnnotation[]> => {
+        const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations`);
+        if (!response.ok) throw new Error('Failed to fetch session annotations');
+        return response.json();
+    },
+
+    createSessionAnnotation: async (
+        sessionId: string,
+        payload: {
+            labels?: string[];
+            severity?: string;
+            owner?: string;
+            status?: string;
+            note?: string;
+        }
+    ): Promise<SessionAnnotation> => {
+        const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create session annotation');
+        return response.json();
+    },
+
+    updateSessionAnnotation: async (
+        annotationId: string,
+        payload: {
+            labels?: string[];
+            severity?: string;
+            owner?: string;
+            status?: string;
+            note?: string;
+        }
+    ): Promise<SessionAnnotation> => {
+        const response = await fetch(`${API_BASE_URL}/sessions/annotations/${annotationId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update session annotation');
         return response.json();
     },
 
@@ -812,7 +926,7 @@ export const api = {
         return response.json();
     },
 
-    getRun: async (runId: string): Promise<any> => {
+    getExperimentRun: async (runId: string): Promise<any> => {
         const response = await fetch(`${API_BASE_URL}/experiments/runs/${runId}`);
         if (!response.ok) throw new Error('Failed to fetch run');
         return response.json();

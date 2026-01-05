@@ -64,6 +64,102 @@ export interface Trace {
   tags: string[];
 }
 
+export interface AgentSession {
+  id: string;
+  project_id: string;
+  agent_name?: string | null;
+  env?: string | null;
+  status: string;
+  tags: string[];
+  metadata: Record<string, any>;
+  created_at: number;
+  updated_at: number;
+  last_run_at?: number | null;
+  run_count?: number;
+  error_count?: number;
+  last_status?: string | null;
+  last_run_id?: string | null;
+}
+
+export interface AgentRun {
+  id: string;
+  session_id: string;
+  project_id: string;
+  trace_id?: string | null;
+  status: string;
+  started_at: number;
+  ended_at?: number | null;
+  total_tokens?: number | null;
+  total_cost?: number | null;
+  total_latency?: number | null;
+  tags: string[];
+  metadata: Record<string, any>;
+  created_at: number;
+}
+
+export interface AgentSessionDetail {
+  session: AgentSession;
+  runs: AgentRun[];
+}
+
+export interface SessionEvent {
+  id: string;
+  session_id: string;
+  run_id?: string | null;
+  sequence: number;
+  event_type: string;
+  timestamp: number;
+  payload: Record<string, any>;
+}
+
+export interface SessionAnnotation {
+  id: string;
+  session_id: string;
+  project_id: string;
+  labels: string[];
+  severity?: string | null;
+  owner?: string | null;
+  status: string;
+  note?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RunGraphNode {
+  id: string;
+  span_id: string;
+  name: string;
+  kind: string;
+  status: string;
+  start_time: number;
+  end_time: number;
+  duration_ms: number;
+  depth: number;
+  lane: number;
+  parent_id?: string | null;
+  retry_parent_id?: string | null;
+  input: Record<string, any>;
+  output: Record<string, any>;
+  attributes: Record<string, any>;
+  metrics: Record<string, any>;
+  tags: string[];
+}
+
+export interface RunGraphEdge {
+  from_id: string;
+  to_id: string;
+  kind: string;
+}
+
+export interface RunGraph {
+  run_id: string;
+  trace_id: string;
+  root_id: string;
+  nodes: RunGraphNode[];
+  edges: RunGraphEdge[];
+  layout: Record<string, any>;
+}
+
 export interface Dataset {
   id: string;
   project_id: string;

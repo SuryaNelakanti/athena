@@ -62,6 +62,8 @@ const makeId = (prefix: string) => `${prefix}_${Math.random().toString(16).slice
 
 const pageLabelForPath = (path: string) => {
   if (path === '/') return 'Dashboard';
+  if (path.startsWith('/sessions')) return 'Agent Runs';
+  if (path.startsWith('/runs')) return 'Run Detail';
   if (path.startsWith('/logs')) return 'Logs';
   if (path.startsWith('/review')) return 'Review';
   if (path.startsWith('/datasets')) return 'Datasets';

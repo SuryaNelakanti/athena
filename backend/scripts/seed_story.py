@@ -13,6 +13,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, select
 
 from app.models import (
+    AgentRunModel,
+    AgentSessionAnnotationModel,
+    AgentSessionEventModel,
+    AgentSessionModel,
     AttachmentModel,
     AssignmentModel,
     DatasetModel,
@@ -1572,9 +1576,526 @@ async def seed_gtm_traces(session: AsyncSession) -> dict:
     return bad_traces
 
 
-# =============================================================================
+# ============================================================================= 
+# AGENT SESSIONS (Agent-native telemetry)
+# ============================================================================= 
+
+async def seed_sessions(session: AsyncSession) -> None:
+    """Seeds agent sessions, runs, timeline events, and annotations."""
+    base = now_ms()
+
+    sessions = [
+        AgentSessionModel(
+            id="sess_support_refund_001",
+            project_id="proj_support",
+            agent_name="Refund Triage Agent",
+            env="prod",
+            status="error",
+            tags=["area:refunds", "incident:refund_leakage", "priority:critical"],
+            metadata_={
+                "owner": PERSONAS["maya"]["email"],
+                "customer_id": CUSTOMER["id"],
+                "customer_name": CUSTOMER["name"],
+                "incident_id": "inc_refund_1218",
+                "policy": POLICY_DOCS["refunds"],
+            },
+            created_at=hours_ago(27),
+            updated_at=hours_ago(12),
+            last_run_at=None,
+        ),
+        AgentSessionModel(
+            id="sess_support_refund_staging_001",
+            project_id="proj_support",
+            agent_name="Refund Triage Agent",
+            env="staging",
+            status="active",
+            tags=["area:refunds", "stage:staging", "release:prompt_v2"],
+            metadata_={
+                "owner": PERSONAS["maya"]["email"],
+                "customer_id": CUSTOMER["id"],
+                "customer_name": CUSTOMER["name"],
+                "playbook": "refund_triage_v2",
+                "rollout": "canary",
+            },
+            created_at=hours_ago(9),
+            updated_at=hours_ago(1),
+            last_run_at=None,
+        ),
+        AgentSessionModel(
+            id="sess_legal_citation_001",
+            project_id="proj_legal",
+            agent_name="Clause Citation Agent",
+            env="prod",
+            status="active",
+            tags=["area:contracts", "deal:nexus", "incident:phantom_section"],
+            metadata_={
+                "owner": PERSONAS["david"]["email"],
+                "contract_id": CONTRACTS["nexus_msa"]["id"],
+                "client": CUSTOMER["name"],
+                "playbook": "citation_verification",
+            },
+            created_at=hours_ago(46),
+            updated_at=hours_ago(4),
+            last_run_at=None,
+        ),
+        AgentSessionModel(
+            id="sess_gtm_deliverability_001",
+            project_id="proj_gtm",
+            agent_name="Outbound Compliance Agent",
+            env="prod",
+            status="completed",
+            tags=["area:outbound", "incident:spam_wall", "campaign:recovery"],
+            metadata_={
+                "owner": PERSONAS["priya"]["email"],
+                "domain": "octoworks.io",
+                "blocklist": ["gmail"],
+                "campaign": CAMPAIGNS["recovery"],
+            },
+            created_at=hours_ago(92),
+            updated_at=hours_ago(18),
+            last_run_at=None,
+        ),
+    ]
+
+    session_map = {item.id: item for item in sessions}
+    for item in sessions:
+        session.add(item)
+
+    run_specs = [
+        {
+            "id": "run_support_refund_001",
+            "session_id": "sess_support_refund_001",
+            "project_id": "proj_support",
+            "trace_id": "trace_sup_refund_bad_001",
+            "status": "error",
+            "tags": ["incident", "policy_violation"],
+            "metadata": {
+                "ticket_id": "TCK-90012",
+                "error": "POLICY_VIOLATION",
+                "owner": PERSONAS["maya"]["email"],
+            },
+        },
+        {
+            "id": "run_support_refund_002",
+            "session_id": "sess_support_refund_001",
+            "project_id": "proj_support",
+            "trace_id": "trace_sup_refund_triage_001",
+            "status": "completed",
+            "tags": ["triage", "summary"],
+            "metadata": {
+                "report": "refund_leakage_summary",
+                "window_hours": 24,
+            },
+        },
+        {
+            "id": "run_support_refund_003",
+            "session_id": "sess_support_refund_001",
+            "project_id": "proj_support",
+            "trace_id": "trace_sup_refund_postfix_001",
+            "status": "completed",
+            "tags": ["guardrail", "post_fix"],
+            "metadata": {
+                "guardrail": "refund_window_30d",
+                "result": "blocked",
+            },
+        },
+        {
+            "id": "run_support_refund_004",
+            "session_id": "sess_support_refund_staging_001",
+            "project_id": "proj_support",
+            "trace_id": "trace_sup_refund_triage_001",
+            "status": "completed",
+            "tags": ["staging", "smoke_check"],
+            "metadata": {
+                "ticket_id": "TCK-90061",
+                "mode": "staging_smoke",
+            },
+            "started_at": hours_ago(6),
+        },
+        {
+            "id": "run_support_refund_005",
+            "session_id": "sess_support_refund_staging_001",
+            "project_id": "proj_support",
+            "trace_id": "trace_sup_refund_postfix_001",
+            "status": "active",
+            "tags": ["staging", "canary"],
+            "metadata": {
+                "ticket_id": "TCK-90062",
+                "mode": "canary",
+                "watch": ["latency", "guardrail_hits"],
+            },
+            "started_at": hours_ago(1),
+        },
+        {
+            "id": "run_legal_citation_001",
+            "session_id": "sess_legal_citation_001",
+            "project_id": "proj_legal",
+            "trace_id": "trace_legal_redline_bad_001",
+            "status": "error",
+            "tags": ["incident", "hallucination"],
+            "metadata": {
+                "contract_id": CONTRACTS["nexus_msa"]["id"],
+                "missing_section": "19.4",
+            },
+        },
+        {
+            "id": "run_legal_citation_002",
+            "session_id": "sess_legal_citation_001",
+            "project_id": "proj_legal",
+            "trace_id": "trace_legal_citation_audit_001",
+            "status": "completed",
+            "tags": ["audit", "citation_verification"],
+            "metadata": {
+                "invalid_refs": ["19.4", "Exhibit F"],
+                "action": "verifier_enabled",
+            },
+        },
+        {
+            "id": "run_legal_citation_003",
+            "session_id": "sess_legal_citation_001",
+            "project_id": "proj_legal",
+            "trace_id": "trace_legal_redline_postfix_001",
+            "status": "completed",
+            "tags": ["post_fix", "redline"],
+            "metadata": {
+                "fix": "verified_section_11",
+                "status": "drafted",
+            },
+        },
+        {
+            "id": "run_gtm_deliverability_001",
+            "session_id": "sess_gtm_deliverability_001",
+            "project_id": "proj_gtm",
+            "trace_id": "trace_gtm_email_bad_001",
+            "status": "error",
+            "tags": ["incident", "compliance"],
+            "metadata": {
+                "campaign": "Flash Sale Push",
+                "issue": "no_opt_out",
+            },
+        },
+        {
+            "id": "run_gtm_deliverability_002",
+            "session_id": "sess_gtm_deliverability_001",
+            "project_id": "proj_gtm",
+            "trace_id": "trace_gtm_deliverability_triage_001",
+            "status": "completed",
+            "tags": ["triage", "deliverability"],
+            "metadata": {
+                "alert": "gmail_block",
+                "risk": "domain_reputation",
+            },
+        },
+        {
+            "id": "run_gtm_deliverability_003",
+            "session_id": "sess_gtm_deliverability_001",
+            "project_id": "proj_gtm",
+            "trace_id": "trace_gtm_email_postfix_001",
+            "status": "completed",
+            "tags": ["post_fix", "compliance_gate"],
+            "metadata": {
+                "campaign": CAMPAIGNS["recovery"],
+                "compliant": True,
+            },
+        },
+        {
+            "id": "run_gtm_deliverability_004",
+            "session_id": "sess_gtm_deliverability_001",
+            "project_id": "proj_gtm",
+            "trace_id": "trace_gtm_sequence_health_001",
+            "status": "completed",
+            "tags": ["health_report"],
+            "metadata": {
+                "complaint_rate": 0.002,
+                "status": "stable",
+            },
+        },
+    ]
+
+    run_map = {}
+    last_run_at_by_session = {}
+    last_status_by_session = {}
+    active_session_ids = set()
+
+    for spec in run_specs:
+        trace = await session.get(TraceModel, spec["trace_id"])
+        status = spec["status"]
+        started_at = spec.get("started_at") or (trace.timestamp if trace else base)
+        latency_ms = int(trace.total_latency or 0) if trace else 0
+        ended_at = spec.get("ended_at")
+        if ended_at is None and status != "active":
+            ended_at = started_at + latency_ms if latency_ms else started_at
+        run = AgentRunModel(
+            id=spec["id"],
+            session_id=spec["session_id"],
+            project_id=spec["project_id"],
+            trace_id=spec["trace_id"],
+            status=status,
+            started_at=started_at,
+            ended_at=ended_at,
+            total_tokens=trace.total_tokens if trace else None,
+            total_cost=trace.total_cost if trace else None,
+            total_latency=trace.total_latency if trace else None,
+            tags=spec.get("tags", []),
+            metadata_=spec.get("metadata", {}),
+            created_at=started_at,
+        )
+        session.add(run)
+        run_map[run.id] = run
+        if run.status == "active":
+            active_session_ids.add(run.session_id)
+        last_run_at = ended_at or started_at
+        if last_run_at > last_run_at_by_session.get(run.session_id, 0):
+            last_run_at_by_session[run.session_id] = last_run_at
+            last_status_by_session[run.session_id] = run.status
+
+    for session_id, last_run_at in last_run_at_by_session.items():
+        sess = session_map.get(session_id)
+        if sess:
+            sess.last_run_at = last_run_at
+            if session_id in active_session_ids:
+                sess.status = "active"
+            else:
+                sess.status = last_status_by_session.get(session_id, sess.status)
+            if sess.updated_at < last_run_at:
+                sess.updated_at = last_run_at
+            session.add(sess)
+
+    event_sequence = {}
+
+    def add_event(
+        session_id: str,
+        event_type: str,
+        timestamp: int,
+        payload: dict,
+        run_id: Optional[str] = None,
+    ) -> None:
+        seq = event_sequence.get(session_id, 0) + 1
+        event_sequence[session_id] = seq
+        session.add(AgentSessionEventModel(
+            id=f"evt_{session_id}_{seq:02d}",
+            session_id=session_id,
+            run_id=run_id,
+            sequence=seq,
+            event_type=event_type,
+            timestamp=timestamp,
+            payload=payload,
+            created_at=timestamp,
+        ))
+
+    support_session = session_map["sess_support_refund_001"]
+    support_run_incident = run_map["run_support_refund_001"]
+    support_run_triage = run_map["run_support_refund_002"]
+    support_run_guardrail = run_map["run_support_refund_003"]
+
+    add_event(
+        support_session.id,
+        "session_started",
+        support_session.created_at,
+        {"agent": support_session.agent_name, "env": support_session.env, "owner": PERSONAS["maya"]["email"]},
+    )
+    add_event(
+        support_session.id,
+        "run_started",
+        support_run_incident.started_at,
+        {"run_id": support_run_incident.id, "trace_id": support_run_incident.trace_id},
+        run_id=support_run_incident.id,
+    )
+    add_event(
+        support_session.id,
+        "policy_violation_detected",
+        support_run_incident.started_at + 120,
+        {"ticket_id": "TCK-90012", "amount_cents": 89700, "policy_window_days": 30},
+        run_id=support_run_incident.id,
+    )
+    add_event(
+        support_session.id,
+        "triage_summary",
+        support_run_triage.ended_at or support_run_triage.started_at,
+        {"leakage_usd": 47000, "customers_impacted": 5},
+        run_id=support_run_triage.id,
+    )
+    add_event(
+        support_session.id,
+        "guardrail_fix_validated",
+        support_run_guardrail.ended_at or support_run_guardrail.started_at,
+        {"guardrail": "refund_window_30d", "result": "blocked_out_of_policy"},
+        run_id=support_run_guardrail.id,
+    )
+
+    staging_session = session_map["sess_support_refund_staging_001"]
+    staging_run_smoke = run_map["run_support_refund_004"]
+    staging_run_canary = run_map["run_support_refund_005"]
+
+    add_event(
+        staging_session.id,
+        "session_started",
+        staging_session.created_at,
+        {"agent": staging_session.agent_name, "env": staging_session.env, "owner": PERSONAS["maya"]["email"]},
+    )
+    add_event(
+        staging_session.id,
+        "run_started",
+        staging_run_smoke.started_at,
+        {"run_id": staging_run_smoke.id, "trace_id": staging_run_smoke.trace_id},
+        run_id=staging_run_smoke.id,
+    )
+    add_event(
+        staging_session.id,
+        "smoke_check_passed",
+        staging_run_smoke.ended_at or staging_run_smoke.started_at,
+        {"checks": ["refund_window", "ticket_summary"]},
+        run_id=staging_run_smoke.id,
+    )
+    add_event(
+        staging_session.id,
+        "run_started",
+        staging_run_canary.started_at,
+        {"run_id": staging_run_canary.id, "trace_id": staging_run_canary.trace_id},
+        run_id=staging_run_canary.id,
+    )
+    add_event(
+        staging_session.id,
+        "canary_monitoring",
+        staging_run_canary.started_at + 240,
+        {"signal": "latency_spike", "threshold_ms": 1800},
+        run_id=staging_run_canary.id,
+    )
+
+    legal_session = session_map["sess_legal_citation_001"]
+    legal_run_incident = run_map["run_legal_citation_001"]
+    legal_run_audit = run_map["run_legal_citation_002"]
+    legal_run_fix = run_map["run_legal_citation_003"]
+
+    add_event(
+        legal_session.id,
+        "session_started",
+        legal_session.created_at,
+        {"agent": legal_session.agent_name, "contract_id": CONTRACTS["nexus_msa"]["id"]},
+    )
+    add_event(
+        legal_session.id,
+        "citation_check_failed",
+        legal_run_incident.ended_at or legal_run_incident.started_at,
+        {"missing_sections": ["19.4"], "contract_sections": CONTRACTS["nexus_msa"]["sections"]},
+        run_id=legal_run_incident.id,
+    )
+    add_event(
+        legal_session.id,
+        "audit_completed",
+        legal_run_audit.ended_at or legal_run_audit.started_at,
+        {"invalid_refs": ["19.4", "Exhibit F"], "action": "citation_verifier_enabled"},
+        run_id=legal_run_audit.id,
+    )
+    add_event(
+        legal_session.id,
+        "redline_corrected",
+        legal_run_fix.ended_at or legal_run_fix.started_at,
+        {"section": "11", "status": "drafted"},
+        run_id=legal_run_fix.id,
+    )
+
+    gtm_session = session_map["sess_gtm_deliverability_001"]
+    gtm_run_incident = run_map["run_gtm_deliverability_001"]
+    gtm_run_triage = run_map["run_gtm_deliverability_002"]
+    gtm_run_recovery = run_map["run_gtm_deliverability_003"]
+    gtm_run_health = run_map["run_gtm_deliverability_004"]
+
+    add_event(
+        gtm_session.id,
+        "session_started",
+        gtm_session.created_at,
+        {"agent": gtm_session.agent_name, "campaign": CAMPAIGNS["recovery"], "domain": "octoworks.io"},
+    )
+    add_event(
+        gtm_session.id,
+        "deliverability_alert",
+        gtm_run_incident.ended_at or gtm_run_incident.started_at,
+        {"provider": "gmail", "status": "blocked"},
+        run_id=gtm_run_incident.id,
+    )
+    add_event(
+        gtm_session.id,
+        "remediation_plan",
+        gtm_run_triage.ended_at or gtm_run_triage.started_at,
+        {"steps": ["pause_outbound", "add_opt_out_enforcement", "warmup_sequence"]},
+        run_id=gtm_run_triage.id,
+    )
+    add_event(
+        gtm_session.id,
+        "recovery_email_sent",
+        gtm_run_recovery.ended_at or gtm_run_recovery.started_at,
+        {"campaign": CAMPAIGNS["recovery"], "status": "sent"},
+        run_id=gtm_run_recovery.id,
+    )
+    add_event(
+        gtm_session.id,
+        "health_report",
+        gtm_run_health.ended_at or gtm_run_health.started_at,
+        {"open_rate": 0.48, "reply_rate": 0.07, "complaint_rate": 0.002},
+        run_id=gtm_run_health.id,
+    )
+
+    annotations = [
+        AgentSessionAnnotationModel(
+            id="ann_sess_support_001",
+            session_id="sess_support_refund_001",
+            project_id="proj_support",
+            labels=["policy_violation", "incident", "refunds"],
+            severity="critical",
+            owner=PERSONAS["maya"]["email"],
+            status="resolved",
+            note="Root cause: missing 30-day limit in system prompt. Guardrail shipped.",
+            created_at=hours_ago(12),
+            updated_at=hours_ago(12),
+        ),
+        AgentSessionAnnotationModel(
+            id="ann_sess_support_staging_001",
+            session_id="sess_support_refund_staging_001",
+            project_id="proj_support",
+            labels=["staging", "canary"],
+            severity="medium",
+            owner=PERSONAS["maya"]["email"],
+            status="open",
+            note="Keep the canary open until refund guardrail hit rate stays under 1% for 24h.",
+            created_at=hours_ago(2),
+            updated_at=hours_ago(2),
+        ),
+        AgentSessionAnnotationModel(
+            id="ann_sess_legal_001",
+            session_id="sess_legal_citation_001",
+            project_id="proj_legal",
+            labels=["hallucination", "citations"],
+            severity="high",
+            owner=PERSONAS["david"]["email"],
+            status="open",
+            note="Verify all section references before sending redlines to the customer.",
+            created_at=hours_ago(6),
+            updated_at=hours_ago(6),
+        ),
+        AgentSessionAnnotationModel(
+            id="ann_sess_gtm_001",
+            session_id="sess_gtm_deliverability_001",
+            project_id="proj_gtm",
+            labels=["deliverability", "compliance_fix"],
+            severity="medium",
+            owner=PERSONAS["priya"]["email"],
+            status="resolved",
+            note="Recovery campaign approved. Continue warmup before scaling volume.",
+            created_at=hours_ago(18),
+            updated_at=hours_ago(18),
+        ),
+    ]
+
+    for annotation in annotations:
+        session.add(annotation)
+
+    await session.commit()
+
+
+# ============================================================================= 
 # COLLABORATION OBJECTS (Review Queue, Assignments, Mentions)
-# =============================================================================
+# ============================================================================= 
 
 async def seed_collaboration(session: AsyncSession, bad_traces: dict) -> None:
     """Seeds review queue, assignments, and mentions for the incident triage story."""
@@ -3027,10 +3548,13 @@ async def main() -> None:
         
         print("[seed_story] Seeding GTM stories (The Spam Wall Incident)...")
         bad_gtm = await seed_gtm_traces(session)
-        
+
         # Merge all bad traces
         all_bad_traces = {**bad_support, **bad_legal, **bad_gtm}
-        
+
+        print("[seed_story] Seeding agent sessions (runs, timeline, annotations)...")
+        await seed_sessions(session)
+
         print("[seed_story] Seeding collaboration objects (reviews, assignments, mentions)...")
         await seed_collaboration(session, all_bad_traces)
         
@@ -3051,6 +3575,7 @@ async def main() -> None:
         "Seeded:\n"
         "  - 3 Projects (Support, Legal, GTM)\n"
         "  - 36 Traces with 3-5 spans each (realistic chains)\n"
+        "  - 4 Agent Runs (run groups) with 12 runs, 19 events, 4 annotations\n"
         "  - 10 Review Items (showing triage workflow)\n"
         "  - 4 Assignments + 5 Mentions (cross-team communication)\n"
         "  - 6 Datasets (33 rows: eval + resources)\n"

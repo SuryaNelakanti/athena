@@ -11,9 +11,12 @@ import ExperimentDetail from './design/pages/ExperimentDetail';
 import Settings from './design/pages/Settings';
 import ReviewQueue from './design/pages/ReviewQueue';
 import Collaboration from './design/pages/Collaboration';
+import SessionList from './design/pages/SessionList';
+import SessionDetail from './design/pages/SessionDetail';
+import RunDetail from './design/pages/RunDetail';
 import OwlWidget from './design/components/OwlWidget';
 import { fetchProjects, api } from './services/api'; // Added api import
-import { Project, Trace, Log } from './types';
+import { AgentSessionDetail, Project, Trace, Log } from './types';
 import { Button, Card, Input } from './design/ui';
 import { initAccent } from './design/theme/accent';
 
@@ -49,6 +52,7 @@ const App: React.FC = () => {
   const [selectedLog, setSelectedLog] = useState<Log | null>(null);
   const [selectedDataset, setSelectedDataset] = useState<any | null>(null);
   const [selectedExperiment, setSelectedExperiment] = useState<any | null>(null);
+  const [selectedSession, setSelectedSession] = useState<AgentSessionDetail | null>(null);
 
   // Data State
   const [traces, setTraces] = useState<Trace[]>([]);
@@ -171,9 +175,26 @@ const App: React.FC = () => {
       .catch(err => console.error('Failed to fetch experiment:', err));
   }, [routeParams, currentProject, selectedExperiment]);
 
+  useEffect(() => {
+    const sessionId = routeParams.get('session_id');
+    if (!sessionId || !currentProject) {
+      setSelectedSession(null);
+      return;
+    }
+    if (selectedSession?.session.id === sessionId) return;
+    api.getSession(sessionId)
+      .then(setSelectedSession)
+      .catch(err => {
+        console.error('Failed to fetch session:', err);
+        setSelectedSession(null);
+      });
+  }, [routeParams, currentProject, selectedSession]);
+
   // Derived View State
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
   const showDetail = !!selectedTraceId;
+  const activeSessionId = routeParams.get('session_id');
+  const activeRunId = routeParams.get('run_id');
 
   const renderContent = () => {
     if (loading && traces.length === 0 && currentPath !== '/logs') {
@@ -191,6 +212,52 @@ const App: React.FC = () => {
     }
     if (currentPath === '/collaboration') {
       return <Collaboration projectId={currentProject?.id || ''} />;
+    }
+    if (currentPath === '/sessions') {
+      if (activeSessionId) {
+        if (!selectedSession) {
+          return (
+            <div className="flex items-center justify-center h-full text-text-muted">
+              Loading run group...
+            </div>
+          );
+        }
+        return (
+          <SessionDetail
+            session={selectedSession.session}
+            runs={selectedSession.runs}
+            onBack={() => navigate('/sessions')}
+            onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
+          />
+        );
+      }
+      return (
+        <SessionList
+          projectId={currentProject?.id || ''}
+          selectedSessionId={activeSessionId}
+          onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
+          onSelectSession={(session) => {
+            setSelectedSession(null);
+            navigate('/sessions', { session_id: session.id });
+          }}
+        />
+      );
+    }
+    if (currentPath === '/runs') {
+      if (!activeRunId) {
+        return (
+          <div className="flex items-center justify-center h-full text-text-muted">
+            Select a run to view details.
+          </div>
+        );
+      }
+      return (
+        <RunDetail
+          runId={activeRunId}
+          onBack={(sessionId) => navigate('/sessions', { session_id: sessionId })}
+          onOpenTrace={(traceId) => navigate('/logs', { trace_id: traceId })}
+        />
+      );
     }
     if (currentPath.startsWith('/logs')) {
       return (

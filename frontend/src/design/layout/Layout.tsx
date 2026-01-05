@@ -14,7 +14,8 @@ import {
   MoonIcon,
   SunIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  QueueListIcon
 } from '@heroicons/react/24/outline';
 import { IconButton, Select } from '../ui';
 
@@ -38,6 +39,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   const navItems = [
     { name: 'Dashboard', icon: HomeIcon, path: '/', tone: 'sky' },
+    { name: 'Agent Runs', icon: QueueListIcon, path: '/sessions', tone: 'sky' },
     { name: 'Logs', icon: ListBulletIcon, path: '/logs', tone: 'mint' },
     { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review', tone: 'amber' },
     { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration', tone: 'coral' },

@@ -201,8 +201,82 @@ class SpanModel(SQLModel, table=True):
     attributes: Dict = Field(sa_column=Column(JSON), default={})
     tags: List[str] = Field(sa_column=Column(JSON), default=[])
     error_message: Optional[str] = None
-    
+
     trace: TraceModel = Relationship(back_populates="spans")
+
+
+# --- Agent session models (agent-native wedge) ---
+
+class AgentSessionModel(SQLModel, table=True):
+    __tablename__ = "agent_session"
+
+    id: str = Field(primary_key=True)
+    project_id: str = Field(foreign_key="project.id", index=True)
+    agent_name: Optional[str] = Field(default=None, index=True)
+    env: Optional[str] = Field(default=None, index=True)
+    status: str = Field(default="active", index=True)
+    tags: List[str] = Field(sa_column=Column(JSON), default=[])
+    metadata_: Dict = Field(sa_column=Column("metadata", JSON), default_factory=dict)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    last_run_at: Optional[int] = Field(default=None, index=True)
+
+
+class AgentRunModel(SQLModel, table=True):
+    __tablename__ = "agent_run"
+
+    id: str = Field(primary_key=True)
+    session_id: str = Field(foreign_key="agent_session.id", index=True)
+    project_id: str = Field(index=True)
+    trace_id: Optional[str] = Field(default=None, index=True)
+    status: str = Field(default="completed", index=True)
+    started_at: int = Field(index=True)
+    ended_at: Optional[int] = Field(default=None, index=True)
+    total_tokens: Optional[int] = Field(default=None)
+    total_cost: Optional[float] = Field(default=None)
+    total_latency: Optional[float] = Field(default=None)
+    tags: List[str] = Field(sa_column=Column(JSON), default=[])
+    metadata_: Dict = Field(sa_column=Column("metadata", JSON), default_factory=dict)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class AgentSessionEventModel(SQLModel, table=True):
+    __tablename__ = "agent_session_event"
+
+    id: str = Field(primary_key=True)
+    session_id: str = Field(foreign_key="agent_session.id", index=True)
+    run_id: Optional[str] = Field(default=None, foreign_key="agent_run.id", index=True)
+    sequence: int = Field(index=True)
+    event_type: str = Field(index=True)
+    timestamp: int = Field(index=True)
+    payload: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class AgentSessionAnnotationModel(SQLModel, table=True):
+    __tablename__ = "agent_session_annotation"
+
+    id: str = Field(primary_key=True)
+    session_id: str = Field(foreign_key="agent_session.id", index=True)
+    project_id: str = Field(index=True)
+    labels: List[str] = Field(sa_column=Column(JSON), default=[])
+    severity: Optional[str] = Field(default=None, index=True)
+    owner: Optional[str] = Field(default=None, index=True)
+    status: str = Field(default="open", index=True)
+    note: Optional[str] = Field(default=None)
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
+
+
+class AgentSessionIngestModel(SQLModel, table=True):
+    __tablename__ = "agent_session_ingest"
+
+    id: str = Field(primary_key=True)
+    project_id: str = Field(index=True)
+    session_id: str = Field(index=True)
+    schema_version: str = Field(index=True)
+    payload: Dict = Field(sa_column=Column(JSON), default={})
+    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
 
 class ViewModel(SQLModel, table=True):
     __tablename__ = "view"

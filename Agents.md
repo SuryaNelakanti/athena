@@ -1,6 +1,7 @@
 # Athena — Agents.MD
 
 Canonical project context + reconciled roadmap: `docs/project-context.md`.
+After completing any feature, update `docs/current_status.md`.
 
 This file is kept as a legacy overview for **Athena**, an AI engineering platform that couples **running** AI (proxy + observability) with **improving** AI (datasets + evaluation), plus an IDE-integrated **MCP server**.
 
