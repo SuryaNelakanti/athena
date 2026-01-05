@@ -11,6 +11,7 @@ import ExperimentDetail from './design/pages/ExperimentDetail';
 import Settings from './design/pages/Settings';
 import ReviewQueue from './design/pages/ReviewQueue';
 import Collaboration from './design/pages/Collaboration';
+import OwlWidget from './design/components/OwlWidget';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { Project, Trace, Log } from './types';
 import { Button, Card, Input } from './design/ui';
@@ -322,16 +323,26 @@ const App: React.FC = () => {
 
   if (!currentProject) return <div className="flex items-center justify-center h-screen bg-app text-text-muted">Loading Athena...</div>;
 
+  const routeParamMap = Object.fromEntries(routeParams.entries());
+
   return (
-    <Layout
-      projects={projects}
-      currentProject={currentProject}
-      onProjectChange={setCurrentProject}
-      currentPath={currentPath}
-      onNavigate={navigate}
-    >
-      {renderContent()}
-    </Layout>
+    <>
+      <Layout
+        projects={projects}
+        currentProject={currentProject}
+        onProjectChange={setCurrentProject}
+        currentPath={currentPath}
+        onNavigate={navigate}
+      >
+        {renderContent()}
+      </Layout>
+      <OwlWidget
+        projectId={currentProject.id}
+        projectName={currentProject.name}
+        currentPath={currentPath}
+        routeParams={routeParamMap}
+      />
+    </>
   );
 };
 

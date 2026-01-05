@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Log, AqlQueryResponse, AqlBuilder } from '../../types';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { Log, AqlBuilder } from '../../types';
 import {
   CpuChipIcon,
   BookmarkIcon,
@@ -10,7 +10,6 @@ import {
   FunnelIcon,
   PlusIcon,
   UserPlusIcon,
-  ChevronDownIcon,
   ArrowUpRightIcon,
   ArrowDownRightIcon,
 } from '@heroicons/react/24/outline';
@@ -98,17 +97,6 @@ const OP_LABELS: Record<string, string> = {
   '<=': 'less or equal',
 };
 
-// Simple AQL formatter that adds line breaks and indentation
-const formatAql = (query: string): string => {
-  if (!query.trim()) return query;
-  let formatted = query.trim()
-    .replace(/\s+/g, ' ')
-    .replace(/\b(from|select|filter|sort|limit|group by)\b/gi, '\n$1')
-    .trim();
-  const lines = formatted.split('\n');
-  return lines.map((line, i) => i === 0 ? line : '  ' + line.trim()).join('\n');
-};
-
 const FILTER_FIELDS = [
   'status',
   'event_type',
@@ -124,6 +112,14 @@ const FILTER_FIELDS = [
   'prompt_tokens',
   'completion_tokens',
   'created_at',
+];
+
+const FILTER_FIELD_GROUPS = [
+  { label: 'Core', fields: ['status', 'event_type', 'message', 'model', 'provider'] },
+  { label: 'Identifiers', fields: ['trace_id', 'span_id'] },
+  { label: 'Timing', fields: ['timestamp', 'latency_ms', 'created_at'] },
+  { label: 'Tokens', fields: ['total_tokens', 'prompt_tokens', 'completion_tokens'] },
+  { label: 'Cost', fields: ['cost'] },
 ];
 
 const QUICK_FILTERS = [
@@ -172,7 +168,6 @@ const LogTable: React.FC<LogTableProps> = ({
   selectedLogId,
 }) => {
   const [logs, setLogs] = useState<Log[]>([]);
-  const [aqlResult, setAqlResult] = useState<AqlQueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [traceLineage, setTraceLineage] = useState<Record<string, { parent_trace_id?: string | null; child_count?: number }>>({});
@@ -182,10 +177,7 @@ const LogTable: React.FC<LogTableProps> = ({
   const [searchInput, setSearchInput] = useState('');
   const [timeRange, setTimeRange] = useState('all');
   const [showAddFilter, setShowAddFilter] = useState(false);
-  const [showAql, setShowAql] = useState(false);
-  const [queryMode, setQueryMode] = useState<'builder' | 'aql'>('builder');
-  const [aqlQuery, setAqlQuery] = useState('');
-  const [aqlPreview, setAqlPreview] = useState('');
+  const addFilterPanelId = useId();
 
   const [views, setViews] = useState<View[]>([]);
   const [showSaveView, setShowSaveView] = useState(false);
@@ -238,10 +230,8 @@ const LogTable: React.FC<LogTableProps> = ({
 
   useEffect(() => {
     if (!projectId) return;
-    if (queryMode === 'builder') {
-      loadLogs();
-    }
-  }, [projectId, filters, queryMode]);
+    loadLogs();
+  }, [projectId, filters]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -359,21 +349,12 @@ const LogTable: React.FC<LogTableProps> = ({
     };
   };
 
-  const loadLogs = async (overrideQuery?: string) => {
+  const loadLogs = async () => {
     if (!projectId) return;
     setLoading(true);
     setError(null);
     try {
-      const data = overrideQuery
-        ? await api.runAqlQuery(overrideQuery)
-        : await api.runAqlQuery({ builder: buildAqlBuilderPayload() });
-      setAqlResult(data);
-      if (data.query) {
-        setAqlPreview(data.query);
-        if (queryMode === 'builder') {
-          setAqlQuery(data.query);
-        }
-      }
+      const data = await api.runAqlQuery({ builder: buildAqlBuilderPayload() });
       if (data.shape === 'project_logs') {
         const rows = (data.data || []).map((row) => ({
           id: row.id,
@@ -409,7 +390,6 @@ const LogTable: React.FC<LogTableProps> = ({
   };
 
   const upsertFilter = (field: string, op: string, value: string) => {
-    setQueryMode('builder');
     setFilters((prev) => {
       const next = [...prev];
       const idx = next.findIndex((f) => f.field === field && f.op === op);
@@ -482,35 +462,29 @@ const LogTable: React.FC<LogTableProps> = ({
     setShowAddFilter(false);
   };
 
+  const handleFieldPick = (field: string) => {
+    const fieldType = FIELD_TYPES[field] || 'string';
+    setNewFilter({
+      field,
+      op: OP_BY_TYPE[fieldType][0],
+      value: '',
+    });
+    setShowAddFilter(true);
+  };
+
   const applyQuickFilter = (filter: { field: string; op: string; value: string }) => {
     upsertFilter(filter.field, filter.op, filter.value);
   };
 
-  const runAql = async () => {
-    if (!aqlQuery.trim()) {
-      setError('AQL query is empty');
-      return;
-    }
-    setQueryMode('aql');
-    await loadLogs(aqlQuery);
-  };
-
   const applyView = (view: View) => {
     const cfg = view.config || {};
-    if (cfg.mode === 'aql' && cfg.query) {
-      setQueryMode('aql');
-      setAqlQuery(cfg.query);
-      setShowAql(true);
-      const normalizedFilters = normalizeViewFilters(cfg.filters || []);
-      setFilters(normalizedFilters);
-      const searchFilter = normalizedFilters.find((f: Filter) => f.field === 'message' && f.op === 'contains');
-      setSearchInput(searchFilter?.value || '');
-      const timeFilter = normalizedFilters.find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
-      setTimeRange(timeFilter ? 'custom' : 'all');
-      loadLogs(cfg.query);
-    } else if (cfg.filters) {
-      setQueryMode('builder');
-      setShowAql(false);
+    const hasFilters = Array.isArray(cfg.filters) && cfg.filters.length > 0;
+    if (!hasFilters && cfg.query) {
+      setError('This view uses AQL and cannot be applied without filters.');
+      setShowViewsList(false);
+      return;
+    }
+    if (cfg.filters) {
       const normalizedFilters = normalizeViewFilters(cfg.filters || []);
       setFilters(normalizedFilters);
       const searchFilter = normalizedFilters.find((f: Filter) => f.field === 'message' && f.op === 'contains');
@@ -518,8 +492,6 @@ const LogTable: React.FC<LogTableProps> = ({
       const timeFilter = normalizedFilters.find((f: Filter) => f.field === 'timestamp' && f.op === '>=');
       setTimeRange(timeFilter ? 'custom' : 'all');
     } else {
-      setQueryMode('builder');
-      setShowAql(false);
       if (cfg.level) {
         const status = cfg.level.toUpperCase() === 'ERROR' ? 'error' : 'success';
         upsertFilter('status', '=', status);
@@ -539,8 +511,6 @@ const LogTable: React.FC<LogTableProps> = ({
         entity_type: 'logs',
         config: {
           entity_type: 'logs',
-          mode: queryMode,
-          query: queryMode === 'aql' ? aqlQuery : (aqlPreview || aqlQuery),
           filters,
         },
       });
@@ -670,7 +640,13 @@ const LogTable: React.FC<LogTableProps> = ({
   };
 
   const activeFilters = filters.filter((f) => f.value.trim());
-  const showGenericResults = queryMode === 'aql' && aqlResult && aqlResult.shape !== 'project_logs';
+  const activeFilterFields = new Set(activeFilters.map((filter) => filter.field));
+  const showFieldReference = showAddFilter;
+  const isQuickFilterActive = (filter: { field: string; op: string; value: string }) =>
+    activeFilters.some(
+      (active) =>
+        active.field === filter.field && active.op === filter.op && active.value === filter.value
+    );
 
   return (
     <div className="flex flex-col h-full transition-colors duration-300">
@@ -720,25 +696,12 @@ const LogTable: React.FC<LogTableProps> = ({
             onClick={() => setShowAddFilter((prev) => !prev)}
             size="sm"
             variant="outline"
-            className="text-xs"
+            className={`text-xs ${showAddFilter ? 'bg-primary/10 text-primary border-primary/40' : ''}`}
+            aria-expanded={showAddFilter}
+            aria-controls={addFilterPanelId}
           >
             <FunnelIcon className="w-3.5 h-3.5" />
             Filters
-          </Button>
-
-          <Button
-            onClick={() => {
-              if (!showAql) {
-                setAqlQuery(aqlPreview);
-              }
-              setShowAql((prev) => !prev);
-            }}
-            size="sm"
-            variant="outline"
-            className="text-xs"
-          >
-            AQL
-            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showAql ? 'rotate-180' : ''}`} />
           </Button>
 
           <div className="relative">
@@ -746,7 +709,8 @@ const LogTable: React.FC<LogTableProps> = ({
               onClick={() => setShowViewsList(!showViewsList)}
               size="sm"
               variant="outline"
-              className="text-xs"
+              className={`text-xs ${showViewsList ? 'bg-primary/10 text-primary border-primary/40' : ''}`}
+              aria-expanded={showViewsList}
             >
               <BookmarkIcon className="w-3.5 h-3.5" />
               Views
@@ -797,7 +761,7 @@ const LogTable: React.FC<LogTableProps> = ({
           </div>
 
           <Button
-            onClick={() => loadLogs(queryMode === 'aql' ? aqlQuery : undefined)}
+            onClick={() => loadLogs()}
             size="sm"
             variant="secondary"
             className="text-xs"
@@ -808,17 +772,21 @@ const LogTable: React.FC<LogTableProps> = ({
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Quick Filters</span>
-          {QUICK_FILTERS.map((filter) => (
-            <Button
-              key={filter.label}
-              onClick={() => applyQuickFilter(filter)}
-              size="sm"
-              variant="outline"
-              className="rounded-full text-[11px]"
-            >
-              {filter.label}
-            </Button>
-          ))}
+          {QUICK_FILTERS.map((filter) => {
+            const active = isQuickFilterActive(filter);
+            return (
+              <Button
+                key={filter.label}
+                onClick={() => applyQuickFilter(filter)}
+                size="sm"
+                variant="outline"
+                className={`rounded-full text-[11px] ${active ? 'bg-primary/10 text-primary border-primary/40' : ''}`}
+                aria-pressed={active}
+              >
+                {filter.label}
+              </Button>
+            );
+          })}
           {activeFilters.length > 0 && (
             <Button
               onClick={clearFilters}
@@ -831,6 +799,46 @@ const LogTable: React.FC<LogTableProps> = ({
           )}
         </div>
 
+        {showFieldReference && (
+          <div className="rounded-lg border border-border-base bg-panel/60 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">
+              Filter Fields
+            </div>
+            <div className="text-[11px] text-text-muted mt-1">
+              Pick a field to start a filter.
+            </div>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {FILTER_FIELD_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <div className="text-[10px] uppercase tracking-widest text-text-muted/70 font-semibold">
+                    {group.label}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {group.fields.map((field) => {
+                      const isActive = activeFilterFields.has(field);
+                      const isSelected = showAddFilter && newFilter.field === field;
+                      const highlight = isActive || isSelected;
+                      return (
+                        <Button
+                          key={field}
+                          type="button"
+                          onClick={() => handleFieldPick(field)}
+                          size="sm"
+                          variant="outline"
+                          className={`rounded-full text-[11px] ${highlight ? 'bg-primary/10 text-primary border-primary/40' : ''}`}
+                          aria-pressed={highlight}
+                        >
+                          {FIELD_LABELS[field] || field}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeFilters.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {activeFilters.map((filter) => (
@@ -838,7 +846,11 @@ const LogTable: React.FC<LogTableProps> = ({
                 <span className="font-semibold">{FIELD_LABELS[filter.field] || filter.field}</span>
                 <span className="text-text-muted">{filter.op}</span>
                 <span className="text-text-muted">{filter.value}</span>
-                <button onClick={() => removeFilter(filter.id)} className="text-text-muted hover:text-rose-500">
+                <button
+                  onClick={() => removeFilter(filter.id)}
+                  className="text-text-muted hover:text-rose-500"
+                  aria-label={`Remove filter ${FIELD_LABELS[filter.field] || filter.field} ${filter.op} ${filter.value}`}
+                >
                   <XMarkIcon className="w-3 h-3" />
                 </button>
               </div>
@@ -847,7 +859,10 @@ const LogTable: React.FC<LogTableProps> = ({
         )}
 
         {showAddFilter && (
-          <div className="bg-panel border border-border-base rounded-lg p-4 flex flex-wrap items-center gap-3">
+          <div
+            id={addFilterPanelId}
+            className="bg-panel border border-border-base rounded-lg p-4 flex flex-wrap items-center gap-3"
+          >
             <Select
               value={newFilter.field}
               onChange={(e) => {
@@ -860,6 +875,7 @@ const LogTable: React.FC<LogTableProps> = ({
                 });
               }}
               className="text-xs"
+              aria-label="Filter field"
             >
               {FILTER_FIELDS.map((field) => (
                 <option key={field} value={field}>
@@ -871,6 +887,7 @@ const LogTable: React.FC<LogTableProps> = ({
               value={newFilter.op}
               onChange={(e) => setNewFilter((prev) => ({ ...prev, op: e.target.value }))}
               className="text-xs"
+              aria-label="Filter operator"
             >
               {(OP_BY_TYPE[FIELD_TYPES[newFilter.field] || 'string'] || []).map((op) => (
                 <option key={op} value={op}>{OP_LABELS[op] || op}</option>
@@ -881,6 +898,7 @@ const LogTable: React.FC<LogTableProps> = ({
               onChange={(e) => setNewFilter((prev) => ({ ...prev, value: e.target.value }))}
               className="flex-1 min-w-[160px] text-xs"
               placeholder="Value"
+              aria-label="Filter value"
             />
             <Button
               onClick={handleAddFilter}
@@ -894,113 +912,28 @@ const LogTable: React.FC<LogTableProps> = ({
           </div>
         )}
 
-        {showAql && (
-          <div className="bg-panel border border-border-base rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">AQL Query</div>
-                <div className="text-xs text-text-muted">Advanced mode (builder generates this automatically).</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    setQueryMode('builder');
-                    loadLogs();
-                  }}
-                  size="sm"
-                  variant={queryMode === 'builder' ? 'secondary' : 'ghost'}
-                  className={`text-[10px] font-bold uppercase tracking-wider ${queryMode === 'builder' ? 'text-primary' : ''}`}
-                >
-                  Builder
-                </Button>
-                <Button
-                  onClick={() => setQueryMode('aql')}
-                  size="sm"
-                  variant={queryMode === 'aql' ? 'secondary' : 'ghost'}
-                  className={`text-[10px] font-bold uppercase tracking-wider ${queryMode === 'aql' ? 'text-primary' : ''}`}
-                >
-                  AQL
-                </Button>
-              </div>
-            </div>
-            <Textarea
-              value={queryMode === 'aql' ? aqlQuery : aqlPreview}
-              onChange={(e) => setAqlQuery(e.target.value)}
-              onBlur={() => {
-                if (queryMode === 'aql') {
-                  setAqlQuery(formatAql(aqlQuery));
-                }
-              }}
-              readOnly={queryMode !== 'aql'}
-              className="font-mono text-xs h-28"
-            />
-            <div className="flex items-center justify-between">
-              <div className="text-[10px] text-text-muted uppercase tracking-widest font-bold">
-                {queryMode === 'aql' ? 'Manual query' : 'Read-only preview. Use Builder to edit.'}
-              </div>
-              <Button
-                onClick={runAql}
-                size="sm"
-                variant="primary"
-                className="text-xs"
-                disabled={queryMode !== 'aql'}
-              >
-                Run AQL
-              </Button>
-            </div>
+        {error && (
+          <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3" role="alert">
+            {error}
           </div>
         )}
-
-        {error && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{error}</div>}
       </div>
 
       {/* Header - Simplified */}
-      {!showGenericResults && (
-        <div className="grid grid-cols-12 gap-4 px-5 py-2.5 text-xs font-medium text-text-muted border-b border-border-base">
-          <div className="col-span-2">Time</div>
-          <div className="col-span-1">Trace ID</div>
-          <div className="col-span-5">Message</div>
-          <div className="col-span-1 text-right">Latency</div>
-          <div className="col-span-1 text-right">Tokens</div>
-          <div className="col-span-1 text-right">Cost</div>
-          <div className="col-span-1 text-center">Status</div>
-        </div>
-      )}
+      <div className="grid grid-cols-12 gap-4 px-5 py-2.5 text-xs font-medium text-text-muted border-b border-border-base">
+        <div className="col-span-2">Time</div>
+        <div className="col-span-1">Trace ID</div>
+        <div className="col-span-5">Message</div>
+        <div className="col-span-1 text-right">Latency</div>
+        <div className="col-span-1 text-right">Tokens</div>
+        <div className="col-span-1 text-right">Cost</div>
+        <div className="col-span-1 text-center">Status</div>
+      </div>
 
       {/* List / Results */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-8 text-center text-text-muted text-sm italic">Loading logs...</div>
-        ) : showGenericResults && aqlResult ? (
-          <div className="p-6">
-            <div className="text-xs text-text-muted uppercase tracking-widest font-bold mb-3">AQL Results</div>
-            {aqlResult.data.length === 0 ? (
-              <div className="p-8 text-center text-text-muted text-sm italic">No rows returned.</div>
-            ) : (
-              <div className="bg-panel border border-border-base rounded-lg overflow-hidden">
-                <table className="min-w-full text-xs text-text-main">
-                  <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-text-muted border-b border-border-base">
-                      {(aqlResult.schema || Object.keys(aqlResult.data[0] || {})).map((col) => (
-                        <th key={col} className="text-left py-2 px-4">{col}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {aqlResult.data.map((row, idx) => (
-                      <tr key={idx} className="border-b border-border-base/60">
-                        {(aqlResult.schema || Object.keys(row)).map((col) => (
-                          <td key={`${idx}-${col}`} className="py-2 px-4 text-text-muted">
-                            {typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         ) : logs.length === 0 ? (
           <div className="p-8 text-center text-text-muted text-sm italic">No logs found matching filters.</div>
         ) : (

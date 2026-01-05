@@ -91,6 +91,9 @@ class ChatCompletionChunk(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
     choices: List[ChatCompletionChunkChoice]
+    # Athena Extensions
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
     
 class ModelCard(BaseModel):
     id: str

@@ -272,6 +272,17 @@ export const api = {
         return response.json();
     },
 
+    // Owl utilities
+    searchDocs: async (payload: { query: string; limit?: number }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/owl/search-docs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to search docs');
+        return response.json();
+    },
+
     // Datasets
     getDatasets: async (projectId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/datasets/?project_id=${projectId}`);

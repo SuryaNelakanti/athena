@@ -39,13 +39,22 @@ async def chat_completions(
         if request.stream:
             # For streaming, headers are sent with the SSE response
             # The trace context will be in the first chunk or aggregated output
+            stream, trace_id, span_id = await service.stream_chat_completion(
+                request,
+                project_id,
+                parent_span_id=request.parent_span_id,
+            )
+
+            headers = {}
+            if trace_id:
+                headers["X-Athena-Trace-ID"] = trace_id
+            if span_id:
+                headers["X-Athena-Span-ID"] = span_id
+
             return StreamingResponse(
-                service.stream_chat_completion(
-                    request,
-                    project_id,
-                    parent_span_id=request.parent_span_id,
-                ),
-                media_type="text/event-stream"
+                stream,
+                media_type="text/event-stream",
+                headers=headers,
             )
         else:
             response = await service.chat_completion(

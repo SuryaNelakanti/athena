@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { ChartBarIcon, ClockIcon, CurrencyDollarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
-import { MonitorChart } from '../../types';
-import { Badge, Button, Card, Input, SectionHeader, Select, Textarea } from '../ui';
+import { AqlBuilder, MonitorChart } from '../../types';
+import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
 
 interface DashboardProps {
@@ -43,17 +43,216 @@ const SERIES_FIELDS = [
     { value: 'event_type', label: 'Event Type' },
 ];
 
+const GUIDED_METRICS = [
+    {
+        id: 'count',
+        label: 'Request count',
+        func: 'count',
+        field: '*',
+        alias: 'count',
+        description: 'Number of log events in the window.',
+    },
+    {
+        id: 'total_tokens',
+        label: 'Total tokens',
+        func: 'sum',
+        field: 'total_tokens',
+        alias: 'total_tokens',
+        description: 'Sum of tokens generated.',
+    },
+    {
+        id: 'avg_latency',
+        label: 'Average latency',
+        func: 'avg',
+        field: 'latency_ms',
+        alias: 'avg_latency',
+        description: 'Average response time in milliseconds.',
+    },
+    {
+        id: 'p95_latency',
+        label: 'P95 latency',
+        func: 'p95',
+        field: 'latency_ms',
+        alias: 'p95_latency',
+        description: '95th percentile response time.',
+    },
+    {
+        id: 'total_cost',
+        label: 'Total cost',
+        func: 'sum',
+        field: 'cost',
+        alias: 'total_cost',
+        description: 'Estimated cost in USD.',
+    },
+];
+
+const GUIDED_TIME_RANGES = [
+    { id: '24h', label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000 },
+    { id: '7d', label: 'Last 7 days', ms: 7 * 24 * 60 * 60 * 1000 },
+    { id: '30d', label: 'Last 30 days', ms: 30 * 24 * 60 * 60 * 1000 },
+    { id: 'all', label: 'All time', ms: null },
+];
+
+const GUIDED_AXIS_FIELDS = [
+    { value: 'timestamp', label: 'Time' },
+    { value: 'model', label: 'Model' },
+    { value: 'provider', label: 'Provider' },
+    { value: 'status', label: 'Status' },
+    { value: 'event_type', label: 'Event Type' },
+];
+
+const GUIDED_BREAKDOWN_FIELDS = [
+    { value: '', label: 'None' },
+    { value: 'model', label: 'Model' },
+    { value: 'provider', label: 'Provider' },
+    { value: 'status', label: 'Status' },
+    { value: 'event_type', label: 'Event Type' },
+];
+
+const GUIDED_STATUS_FILTERS = [
+    { value: 'all', label: 'All statuses' },
+    { value: 'success', label: 'Success only' },
+    { value: 'error', label: 'Errors only' },
+];
+
+const GUIDED_PROVIDER_FILTERS = [
+    { value: 'all', label: 'All providers' },
+    { value: 'openai', label: 'OpenAI' },
+    { value: 'anthropic', label: 'Anthropic' },
+    { value: 'gemini', label: 'Gemini' },
+    { value: 'mock', label: 'Mock' },
+];
+
+const GUIDED_DEFAULTS = {
+    metric: 'count',
+    timeRange: '24h',
+    xAxis: 'timestamp',
+    breakdown: '',
+    statusFilter: 'all',
+    providerFilter: 'all',
+    limit: 200,
+};
+
+const CHART_TEMPLATES = [
+    {
+        id: 'tokens_over_time',
+        name: 'Token usage over time',
+        description: 'Track total tokens with a provider split.',
+        chart_type: 'area',
+        guided: {
+            metric: 'total_tokens',
+            timeRange: '24h',
+            xAxis: 'timestamp',
+            breakdown: 'provider',
+            statusFilter: 'all',
+            providerFilter: 'all',
+            limit: 200,
+        },
+    },
+    {
+        id: 'error_rate',
+        name: 'Errors by model',
+        description: 'Surface failure volume by model.',
+        chart_type: 'bar',
+        guided: {
+            metric: 'count',
+            timeRange: '7d',
+            xAxis: 'model',
+            breakdown: '',
+            statusFilter: 'error',
+            providerFilter: 'all',
+            limit: 200,
+        },
+    },
+    {
+        id: 'latency_p95',
+        name: 'P95 latency trend',
+        description: 'Watch tail latency across the last 24h.',
+        chart_type: 'line',
+        guided: {
+            metric: 'p95_latency',
+            timeRange: '24h',
+            xAxis: 'timestamp',
+            breakdown: 'model',
+            statusFilter: 'all',
+            providerFilter: 'all',
+            limit: 200,
+        },
+    },
+];
+
 // Simple AQL formatter that adds line breaks and indentation
 const formatAql = (query: string): string => {
     if (!query.trim()) return query;
     // Add line breaks after keywords
     let formatted = query.trim()
         .replace(/\s+/g, ' ')
-        .replace(/\b(from|select|filter|sort|limit|group by)\b/gi, '\n$1')
+        .replace(/\b(from|select|filter|dimensions|measures|sort|limit)\b/gi, '\n$1')
         .trim();
     // Indent lines after the first
     const lines = formatted.split('\n');
     return lines.map((line, i) => i === 0 ? line : '  ' + line.trim()).join('\n');
+};
+
+const formatAqlLiteral = (value: any): string => {
+    if (value === null || value === undefined) return '""';
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (Array.isArray(value)) {
+        const items = value.map((item) => formatAqlLiteral(item));
+        return `(${items.join(', ')})`;
+    }
+    const raw = String(value).trim();
+    if (!raw) return '""';
+    if (raw.toLowerCase().startsWith('now()')) return raw;
+    const escaped = raw.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `"${escaped}"`;
+};
+
+const buildAqlFromBuilder = (builder: AqlBuilder): string => {
+    const parts: string[] = [];
+    const params = builder.params || {};
+    const paramKeys = Object.keys(params).sort();
+    const paramClause = paramKeys.length
+        ? `(${paramKeys.map((key) => `${key}=${formatAqlLiteral(params[key])}`).join(', ')})`
+        : '';
+    parts.push(`from ${builder.shape}${paramClause}`);
+
+    if (builder.select && builder.select.length) {
+        parts.push(`select ${builder.select.join(', ')}`);
+    } else if (!builder.dimensions?.length && !builder.measures?.length) {
+        parts.push('select *');
+    }
+
+    if (builder.filters && builder.filters.length) {
+        const filterClause = builder.filters
+            .map((f) => `${f.field} ${f.op} ${formatAqlLiteral(f.value)}`)
+            .join(' and ');
+        parts.push(`filter ${filterClause}`);
+    }
+
+    if (builder.dimensions && builder.dimensions.length) {
+        parts.push(`dimensions ${builder.dimensions.join(', ')}`);
+    }
+
+    if (builder.measures && builder.measures.length) {
+        const measures = builder.measures.map((m) => {
+            const field = m.field && m.field.length ? m.field : '*';
+            const alias = m.alias ? ` as ${m.alias}` : '';
+            return `${m.func}(${field})${alias}`;
+        });
+        parts.push(`measures ${measures.join(', ')}`);
+    }
+
+    if (builder.sort?.field) {
+        parts.push(`sort ${builder.sort.field} ${(builder.sort.direction || 'asc').toLowerCase()}`);
+    }
+
+    if (builder.limit !== undefined && builder.limit !== null) {
+        parts.push(`limit ${builder.limit}`);
+    }
+
+    return parts.join(' ');
 };
 
 const StatCard = ({
@@ -115,6 +314,12 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
     const [showChartBuilder, setShowChartBuilder] = useState(false);
     const [editingChartId, setEditingChartId] = useState<string | null>(null);
     const [chartError, setChartError] = useState<string | null>(null);
+    const [chartMode, setChartMode] = useState<'guided' | 'advanced'>('guided');
+    const [guidedConfig, setGuidedConfig] = useState({ ...GUIDED_DEFAULTS });
+    const [previewRows, setPreviewRows] = useState<any[]>([]);
+    const [previewQuery, setPreviewQuery] = useState<string>('');
+    const [previewError, setPreviewError] = useState<string | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
     const [newChart, setNewChart] = useState({
         name: '',
         query: '',
@@ -225,11 +430,109 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         }));
     }, [logs]);
 
-    const chartQueryTemplate = () => `from project_logs(project_id="${projectId}") select timestamp, total_tokens sort timestamp asc limit 200`;
+    const guidedMetric = useMemo(() => {
+        return GUIDED_METRICS.find((metric) => metric.id === guidedConfig.metric) || GUIDED_METRICS[0];
+    }, [guidedConfig.metric]);
+
+    const guidedBuilder = useMemo<AqlBuilder>(() => {
+        const filters = [];
+        const range = GUIDED_TIME_RANGES.find((opt) => opt.id === guidedConfig.timeRange);
+        if (range?.ms) {
+            filters.push({
+                field: 'timestamp',
+                op: '>=',
+                value: `now() - ${range.ms}`,
+            });
+        }
+        if (guidedConfig.statusFilter !== 'all') {
+            filters.push({
+                field: 'status',
+                op: '=',
+                value: guidedConfig.statusFilter,
+            });
+        }
+        if (guidedConfig.providerFilter !== 'all') {
+            filters.push({
+                field: 'provider',
+                op: '=',
+                value: guidedConfig.providerFilter,
+            });
+        }
+
+        const dimensions = [guidedConfig.xAxis].filter(Boolean);
+        if (guidedConfig.breakdown && guidedConfig.breakdown !== guidedConfig.xAxis) {
+            dimensions.push(guidedConfig.breakdown);
+        }
+
+        return {
+            shape: 'project_logs',
+            params: { project_id: projectId },
+            filters,
+            dimensions,
+            measures: [
+                {
+                    func: guidedMetric.func,
+                    field: guidedMetric.field,
+                    alias: guidedMetric.alias,
+                },
+            ],
+            sort: { field: guidedConfig.xAxis, direction: 'asc' },
+            limit: guidedConfig.limit,
+        };
+    }, [guidedConfig, guidedMetric, projectId]);
+
+    const guidedQuery = useMemo(() => {
+        if (!projectId) return '';
+        return buildAqlFromBuilder(guidedBuilder);
+    }, [guidedBuilder, projectId]);
+
+    const guidedSummary = useMemo(() => {
+        const range = GUIDED_TIME_RANGES.find((opt) => opt.id === guidedConfig.timeRange);
+        const axisLabel = GUIDED_AXIS_FIELDS.find((f) => f.value === guidedConfig.xAxis)?.label || guidedConfig.xAxis;
+        const breakdownLabel = GUIDED_BREAKDOWN_FIELDS.find((f) => f.value === guidedConfig.breakdown)?.label || '';
+        const statusLabel = GUIDED_STATUS_FILTERS.find((f) => f.value === guidedConfig.statusFilter)?.label || '';
+        const providerLabel = GUIDED_PROVIDER_FILTERS.find((f) => f.value === guidedConfig.providerFilter)?.label || '';
+        const parts = [
+            `${guidedMetric.label.toLowerCase()} from logs`,
+            range?.id === 'all' ? 'for all time' : `over ${range?.label.toLowerCase()}`,
+            `plotted by ${axisLabel.toLowerCase()}`,
+        ];
+        if (breakdownLabel && breakdownLabel !== 'None') {
+            parts.push(`split by ${breakdownLabel.toLowerCase()}`);
+        }
+        if (statusLabel && statusLabel !== 'All statuses') {
+            parts.push(statusLabel.toLowerCase());
+        }
+        if (providerLabel && providerLabel !== 'All providers') {
+            parts.push(providerLabel.toLowerCase());
+        }
+        return parts.join(', ');
+    }, [guidedConfig, guidedMetric]);
+
+    const previewQueryText = useMemo(() => {
+        if (previewQuery) return previewQuery;
+        if (chartMode === 'guided') return guidedQuery;
+        return newChart.query;
+    }, [previewQuery, chartMode, guidedQuery, newChart.query]);
+
+    const previewColumns = useMemo(() => {
+        if (!previewRows.length) return [];
+        return Object.keys(previewRows[0]).slice(0, 4);
+    }, [previewRows]);
+
+    const previewSample = useMemo(() => previewRows.slice(0, 6), [previewRows]);
+
+    const chartQueryTemplate = () =>
+        `from project_logs(project_id="${projectId}") select timestamp, total_tokens sort timestamp asc limit 200`;
 
     const resetChartForm = () => {
         setEditingChartId(null);
         setChartError(null);
+        setChartMode('guided');
+        setGuidedConfig({ ...GUIDED_DEFAULTS });
+        setPreviewRows([]);
+        setPreviewQuery('');
+        setPreviewError(null);
         setNewChart({
             name: '',
             query: chartQueryTemplate(),
@@ -240,22 +543,65 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         });
     };
 
+    useEffect(() => {
+        if (chartMode !== 'guided') return;
+        setNewChart((prev) => ({
+            ...prev,
+            x_field: guidedConfig.xAxis,
+            y_field: guidedMetric.alias,
+            series_field: guidedConfig.breakdown || '',
+            query: guidedQuery,
+        }));
+    }, [
+        chartMode,
+        guidedConfig.xAxis,
+        guidedConfig.breakdown,
+        guidedMetric.alias,
+        guidedQuery,
+    ]);
+
     const handleSaveChart = async () => {
-        if (!newChart.name.trim() || !newChart.query.trim()) {
-            setChartError('Name and query are required.');
-            return;
-        }
         try {
             setChartError(null);
+            if (!newChart.name.trim()) {
+                setChartError('Chart name is required.');
+                return;
+            }
+
+            let query = newChart.query;
+            let xField = newChart.x_field;
+            let yField = newChart.y_field;
+            let seriesField = newChart.series_field ? newChart.series_field : null;
+            let config: Record<string, any> = {};
+
+            if (chartMode === 'guided') {
+                query = guidedQuery;
+                xField = guidedConfig.xAxis;
+                yField = guidedMetric.alias;
+                seriesField = guidedConfig.breakdown ? guidedConfig.breakdown : null;
+                config = {
+                    mode: 'guided',
+                    builder: guidedBuilder,
+                    ui: guidedConfig,
+                };
+            } else {
+                config = { mode: 'advanced' };
+            }
+
+            if (!query || !query.trim()) {
+                setChartError('Query cannot be empty.');
+                return;
+            }
+
             const payload = {
                 project_id: projectId,
                 name: newChart.name,
-                query: newChart.query,
+                query,
                 chart_type: newChart.chart_type,
-                x_field: newChart.x_field,
-                y_field: newChart.y_field,
-                series_field: newChart.series_field ? newChart.series_field : null,
-                config: {},
+                x_field: xField,
+                y_field: yField,
+                series_field: seriesField,
+                config,
             };
             if (editingChartId) {
                 const updatePayload = { ...payload };
@@ -277,6 +623,16 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
         setEditingChartId(chart.id);
         setChartError(null);
         setShowChartBuilder(true);
+        setPreviewRows([]);
+        setPreviewQuery('');
+        setPreviewError(null);
+        const config = chart.config || {};
+        if (config.mode === 'guided' && config.ui) {
+            setChartMode('guided');
+            setGuidedConfig({ ...GUIDED_DEFAULTS, ...(config.ui as any) });
+        } else {
+            setChartMode('advanced');
+        }
         setNewChart({
             name: chart.name,
             query: chart.query,
@@ -297,6 +653,36 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
     const handleRefreshCharts = async () => {
         const result = await api.getCharts(projectId);
         setCharts(result);
+    };
+
+    const handlePreviewChart = async () => {
+        setPreviewLoading(true);
+        setPreviewError(null);
+        try {
+            const payload =
+                chartMode === 'guided'
+                    ? { builder: guidedBuilder }
+                    : newChart.query;
+            const result = await api.runAqlQuery(payload);
+            setPreviewRows(result.data || []);
+            setPreviewQuery(result.query || '');
+        } catch (e: any) {
+            setPreviewRows([]);
+            setPreviewQuery('');
+            setPreviewError(e?.message || 'Failed to preview query');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const handleApplyTemplate = (template: typeof CHART_TEMPLATES[number]) => {
+        setChartMode('guided');
+        setGuidedConfig({ ...GUIDED_DEFAULTS, ...(template.guided as any) });
+        setNewChart((prev) => ({
+            ...prev,
+            chart_type: template.chart_type,
+            name: prev.name || template.name,
+        }));
     };
 
     const buildSeriesData = (rows: any[], chart: MonitorChart) => {
@@ -450,79 +836,285 @@ const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
                 </div>
 
                 {showChartBuilder && (
-                    <Card className="p-5 mb-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Name</label>
-                                <Input
-                                    value={newChart.name}
-                                    onChange={(e) => setNewChart((prev) => ({ ...prev, name: e.target.value }))}
-                                    placeholder="e.g. Daily Token Usage"
-                                    className="text-xs"
-                                />
+                    <Card className="p-6 mb-6 space-y-5">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-sm font-semibold text-text-main">Chart Builder</h3>
+                                <p className="text-xs text-text-muted mt-1">
+                                    Guided setup for non-coders, with full AQL access when you want to go deeper.
+                                </p>
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Type</label>
-                                <Select
-                                    value={newChart.chart_type}
-                                    onChange={(e) => setNewChart((prev) => ({ ...prev, chart_type: e.target.value }))}
-                                    className="text-xs"
-                                >
-                                    <option value="line">Line</option>
-                                    <option value="area">Area</option>
-                                    <option value="bar">Bar</option>
-                                </Select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">X Axis Field</label>
-                                <Select
-                                    value={newChart.x_field}
-                                    onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
-                                    className="text-xs"
-                                >
-                                    {X_AXIS_FIELDS.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
-                                    ))}
-                                </Select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Y Axis Field</label>
-                                <Select
-                                    value={newChart.y_field}
-                                    onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
-                                    className="text-xs"
-                                >
-                                    {Y_AXIS_FIELDS.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
-                                    ))}
-                                </Select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Series Grouping</label>
-                                <Select
-                                    value={newChart.series_field}
-                                    onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
-                                    className="text-xs"
-                                >
-                                    {SERIES_FIELDS.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
-                                    ))}
-                                </Select>
-                            </div>
+                            <Tabs
+                                options={[
+                                    { id: 'guided', label: 'Guided' },
+                                    { id: 'advanced', label: 'AQL' },
+                                ]}
+                                value={chartMode}
+                                onChange={(value) => setChartMode(value as 'guided' | 'advanced')}
+                            />
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">AQL Query</label>
-                                <span className="text-[10px] text-text-muted">Fields: timestamp, latency_ms, cost, total_tokens, model, status</span>
+                        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr,1fr] gap-6">
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Name</label>
+                                        <Input
+                                            value={newChart.name}
+                                            onChange={(e) => setNewChart((prev) => ({ ...prev, name: e.target.value }))}
+                                            placeholder="e.g. Token usage over time"
+                                            className="text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Chart Type</label>
+                                        <Select
+                                            value={newChart.chart_type}
+                                            onChange={(e) => setNewChart((prev) => ({ ...prev, chart_type: e.target.value }))}
+                                            className="text-xs"
+                                        >
+                                            <option value="line">Line</option>
+                                            <option value="area">Area</option>
+                                            <option value="bar">Bar</option>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                {chartMode === 'guided' ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {CHART_TEMPLATES.map((template) => (
+                                                <button
+                                                    key={template.id}
+                                                    type="button"
+                                                    onClick={() => handleApplyTemplate(template)}
+                                                    className="rounded-lg border border-border-base bg-panel/60 p-3 text-left hover:border-primary/40 hover:bg-panel-hover transition"
+                                                >
+                                                    <div className="text-xs font-semibold text-text-main">{template.name}</div>
+                                                    <div className="text-[11px] text-text-muted mt-1">{template.description}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Metric</label>
+                                                <Select
+                                                    value={guidedConfig.metric}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, metric: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_METRICS.map((metric) => (
+                                                        <option key={metric.id} value={metric.id}>{metric.label}</option>
+                                                    ))}
+                                                </Select>
+                                                <div className="text-[11px] text-text-muted">{guidedMetric.description}</div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Time Range</label>
+                                                <Select
+                                                    value={guidedConfig.timeRange}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, timeRange: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_TIME_RANGES.map((range) => (
+                                                        <option key={range.id} value={range.id}>{range.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">X Axis</label>
+                                                <Select
+                                                    value={guidedConfig.xAxis}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, xAxis: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_AXIS_FIELDS.map((field) => (
+                                                        <option key={field.value} value={field.value}>{field.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Breakdown</label>
+                                                <Select
+                                                    value={guidedConfig.breakdown}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, breakdown: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_BREAKDOWN_FIELDS.map((field) => (
+                                                        <option key={field.value} value={field.value}>{field.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Status Filter</label>
+                                                <Select
+                                                    value={guidedConfig.statusFilter}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, statusFilter: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_STATUS_FILTERS.map((field) => (
+                                                        <option key={field.value} value={field.value}>{field.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Provider Filter</label>
+                                                <Select
+                                                    value={guidedConfig.providerFilter}
+                                                    onChange={(e) => setGuidedConfig((prev) => ({ ...prev, providerFilter: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {GUIDED_PROVIDER_FILTERS.map((field) => (
+                                                        <option key={field.value} value={field.value}>{field.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Result Limit</label>
+                                                <Input
+                                                    type="number"
+                                                    min={10}
+                                                    value={guidedConfig.limit}
+                                                    onChange={(e) => {
+                                                        const next = Number(e.target.value);
+                                                        setGuidedConfig((prev) => ({ ...prev, limit: Number.isFinite(next) && next > 0 ? next : prev.limit }));
+                                                    }}
+                                                    className="text-xs"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-lg border border-border-base bg-panel/60 p-4">
+                                            <div className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Summary</div>
+                                            <p className="text-xs text-text-main mt-2">{guidedSummary}</p>
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                <Badge variant="neutral">X: {GUIDED_AXIS_FIELDS.find((f) => f.value === guidedConfig.xAxis)?.label}</Badge>
+                                                <Badge variant="neutral">Y: {guidedMetric.label}</Badge>
+                                                {guidedConfig.breakdown && (
+                                                    <Badge variant="neutral">Split: {GUIDED_BREAKDOWN_FIELDS.find((f) => f.value === guidedConfig.breakdown)?.label}</Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">X Axis Field</label>
+                                                <Select
+                                                    value={newChart.x_field}
+                                                    onChange={(e) => setNewChart((prev) => ({ ...prev, x_field: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {X_AXIS_FIELDS.map(f => (
+                                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Y Axis Field</label>
+                                                <Select
+                                                    value={newChart.y_field}
+                                                    onChange={(e) => setNewChart((prev) => ({ ...prev, y_field: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {Y_AXIS_FIELDS.map(f => (
+                                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Series Grouping</label>
+                                                <Select
+                                                    value={newChart.series_field}
+                                                    onChange={(e) => setNewChart((prev) => ({ ...prev, series_field: e.target.value }))}
+                                                    className="text-xs"
+                                                >
+                                                    {SERIES_FIELDS.map(f => (
+                                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">AQL Query</label>
+                                                <span className="text-[10px] text-text-muted">Fields: timestamp, latency_ms, cost, total_tokens, model, status</span>
+                                            </div>
+                                            <Textarea
+                                                value={newChart.query}
+                                                onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
+                                                onBlur={() => setNewChart((prev) => ({ ...prev, query: formatAql(prev.query) }))}
+                                                placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
+                                                className="font-mono text-xs h-28 resize-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <Textarea
-                                value={newChart.query}
-                                onChange={(e) => setNewChart((prev) => ({ ...prev, query: e.target.value }))}
-                                onBlur={(e) => setNewChart((prev) => ({ ...prev, query: formatAql(prev.query) }))}
-                                placeholder='AQL query (ex: from project_logs(project_id="...") select timestamp, total_tokens)'
-                                className="font-mono text-xs h-28 resize-none"
-                            />
+
+                            <div className="space-y-4">
+                                <div className="rounded-lg border border-border-base bg-panel/60 p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="text-xs font-semibold text-text-main">Preview</div>
+                                            <div className="text-[11px] text-text-muted">Check the output before you save.</div>
+                                        </div>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={handlePreviewChart}
+                                            disabled={!previewQueryText.trim() || previewLoading}
+                                        >
+                                            {previewLoading ? 'Running...' : 'Preview data'}
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-text-muted tracking-wide">Generated AQL</label>
+                                        <Textarea
+                                            value={formatAql(previewQueryText)}
+                                            readOnly
+                                            className="font-mono text-xs h-32 resize-none bg-panel"
+                                        />
+                                    </div>
+                                    {previewError && (
+                                        <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">
+                                            {previewError}
+                                        </div>
+                                    )}
+                                    {!previewLoading && !previewError && previewSample.length === 0 && (
+                                        <div className="text-[11px] text-text-muted italic">
+                                            Run a preview to see sample rows.
+                                        </div>
+                                    )}
+                                    {previewSample.length > 0 && (
+                                        <div className="overflow-auto border border-border-base rounded-md">
+                                            <table className="w-full text-[11px]">
+                                                <thead className="bg-panel-hover text-text-muted">
+                                                    <tr>
+                                                        {previewColumns.map((col) => (
+                                                            <th key={col} className="px-2 py-2 text-left font-semibold">{col}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {previewSample.map((row, idx) => (
+                                                        <tr key={idx} className="border-t border-border-base text-text-main">
+                                                            {previewColumns.map((col) => (
+                                                                <td key={col} className="px-2 py-2">
+                                                                    {row[col] !== null && row[col] !== undefined ? String(row[col]) : '--'}
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         {chartError && <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-3">{chartError}</div>}

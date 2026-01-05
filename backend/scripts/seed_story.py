@@ -25,6 +25,7 @@ from app.models import (
     LogModel,
     MentionModel,
     ModelRegistryModel,
+    MonitorChartModel,
     OrganizationModel,
     PlaygroundModel,
     Project,
@@ -452,6 +453,118 @@ async def seed_core(session: AsyncSession) -> None:
     ]
     for pg in playgrounds:
         session.add(PlaygroundModel(**pg))
+
+    # Monitor charts (guided builder configs)
+    charts = [
+        {
+            "id": "chart_support_refund_errors",
+            "project_id": "proj_support",
+            "name": "Refund errors by model",
+            "query": "from project_logs(project_id=\"proj_support\") filter timestamp >= now() - 604800000 and status = \"error\" dimensions model measures count(*) as count sort model asc limit 200",
+            "chart_type": "bar",
+            "x_field": "model",
+            "y_field": "count",
+            "series_field": None,
+            "config": {
+                "mode": "guided",
+                "ui": {
+                    "metric": "count",
+                    "timeRange": "7d",
+                    "xAxis": "model",
+                    "breakdown": "",
+                    "statusFilter": "error",
+                    "providerFilter": "all",
+                    "limit": 200,
+                },
+                "builder": {
+                    "shape": "project_logs",
+                    "params": {"project_id": "proj_support"},
+                    "filters": [
+                        {"field": "timestamp", "op": ">=", "value": "now() - 604800000"},
+                        {"field": "status", "op": "=", "value": "error"},
+                    ],
+                    "dimensions": ["model"],
+                    "measures": [{"func": "count", "field": "*", "alias": "count"}],
+                    "sort": {"field": "model", "direction": "asc"},
+                    "limit": 200,
+                },
+            },
+            "created_at": base - 870_000,
+            "updated_at": base - 860_000,
+        },
+        {
+            "id": "chart_legal_latency_p95",
+            "project_id": "proj_legal",
+            "name": "Clause review P95 latency",
+            "query": "from project_logs(project_id=\"proj_legal\") filter timestamp >= now() - 86400000 dimensions timestamp, model measures p95(latency_ms) as p95_latency sort timestamp asc limit 200",
+            "chart_type": "line",
+            "x_field": "timestamp",
+            "y_field": "p95_latency",
+            "series_field": "model",
+            "config": {
+                "mode": "guided",
+                "ui": {
+                    "metric": "p95_latency",
+                    "timeRange": "24h",
+                    "xAxis": "timestamp",
+                    "breakdown": "model",
+                    "statusFilter": "all",
+                    "providerFilter": "all",
+                    "limit": 200,
+                },
+                "builder": {
+                    "shape": "project_logs",
+                    "params": {"project_id": "proj_legal"},
+                    "filters": [
+                        {"field": "timestamp", "op": ">=", "value": "now() - 86400000"},
+                    ],
+                    "dimensions": ["timestamp", "model"],
+                    "measures": [{"func": "p95", "field": "latency_ms", "alias": "p95_latency"}],
+                    "sort": {"field": "timestamp", "direction": "asc"},
+                    "limit": 200,
+                },
+            },
+            "created_at": base - 840_000,
+            "updated_at": base - 830_000,
+        },
+        {
+            "id": "chart_gtm_cost_provider",
+            "project_id": "proj_gtm",
+            "name": "Outbound cost by provider",
+            "query": "from project_logs(project_id=\"proj_gtm\") filter timestamp >= now() - 2592000000 dimensions provider measures sum(cost) as total_cost sort provider asc limit 200",
+            "chart_type": "bar",
+            "x_field": "provider",
+            "y_field": "total_cost",
+            "series_field": None,
+            "config": {
+                "mode": "guided",
+                "ui": {
+                    "metric": "total_cost",
+                    "timeRange": "30d",
+                    "xAxis": "provider",
+                    "breakdown": "",
+                    "statusFilter": "all",
+                    "providerFilter": "all",
+                    "limit": 200,
+                },
+                "builder": {
+                    "shape": "project_logs",
+                    "params": {"project_id": "proj_gtm"},
+                    "filters": [
+                        {"field": "timestamp", "op": ">=", "value": "now() - 2592000000"},
+                    ],
+                    "dimensions": ["provider"],
+                    "measures": [{"func": "sum", "field": "cost", "alias": "total_cost"}],
+                    "sort": {"field": "provider", "direction": "asc"},
+                    "limit": 200,
+                },
+            },
+            "created_at": base - 800_000,
+            "updated_at": base - 790_000,
+        },
+    ]
+    for chart in charts:
+        session.add(MonitorChartModel(**chart))
 
     # Built-in Scorers
     for scorer in BUILTIN_SCORERS:

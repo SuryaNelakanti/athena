@@ -468,7 +468,7 @@ class ProxyService:
         request: ChatCompletionRequest,
         project_id: str = "default",
         parent_span_id: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> tuple[AsyncGenerator[str, None], str, str]:
         # Persist a trace/span for streaming runs and aggregate final output.
         provider_name = self._resolve_provider(request)
         envoy = get_envoy(provider_name, self._provider_config(provider_name))
@@ -531,130 +531,135 @@ class ProxyService:
         self.session.add(span)
         await self.session.commit()
 
-        aggregated_content = ""
-        aggregated_reasoning = ""
-        stream_response_id: Optional[str] = None
-
-        try:
-            async for chunk in envoy.stream_chat_completion(request):
-                if not stream_response_id:
-                    stream_response_id = chunk.id
-
-                if chunk.choices:
-                    for choice in chunk.choices:
-                        if choice.delta and choice.delta.content:
-                            aggregated_content += choice.delta.content
-                        if choice.delta and choice.delta.reasoning_content:
-                            aggregated_reasoning += choice.delta.reasoning_content
-
-                yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
-
-            end_time = int(time.time() * 1000)
-            latency_ms = end_time - start_time
-
-            span.end_time = end_time
-            span.status = "success"
-            span.metrics = {"latency_ms": latency_ms}
-
-            # Store an aggregated "final" output snapshot for UI/debugging.
-            span.output = {
-                "id": stream_response_id or f"stream-{trace_id}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": request.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": aggregated_content},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": None,
-                "provider": provider_name,
-                **({"athena_reasoning": aggregated_reasoning} if aggregated_reasoning else {}),
-            }
-
-            if aggregated_reasoning:
-                span.attributes = {**(span.attributes or {}), "reasoning_enabled": True}
-
-            if not existing_trace:
-                trace.total_latency = latency_ms
-                trace.status = "success"
-
-            # Create canonical log row for streaming call
-            log = LogModel(
-                id=f"log_{uuid.uuid4().hex[:16]}",
-                project_id=project_id,
-                trace_id=trace_id,
-                span_id=span_id,
-                level="INFO",
-                event_type="llm_stream",
-                status="success",
-                message=f"LLM stream call to {request.model}",
-                timestamp=start_time,
-                latency_ms=latency_ms,
-                model=request.model,
-                provider=provider_name,
-                attributes={"streaming": True},
-                log_metadata={},
-                created_at=end_time,
-            )
-            self.session.add(log)
-
-            self.session.add(span)
-            self.session.add(trace)
-            await self.session.commit()
-            if existing_trace:
-                await self._update_trace_aggregates(trace_id)
-                await self.session.commit()
+        async def event_stream() -> AsyncGenerator[str, None]:
+            aggregated_content = ""
+            aggregated_reasoning = ""
+            stream_response_id: Optional[str] = None
 
             try:
-                job_service = JobService(self.session)
-                await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
-            except Exception:
-                pass
+                async for chunk in envoy.stream_chat_completion(request):
+                    if not stream_response_id:
+                        stream_response_id = chunk.id
 
-            yield "data: [DONE]\n\n"
+                    if chunk.choices:
+                        for choice in chunk.choices:
+                            if choice.delta and choice.delta.content:
+                                aggregated_content += choice.delta.content
+                            if choice.delta and choice.delta.reasoning_content:
+                                aggregated_reasoning += choice.delta.reasoning_content
 
-        except Exception as e:
-            end_time = int(time.time() * 1000)
-            latency_ms = end_time - start_time
-            span.end_time = end_time
-            span.status = "error"
-            span.error_message = str(e)
-            span.metrics = {"latency_ms": latency_ms}
+                    chunk.trace_id = trace_id
+                    chunk.span_id = span_id
+                    yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 
-            if not existing_trace:
-                trace.status = "error"
-                trace.total_latency = latency_ms
+                end_time = int(time.time() * 1000)
+                latency_ms = end_time - start_time
 
-            # Create error log row for streaming
-            log = LogModel(
-                id=f"log_{uuid.uuid4().hex[:16]}",
-                project_id=project_id,
-                trace_id=trace_id,
-                span_id=span_id,
-                level="ERROR",
-                event_type="llm_stream",
-                status="error",
-                message=f"LLM stream call to {request.model} failed: {str(e)}",
-                timestamp=start_time,
-                latency_ms=latency_ms,
-                model=request.model,
-                provider=provider_name,
-                attributes={"streaming": True, "error": str(e)},
-                log_metadata={},
-                created_at=end_time,
-            )
-            self.session.add(log)
+                span.end_time = end_time
+                span.status = "success"
+                span.metrics = {"latency_ms": latency_ms}
 
-            self.session.add(span)
-            self.session.add(trace)
-            await self.session.commit()
-            if existing_trace:
-                await self._update_trace_aggregates(trace_id)
+                # Store an aggregated "final" output snapshot for UI/debugging.
+                span.output = {
+                    "id": stream_response_id or f"stream-{trace_id}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": aggregated_content},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": None,
+                    "provider": provider_name,
+                    **({"athena_reasoning": aggregated_reasoning} if aggregated_reasoning else {}),
+                }
+
+                if aggregated_reasoning:
+                    span.attributes = {**(span.attributes or {}), "reasoning_enabled": True}
+
+                if not existing_trace:
+                    trace.total_latency = latency_ms
+                    trace.status = "success"
+
+                # Create canonical log row for streaming call
+                log = LogModel(
+                    id=f"log_{uuid.uuid4().hex[:16]}",
+                    project_id=project_id,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    level="INFO",
+                    event_type="llm_stream",
+                    status="success",
+                    message=f"LLM stream call to {request.model}",
+                    timestamp=start_time,
+                    latency_ms=latency_ms,
+                    model=request.model,
+                    provider=provider_name,
+                    attributes={"streaming": True},
+                    log_metadata={},
+                    created_at=end_time,
+                )
+                self.session.add(log)
+
+                self.session.add(span)
+                self.session.add(trace)
                 await self.session.commit()
-            raise e
+                if existing_trace:
+                    await self._update_trace_aggregates(trace_id)
+                    await self.session.commit()
+
+                try:
+                    job_service = JobService(self.session)
+                    await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
+                except Exception:
+                    pass
+
+                yield "data: [DONE]\n\n"
+
+            except Exception as e:
+                end_time = int(time.time() * 1000)
+                latency_ms = end_time - start_time
+                span.end_time = end_time
+                span.status = "error"
+                span.error_message = str(e)
+                span.metrics = {"latency_ms": latency_ms}
+
+                if not existing_trace:
+                    trace.status = "error"
+                    trace.total_latency = latency_ms
+
+                # Create error log row for streaming
+                log = LogModel(
+                    id=f"log_{uuid.uuid4().hex[:16]}",
+                    project_id=project_id,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    level="ERROR",
+                    event_type="llm_stream",
+                    status="error",
+                    message=f"LLM stream call to {request.model} failed: {str(e)}",
+                    timestamp=start_time,
+                    latency_ms=latency_ms,
+                    model=request.model,
+                    provider=provider_name,
+                    attributes={"streaming": True, "error": str(e)},
+                    log_metadata={},
+                    created_at=end_time,
+                )
+                self.session.add(log)
+
+                self.session.add(span)
+                self.session.add(trace)
+                await self.session.commit()
+                if existing_trace:
+                    await self._update_trace_aggregates(trace_id)
+                    await self.session.commit()
+                raise e
+
+        return event_stream(), trace_id, span_id
 
     async def list_models(self) -> List[ModelCard]:
         """
