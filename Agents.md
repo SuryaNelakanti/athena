@@ -480,4 +480,8 @@ Athena v1 is “shippable” when:
 - Minimum provider set for Proxy v1 (2 providers + OpenAI-style responses adapter)?
 - What is the default retention policy for raw logs in hosted mode?
 - Do we ship remote evals in v1 or v2?
-
+- **Functions page**: How to implement sandboxed Python scorer execution? Options:
+  - Docker-based sandbox with timeout
+  - WebAssembly (Pyodide) for client-side execution
+  - Remote code execution service (Modal, AWS Lambda)
+  - Keep Python as metadata-only (no execution), focus on LLM Judge scorers

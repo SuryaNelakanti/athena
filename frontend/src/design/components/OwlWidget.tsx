@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api, API_BASE_URL } from '../../services/api';
 import { Badge, Button, Input, Select, Textarea } from '../ui';
-import { ChatBubbleLeftRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, XMarkIcon, ChevronDownIcon, ChevronRightIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 
 interface OwlWidgetProps {
   projectId: string;
@@ -24,37 +24,37 @@ const OWL_ACTIONS: Array<{
   title: string;
   description: string;
 }> = [
-  {
-    id: 'aql',
-    title: 'AQL Author',
-    description: 'Describe the question and get a ready-to-run AQL query.',
-  },
-  {
-    id: 'prompt',
-    title: 'Prompt Optimizer',
-    description: 'Refine prompts for tone, safety, and clarity.',
-  },
-  {
-    id: 'scorer',
-    title: 'Scorer Draft',
-    description: 'Create a criteria-based scorer checklist.',
-  },
-  {
-    id: 'dataset',
-    title: 'Dataset Ideas',
-    description: 'Generate dataset rows for new evaluation coverage.',
-  },
-  {
-    id: 'experiment',
-    title: 'Experiment Summary',
-    description: 'Summarize the latest experiment run and next steps.',
-  },
-  {
-    id: 'docs',
-    title: 'Docs Search',
-    description: 'Find exact snippets in Athena docs.',
-  },
-];
+    {
+      id: 'aql',
+      title: 'AQL Author',
+      description: 'Describe the question and get a ready-to-run AQL query.',
+    },
+    {
+      id: 'prompt',
+      title: 'Prompt Optimizer',
+      description: 'Refine prompts for tone, safety, and clarity.',
+    },
+    {
+      id: 'scorer',
+      title: 'Scorer Draft',
+      description: 'Create a criteria-based scorer checklist.',
+    },
+    {
+      id: 'dataset',
+      title: 'Dataset Ideas',
+      description: 'Generate dataset rows for new evaluation coverage.',
+    },
+    {
+      id: 'experiment',
+      title: 'Experiment Summary',
+      description: 'Summarize the latest experiment run and next steps.',
+    },
+    {
+      id: 'docs',
+      title: 'Docs Search',
+      description: 'Find exact snippets in Athena docs.',
+    },
+  ];
 
 const OWL_MODEL = 'gpt-4o-mini';
 
@@ -88,6 +88,7 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
   const [experiments, setExperiments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [playbookExpanded, setPlaybookExpanded] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -316,140 +317,162 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
       {isOpen && (
-        <div className="w-[360px] max-w-[calc(100vw-2rem)] h-[540px] max-h-[calc(100vh-2rem)] bg-panel border border-border-base rounded-xl shadow-xl flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border-base">
-            <div>
-              <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Owl</div>
-              <div className="text-[11px] text-text-muted">Guided help for {pageLabel}</div>
+        <div className="w-[360px] max-w-[calc(100vw-2rem)] h-[540px] max-h-[calc(100vh-2rem)] bg-panel border border-border-base rounded-xl shadow-xl flex flex-col overflow-hidden animate-soft-in">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-base bg-panel">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-text-main">Owl Assistant</div>
+                <div className="text-[10px] text-text-muted">{pageLabel}</div>
+              </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsOpen(false)}
-              className="h-8 w-8 p-0"
+              className="h-7 w-7 p-0"
               aria-label="Close Owl"
             >
               <XMarkIcon className="w-4 h-4" />
             </Button>
           </div>
 
-          <div className="px-3 py-3 border-b border-border-base space-y-2 bg-panel/70">
-            <div className="flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Playbook</div>
-              <Badge variant="neutral">{activeAction}</Badge>
-            </div>
-            <Select
-              value={activeAction}
-              onChange={(e) => {
-                setActiveAction(e.target.value as OwlActionId);
-                setActionError(null);
-              }}
-              className="text-xs"
+          {/* Collapsible Playbook Section */}
+          <div className="border-b border-border-base">
+            <button
+              onClick={() => setPlaybookExpanded(!playbookExpanded)}
+              className="w-full flex items-center justify-between px-4 py-2 hover:bg-panel-hover transition-colors"
             >
-              {OWL_ACTIONS.map((action) => (
-                <option key={action.id} value={action.id}>
-                  {action.title}
-                </option>
-              ))}
-            </Select>
-            <div className="text-[11px] text-text-muted">
-              {OWL_ACTIONS.find((action) => action.id === activeAction)?.description}
-            </div>
+              <div className="flex items-center gap-2">
+                <BookOpenIcon className="w-3.5 h-3.5 text-text-muted" />
+                <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Playbooks</span>
+                <Badge variant="neutral" className="text-[9px]">{activeAction}</Badge>
+              </div>
+              {playbookExpanded ? (
+                <ChevronDownIcon className="w-3.5 h-3.5 text-text-muted" />
+              ) : (
+                <ChevronRightIcon className="w-3.5 h-3.5 text-text-muted" />
+              )}
+            </button>
 
-            {activeAction === 'aql' && (
-              <Textarea
-                value={actionInputs.question || ''}
-                onChange={(e) => setActionInputs((prev) => ({ ...prev, question: e.target.value }))}
-                placeholder="What do you want to learn from logs?"
-                className="text-xs h-20 resize-none"
-              />
-            )}
-            {activeAction === 'prompt' && (
-              <div className="space-y-2">
-                <Textarea
-                  value={actionInputs.prompt || ''}
-                  onChange={(e) => setActionInputs((prev) => ({ ...prev, prompt: e.target.value }))}
-                  placeholder="Paste the prompt to improve"
-                  className="text-xs h-20 resize-none"
-                />
-                <Input
-                  value={actionInputs.goal || ''}
-                  onChange={(e) => setActionInputs((prev) => ({ ...prev, goal: e.target.value }))}
-                  placeholder="Goal (optional)"
+            {playbookExpanded && (
+              <div className="px-4 pb-3 space-y-2 animate-soft-in">
+                <Select
+                  value={activeAction}
+                  onChange={(e) => {
+                    setActiveAction(e.target.value as OwlActionId);
+                    setActionError(null);
+                  }}
                   className="text-xs"
-                />
-                <Input
-                  value={actionInputs.tone || ''}
-                  onChange={(e) => setActionInputs((prev) => ({ ...prev, tone: e.target.value }))}
-                  placeholder="Desired tone (optional)"
-                  className="text-xs"
-                />
+                >
+                  {OWL_ACTIONS.map((action) => (
+                    <option key={action.id} value={action.id}>
+                      {action.title}
+                    </option>
+                  ))}
+                </Select>
+                <div className="text-[10px] text-text-muted">
+                  {OWL_ACTIONS.find((action) => action.id === activeAction)?.description}
+                </div>
+
+                {activeAction === 'aql' && (
+                  <Textarea
+                    value={actionInputs.question || ''}
+                    onChange={(e) => setActionInputs((prev) => ({ ...prev, question: e.target.value }))}
+                    placeholder="What do you want to learn from logs?"
+                    className="text-xs h-16 resize-none"
+                  />
+                )}
+                {activeAction === 'prompt' && (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={actionInputs.prompt || ''}
+                      onChange={(e) => setActionInputs((prev) => ({ ...prev, prompt: e.target.value }))}
+                      placeholder="Paste the prompt to improve"
+                      className="text-xs h-16 resize-none"
+                    />
+                    <Input
+                      value={actionInputs.goal || ''}
+                      onChange={(e) => setActionInputs((prev) => ({ ...prev, goal: e.target.value }))}
+                      placeholder="Goal (optional)"
+                      className="text-xs"
+                    />
+                  </div>
+                )}
+                {activeAction === 'scorer' && (
+                  <Textarea
+                    value={actionInputs.criteria || ''}
+                    onChange={(e) => setActionInputs((prev) => ({ ...prev, criteria: e.target.value }))}
+                    placeholder="List the criteria the scorer should enforce"
+                    className="text-xs h-16 resize-none"
+                  />
+                )}
+                {activeAction === 'dataset' && (
+                  <Textarea
+                    value={actionInputs.domain || ''}
+                    onChange={(e) => setActionInputs((prev) => ({ ...prev, domain: e.target.value }))}
+                    placeholder="Describe the dataset focus (scenario, product area, policy)"
+                    className="text-xs h-16 resize-none"
+                  />
+                )}
+                {activeAction === 'experiment' && (
+                  <Select
+                    value={actionInputs.experiment_id || ''}
+                    onChange={(e) => setActionInputs((prev) => ({ ...prev, experiment_id: e.target.value }))}
+                    className="text-xs"
+                  >
+                    <option value="">Select experiment</option>
+                    {experimentOptions.map((exp) => (
+                      <option key={exp.value} value={exp.value}>
+                        {exp.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                {activeAction === 'docs' && (
+                  <Input
+                    value={actionInputs.docs_query || ''}
+                    onChange={(e) => setActionInputs((prev) => ({ ...prev, docs_query: e.target.value }))}
+                    placeholder="Search docs for..."
+                    className="text-xs"
+                  />
+                )}
+
+                {actionError && (
+                  <div className="text-[10px] text-rose-500 font-medium bg-rose-500/10 rounded-md px-2 py-1">
+                    {actionError}
+                  </div>
+                )}
+
+                <Button variant="primary" size="sm" onClick={handleRunAction} disabled={loading} className="w-full">
+                  {loading ? 'Working...' : 'Run playbook'}
+                </Button>
               </div>
             )}
-            {activeAction === 'scorer' && (
-              <Textarea
-                value={actionInputs.criteria || ''}
-                onChange={(e) => setActionInputs((prev) => ({ ...prev, criteria: e.target.value }))}
-                placeholder="List the criteria the scorer should enforce"
-                className="text-xs h-20 resize-none"
-              />
-            )}
-            {activeAction === 'dataset' && (
-              <Textarea
-                value={actionInputs.domain || ''}
-                onChange={(e) => setActionInputs((prev) => ({ ...prev, domain: e.target.value }))}
-                placeholder="Describe the dataset focus (scenario, product area, policy)"
-                className="text-xs h-20 resize-none"
-              />
-            )}
-            {activeAction === 'experiment' && (
-              <Select
-                value={actionInputs.experiment_id || ''}
-                onChange={(e) => setActionInputs((prev) => ({ ...prev, experiment_id: e.target.value }))}
-                className="text-xs"
-              >
-                <option value="">Select experiment</option>
-                {experimentOptions.map((exp) => (
-                  <option key={exp.value} value={exp.value}>
-                    {exp.label}
-                  </option>
-                ))}
-              </Select>
-            )}
-            {activeAction === 'docs' && (
-              <Input
-                value={actionInputs.docs_query || ''}
-                onChange={(e) => setActionInputs((prev) => ({ ...prev, docs_query: e.target.value }))}
-                placeholder="Search docs for..."
-                className="text-xs"
-              />
-            )}
-
-            {actionError && (
-              <div className="text-xs text-rose-500 font-bold bg-rose-500/10 rounded-md p-2">
-                {actionError}
-              </div>
-            )}
-
-            <Button variant="primary" size="sm" onClick={handleRunAction} disabled={loading}>
-              {loading ? 'Working...' : 'Run playbook'}
-            </Button>
           </div>
 
+          {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {messages.length === 0 && (
-              <div className="text-xs text-text-muted italic">
-                Ask Owl a question or run a playbook to get started.
+              <div className="text-center py-8">
+                <div className="w-10 h-10 rounded-full bg-primary/10 mx-auto mb-3 flex items-center justify-center">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-xs text-text-muted">
+                  Ask Owl a question about {pageLabel.toLowerCase()} or expand Playbooks for guided workflows.
+                </div>
               </div>
             )}
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-xs ${
-                    msg.role === 'user'
+                  className={`max-w-[85%] rounded-lg px-3 py-2 text-xs ${msg.role === 'user'
                       ? 'bg-primary/15 text-text-main'
-                      : 'bg-panel-hover text-text-main border border-border-base'
-                  }`}
+                      : 'bg-panel-hover text-text-main border border-border-hairline'
+                    }`}
                 >
                   <div className="whitespace-pre-wrap">{msg.content}</div>
                 </div>
@@ -457,18 +480,25 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
             ))}
           </div>
 
-          <div className="border-t border-border-base p-3 space-y-2">
+          {/* Chat Input */}
+          <div className="border-t border-border-base p-3 space-y-2 bg-panel">
             <Textarea
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask Owl about this page..."
-              className="text-xs h-16 resize-none"
+              placeholder="Ask Owl anything..."
+              className="text-xs h-14 resize-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendChat();
+                }
+              }}
             />
             <div className="flex items-center justify-between">
-              <div className="text-[10px] text-text-muted">
-                Context: {contextSummary || 'Athena'}
+              <div className="text-[9px] text-text-muted truncate max-w-[180px]">
+                {contextSummary || 'Athena'}
               </div>
-              <Button variant="secondary" size="sm" onClick={handleSendChat} disabled={loading}>
+              <Button variant="primary" size="sm" onClick={handleSendChat} disabled={loading}>
                 Send
               </Button>
             </div>
@@ -480,7 +510,7 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-primary-hover"
+          className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-lg hover:bg-primary-hover transition-all hover:scale-105"
           aria-label="Open Owl assistant"
           aria-expanded={isOpen}
         >

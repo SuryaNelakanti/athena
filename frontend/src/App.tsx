@@ -14,6 +14,8 @@ import Collaboration from './design/pages/Collaboration';
 import SessionList from './design/pages/SessionList';
 import SessionDetail from './design/pages/SessionDetail';
 import RunDetail from './design/pages/RunDetail';
+// TODO: Re-enable when Python scorer execution is implemented in backend
+// import FunctionsList from './design/pages/FunctionsList';
 import OwlWidget from './design/components/OwlWidget';
 import { fetchProjects, api } from './services/api'; // Added api import
 import { AgentSessionDetail, Project, Trace, Log } from './types';
@@ -310,6 +312,10 @@ const App: React.FC = () => {
         />
       );
     }
+    // TODO: Re-enable when Python scorer execution is implemented in backend
+    // if (currentPath === '/functions') {
+    //   return <FunctionsList projectId={currentProject?.id || ''} />;
+    // }
     if (currentPath === '/settings') {
       return <Settings />;
     }

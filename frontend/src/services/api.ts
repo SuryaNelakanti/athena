@@ -952,6 +952,63 @@ export const api = {
         return response.json();
     },
 
+    getFunctions: async (projectId?: string, type?: string, includeBuiltin: boolean = true): Promise<any[]> => {
+        const params = new URLSearchParams();
+        if (projectId) params.append('project_id', projectId);
+        if (type) params.append('type', type);
+        params.append('include_builtin', String(includeBuiltin));
+        const response = await fetch(`${API_BASE_URL}/functions/?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch functions');
+        return response.json();
+    },
+
+    getFunction: async (functionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/functions/${functionId}`);
+        if (!response.ok) throw new Error('Failed to fetch function');
+        return response.json();
+    },
+
+    createFunction: async (projectId: string, payload: {
+        name: string;
+        display_name?: string;
+        description?: string;
+        type?: string;
+        runtime?: string;
+        config?: Record<string, any>;
+        code?: string;
+        enabled?: boolean;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/functions/?project_id=${projectId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create function');
+        return response.json();
+    },
+
+    updateFunction: async (functionId: string, payload: {
+        display_name?: string;
+        description?: string;
+        config?: Record<string, any>;
+        code?: string;
+        enabled?: boolean;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/functions/${functionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update function');
+        return response.json();
+    },
+
+    deleteFunction: async (functionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/functions/${functionId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete function');
+        return response.json();
+    },
+
     seedBuiltinScorers: async (): Promise<any> => {
         const response = await fetch(`${API_BASE_URL}/functions/seed-builtins`, { method: 'POST' });
         if (!response.ok) throw new Error('Failed to seed builtin scorers');

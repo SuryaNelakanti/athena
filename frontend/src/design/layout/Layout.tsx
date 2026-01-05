@@ -15,7 +15,8 @@ import {
   SunIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  QueueListIcon
+  QueueListIcon,
+  CpuChipIcon
 } from '@heroicons/react/24/outline';
 import { IconButton, Select } from '../ui';
 
@@ -45,6 +46,8 @@ const Layout: React.FC<LayoutProps> = ({
     { name: 'Collaboration', icon: UserGroupIcon, path: '/collaboration', tone: 'coral' },
     { name: 'Datasets', icon: CircleStackIcon, path: '/datasets', tone: 'indigo' },
     { name: 'Experiments', icon: BeakerIcon, path: '/experiments', tone: 'copper' },
+    // TODO: Re-enable when Python scorer execution is implemented in backend
+    // { name: 'Functions', icon: CpuChipIcon, path: '/functions', tone: 'slate' },
     { name: 'Playgrounds', icon: CommandLineIcon, path: '/playgrounds', tone: 'slate' },
     { name: 'Settings', icon: Cog6ToothIcon, path: '/settings', tone: 'slate' },
   ];
