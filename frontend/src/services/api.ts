@@ -537,6 +537,21 @@ export const api = {
         return response.json();
     },
 
+    promoteRunToDataset: async (payload: {
+        run_id: string;
+        dataset_id: string;
+        label?: 'gold' | 'anti_pattern' | string;
+        note?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/datasets/promote-from-run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to promote run to dataset');
+        return response.json();
+    },
+
     // Attachments
     listAttachments: async (filters: { object_type?: string; object_id?: string; project_id?: string }): Promise<any[]> => {
         const params = new URLSearchParams();
@@ -718,6 +733,23 @@ export const api = {
             body: JSON.stringify(payload),
         });
         if (!response.ok) throw new Error('Failed to create review from trace');
+        return response.json();
+    },
+
+    createReview: async (payload: {
+        project_id: string;
+        source_type: string;  // "run" | "trace" | "log"
+        source_id: string;
+        priority?: number;
+        labels?: string[];
+        notes?: string;
+    }): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/reviews`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to create review');
         return response.json();
     },
 

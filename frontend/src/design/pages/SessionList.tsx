@@ -10,6 +10,7 @@ import {
   ClockIcon,
   ExclamationTriangleIcon,
   PlayCircleIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 
 interface SessionListProps {
@@ -207,10 +208,10 @@ const SessionList: React.FC<SessionListProps> = ({
                   {/* Status indicator bar */}
                   <div
                     className={`absolute top-0 left-0 right-0 h-1 ${session.status === 'error'
-                        ? 'bg-rose-500'
-                        : session.status === 'active'
-                          ? 'bg-primary'
-                          : 'bg-emerald-500'
+                      ? 'bg-rose-500'
+                      : session.status === 'active'
+                        ? 'bg-primary'
+                        : 'bg-emerald-500'
                       }`}
                   />
 
@@ -236,7 +237,7 @@ const SessionList: React.FC<SessionListProps> = ({
                     </p>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-4 text-xs mb-4">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-xs mb-4">
                       <div className="flex items-center gap-1.5">
                         <QueueListIcon className="w-3.5 h-3.5 text-text-muted" />
                         <span className="text-text-main font-medium">{runCount}</span>
@@ -247,6 +248,18 @@ const SessionList: React.FC<SessionListProps> = ({
                           <ExclamationTriangleIcon className="w-3.5 h-3.5 text-rose-500" />
                           <span className="text-rose-500 font-medium">{errorCount}</span>
                           <span className="text-rose-400">errors</span>
+                        </div>
+                      )}
+                      {(session.total_cost ?? 0) > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <CurrencyDollarIcon className="w-3.5 h-3.5 text-text-muted" />
+                          <span className="text-text-main font-medium">${(session.total_cost ?? 0).toFixed(4)}</span>
+                        </div>
+                      )}
+                      {(session.total_latency ?? 0) > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <ClockIcon className="w-3.5 h-3.5 text-text-muted" />
+                          <span className="text-text-main font-medium">{((session.total_latency ?? 0) / 1000).toFixed(2)}s</span>
                         </div>
                       )}
                     </div>

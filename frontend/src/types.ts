@@ -77,6 +77,9 @@ export interface AgentSession {
   last_run_at?: number | null;
   run_count?: number;
   error_count?: number;
+  total_cost?: number;
+  total_latency?: number;
+  total_tokens?: number;
   last_status?: string | null;
   last_run_id?: string | null;
 }
@@ -125,6 +128,12 @@ export interface SessionAnnotation {
   updated_at: number;
 }
 
+export interface CausalChainNode {
+  id: string;
+  name: string;
+  status: string;
+}
+
 export interface RunGraphNode {
   id: string;
   span_id: string;
@@ -143,6 +152,8 @@ export interface RunGraphNode {
   attributes: Record<string, any>;
   metrics: Record<string, any>;
   tags: string[];
+  error_message?: string | null;
+  causal_chain?: CausalChainNode[];
 }
 
 export interface RunGraphEdge {

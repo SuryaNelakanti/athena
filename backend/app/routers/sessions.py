@@ -80,24 +80,39 @@ def _summarize_runs(runs: List[AgentRunModel]) -> dict[str, Any]:
             "run_count": 0,
             "error_count": 0,
             "active_count": 0,
+            "total_cost": 0.0,
+            "total_latency": 0.0,
+            "total_tokens": 0,
             "last_status": None,
             "last_run_id": None,
             "last_run_at": None,
         }
     error_count = 0
     active_count = 0
+    total_cost = 0.0
+    total_latency = 0.0
+    total_tokens = 0
     for run in runs:
         normalized = _normalize_status(run.status)
         if normalized == "error":
             error_count += 1
         elif normalized == "active":
             active_count += 1
+        if run.total_cost:
+            total_cost += run.total_cost
+        if run.total_latency:
+            total_latency += run.total_latency
+        if run.total_tokens:
+            total_tokens += run.total_tokens
     last_run = max(runs, key=_run_sort_key)
     last_run_at = _run_sort_key(last_run)
     return {
         "run_count": len(runs),
         "error_count": error_count,
         "active_count": active_count,
+        "total_cost": total_cost,
+        "total_latency": total_latency,
+        "total_tokens": total_tokens,
         "last_status": _normalize_status(last_run.status),
         "last_run_id": last_run.id,
         "last_run_at": last_run_at or None,
@@ -132,6 +147,9 @@ def _to_session_response(
         last_run_at=session_last_run_at,
         run_count=summary.get("run_count", 0),
         error_count=summary.get("error_count", 0),
+        total_cost=summary.get("total_cost", 0.0),
+        total_latency=summary.get("total_latency", 0.0),
+        total_tokens=summary.get("total_tokens", 0),
         last_status=summary.get("last_status"),
         last_run_id=summary.get("last_run_id"),
     )
@@ -150,6 +168,9 @@ class AgentSessionResponse(BaseModel):
     last_run_at: Optional[int] = None
     run_count: int = 0
     error_count: int = 0
+    total_cost: float = 0.0
+    total_latency: float = 0.0
+    total_tokens: int = 0
     last_status: Optional[str] = None
     last_run_id: Optional[str] = None
 
@@ -226,6 +247,12 @@ class SessionAnnotationUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class CausalChainNode(BaseModel):
+    id: str
+    name: str
+    status: str
+
+
 class RunGraphNode(BaseModel):
     id: str
     span_id: str
@@ -244,6 +271,8 @@ class RunGraphNode(BaseModel):
     attributes: Dict[str, Any] = {}
     metrics: Dict[str, Any] = {}
     tags: List[str] = []
+    error_message: Optional[str] = None
+    causal_chain: List[CausalChainNode] = []
 
 
 class RunGraphEdge(BaseModel):
@@ -544,11 +573,31 @@ async def get_run_graph(run_id: str, session: AsyncSession = Depends(get_session
         if retry_parent_id and retry_parent_id in span_map:
             edges.append(RunGraphEdge(from_id=retry_parent_id, to_id=span.id, kind="retry"))
 
+    # Helper to compute causal chain (parent ancestors)
+    def compute_causal_chain(span_id: str) -> List[CausalChainNode]:
+        chain = []
+        current_id = span_map.get(span_id).parent_id if span_id in span_map else None
+        visited = set()
+        while current_id and current_id in span_map and current_id not in visited:
+            visited.add(current_id)
+            parent = span_map[current_id]
+            chain.append(CausalChainNode(
+                id=parent.id,
+                name=parent.name,
+                status=parent.status,
+            ))
+            current_id = parent.parent_id
+        return chain
+
     for span in sorted(spans, key=lambda s: (s.start_time, s.end_time, s.id)):
         depth = compute_depth(span.id)
         lane = lane_by_depth.get(depth, 0)
         lane_by_depth[depth] = lane + 1
         duration_ms = max(float(span.end_time - span.start_time), 0.0)
+        
+        # Compute causal chain for error nodes (or all nodes for context)
+        causal_chain = compute_causal_chain(span.id)
+        
         nodes.append(
             RunGraphNode(
                 id=span.id,
@@ -568,6 +617,8 @@ async def get_run_graph(run_id: str, session: AsyncSession = Depends(get_session
                 attributes=span.attributes or {},
                 metrics=span.metrics or {},
                 tags=span.tags or [],
+                error_message=span.error_message,
+                causal_chain=causal_chain,
             )
         )
 

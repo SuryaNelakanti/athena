@@ -178,6 +178,11 @@ const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode
                 <stop offset="50%" stopColor="rgb(249, 115, 22)" stopOpacity="0.5" />
                 <stop offset="100%" stopColor="rgb(249, 115, 22)" stopOpacity="0.2" />
               </linearGradient>
+              <linearGradient id="errorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="rgb(244, 63, 94)" stopOpacity="0.2" />
+                <stop offset="50%" stopColor="rgb(244, 63, 94)" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="rgb(244, 63, 94)" stopOpacity="0.3" />
+              </linearGradient>
             </defs>
             {graph.edges.map((edge) => {
               const fromNode = nodesById.get(edge.from_id);
@@ -191,14 +196,20 @@ const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode
               const endY = toPos.y + NODE_HEIGHT / 2;
               const controlOffset = Math.abs(endX - startX) * 0.4;
               const isRetry = edge.kind === 'retry';
+              const isErrorEdge = toNode.status === 'error';
+
+              // Determine stroke gradient
+              let strokeGradient = 'url(#edgeGradient)';
+              if (isErrorEdge) strokeGradient = 'url(#errorGradient)';
+              else if (isRetry) strokeGradient = 'url(#retryGradient)';
 
               return (
                 <g key={`${edge.from_id}-${edge.to_id}-${edge.kind}`}>
                   <path
                     d={`M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`}
                     fill="none"
-                    stroke={isRetry ? 'url(#retryGradient)' : 'url(#edgeGradient)'}
-                    strokeWidth={isRetry ? 2 : 1.5}
+                    stroke={strokeGradient}
+                    strokeWidth={isErrorEdge ? 2 : isRetry ? 2 : 1.5}
                     strokeDasharray={isRetry ? '6 4' : '0'}
                     className="transition-all"
                   />
@@ -207,7 +218,7 @@ const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode
                     cx={endX}
                     cy={endY}
                     r={3}
-                    fill={isRetry ? 'rgb(249, 115, 22)' : 'var(--border-base)'}
+                    fill={isErrorEdge ? 'rgb(244, 63, 94)' : isRetry ? 'rgb(249, 115, 22)' : 'var(--border-base)'}
                     opacity={0.6}
                   />
                 </g>

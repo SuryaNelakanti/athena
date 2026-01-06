@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AgentRun, RunGraph } from '../../types';
 import { api } from '../../services/api';
-import { Badge, Button, Card, SectionHeader } from '../ui';
+import { Badge, Button, Card, Input, Modal, Select, Textarea } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
 import RunGraphComponent from '../components/RunGraph';
 import {
@@ -11,6 +11,8 @@ import {
   CurrencyDollarIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
+  FolderPlusIcon,
+  FlagIcon,
   PlayCircleIcon,
   TagIcon,
 } from '@heroicons/react/24/outline';
@@ -54,6 +56,14 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onBack, onOpenTrace }) => 
   const [loading, setLoading] = useState(true);
   const [graphError, setGraphError] = useState<string | null>(null);
 
+  // Modal state
+  const [showDatasetModal, setShowDatasetModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [datasets, setDatasets] = useState<any[]>([]);
+  const [datasetForm, setDatasetForm] = useState({ datasetId: '', label: 'gold', note: '' });
+  const [reviewForm, setReviewForm] = useState({ labels: [] as string[], priority: 3, note: '' });
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (!runId) return;
     setLoading(true);
@@ -87,6 +97,53 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onBack, onOpenTrace }) => 
       })
       .finally(() => setLoading(false));
   }, [runId]);
+
+  // Fetch datasets when modal opens
+  useEffect(() => {
+    if (showDatasetModal && run) {
+      api.getDatasets(run.project_id).then(setDatasets).catch(() => setDatasets([]));
+    }
+  }, [showDatasetModal, run]);
+
+  const handleAddToDataset = async () => {
+    if (!run || !datasetForm.datasetId) return;
+    setSubmitting(true);
+    try {
+      await api.promoteRunToDataset({
+        run_id: run.id,
+        dataset_id: datasetForm.datasetId,
+        label: datasetForm.label,
+        note: datasetForm.note || undefined,
+      });
+      setShowDatasetModal(false);
+      setDatasetForm({ datasetId: '', label: 'gold', note: '' });
+    } catch (err) {
+      console.error('Failed to add to dataset', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAddToReview = async () => {
+    if (!run) return;
+    setSubmitting(true);
+    try {
+      await api.createReview({
+        project_id: run.project_id,
+        source_type: 'run',
+        source_id: run.id,
+        priority: reviewForm.priority,
+        labels: reviewForm.labels.length > 0 ? reviewForm.labels : undefined,
+        notes: reviewForm.note || undefined,
+      });
+      setShowReviewModal(false);
+      setReviewForm({ labels: [], priority: 3, note: '' });
+    } catch (err) {
+      console.error('Failed to add to review', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const selectedNode = useMemo(() => {
     if (!graph || !selectedNodeId) return null;
@@ -129,6 +186,14 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onBack, onOpenTrace }) => 
         badge={<Badge variant={statusVariant(run.status)}>{run.status}</Badge>}
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowDatasetModal(true)}>
+              <FolderPlusIcon className="w-4 h-4" />
+              Add to Dataset
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowReviewModal(true)}>
+              <FlagIcon className="w-4 h-4" />
+              Add to Review
+            </Button>
             {run.trace_id && onOpenTrace && (
               <Button variant="secondary" size="sm" onClick={() => onOpenTrace(run.trace_id!)}>
                 <ArrowTopRightOnSquareIcon className="w-4 h-4" />
@@ -312,6 +377,46 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onBack, onOpenTrace }) => 
                     </div>
                   </div>
 
+                  {/* Error Message (for error nodes) */}
+                  {selectedNode.error_message && (
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-rose-500 mb-2">
+                        <ExclamationTriangleIcon className="w-4 h-4" />
+                        <span className="text-[10px] uppercase tracking-widest font-bold">Error</span>
+                      </div>
+                      <p className="text-sm text-rose-600 dark:text-rose-400">
+                        {selectedNode.error_message}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Causal Chain (for debugging) */}
+                  {selectedNode.causal_chain && selectedNode.causal_chain.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 text-text-muted mb-2">
+                        <span className="text-[10px] uppercase tracking-widest font-bold">Why did this happen?</span>
+                      </div>
+                      <div className="space-y-1">
+                        {selectedNode.causal_chain.map((ancestor, idx) => (
+                          <div
+                            key={ancestor.id}
+                            className={`text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${ancestor.status === 'error'
+                              ? 'bg-rose-500/5 border-rose-500/20 text-rose-500'
+                              : 'bg-app border-border-hairline text-text-muted'
+                              }`}
+                          >
+                            <span className="text-text-muted/50">{idx + 1}.</span>
+                            <span className="font-medium truncate">{ancestor.name}</span>
+                            <span className={`ml-auto text-[9px] uppercase px-1.5 py-0.5 rounded font-semibold ${ancestor.status === 'error' ? 'bg-rose-500/10' : 'bg-emerald-500/10 text-emerald-600'
+                              }`}>
+                              {ancestor.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Input */}
                   <details className="group" open>
                     <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-text-muted font-bold mb-2 flex items-center gap-1">
@@ -368,6 +473,125 @@ const RunDetail: React.FC<RunDetailProps> = ({ runId, onBack, onOpenTrace }) => 
           </Card>
         </div>
       </div>
+
+      {/* Add to Dataset Modal */}
+      <Modal open={showDatasetModal} onClose={() => setShowDatasetModal(false)} title="Add Run to Dataset">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Dataset
+            </label>
+            <Select
+              value={datasetForm.datasetId}
+              onChange={(e) => setDatasetForm((f) => ({ ...f, datasetId: e.target.value }))}
+              className="w-full"
+            >
+              <option value="">Select a dataset...</option>
+              {datasets.map((ds) => (
+                <option key={ds.id} value={ds.id}>
+                  {ds.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Label
+            </label>
+            <Select
+              value={datasetForm.label}
+              onChange={(e) => setDatasetForm((f) => ({ ...f, label: e.target.value }))}
+              className="w-full"
+            >
+              <option value="gold">Gold (good example)</option>
+              <option value="anti_pattern">Anti-Pattern (bad example)</option>
+            </Select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Note (optional)
+            </label>
+            <Textarea
+              value={datasetForm.note}
+              onChange={(e) => setDatasetForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder="Add a note about this example..."
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-hairline">
+            <Button variant="secondary" size="sm" onClick={() => setShowDatasetModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!datasetForm.datasetId || submitting}
+              onClick={handleAddToDataset}
+            >
+              {submitting ? 'Adding...' : 'Add to Dataset'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add to Review Modal */}
+      <Modal open={showReviewModal} onClose={() => setShowReviewModal(false)} title="Add Run to Review Queue">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Labels (comma-separated)
+            </label>
+            <Input
+              value={reviewForm.labels.join(', ')}
+              onChange={(e) =>
+                setReviewForm((f) => ({
+                  ...f,
+                  labels: e.target.value
+                    .split(',')
+                    .map((l) => l.trim())
+                    .filter(Boolean),
+                }))
+              }
+              placeholder="e.g., hallucination, needs-review"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Priority (1-5)
+            </label>
+            <Select
+              value={reviewForm.priority.toString()}
+              onChange={(e) => setReviewForm((f) => ({ ...f, priority: parseInt(e.target.value, 10) }))}
+              className="w-full"
+            >
+              <option value="1">1 - Low</option>
+              <option value="2">2</option>
+              <option value="3">3 - Normal</option>
+              <option value="4">4</option>
+              <option value="5">5 - High</option>
+            </Select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+              Note (optional)
+            </label>
+            <Textarea
+              value={reviewForm.note}
+              onChange={(e) => setReviewForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder="Add a note about why this needs review..."
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-hairline">
+            <Button variant="secondary" size="sm" onClick={() => setShowReviewModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" disabled={submitting} onClick={handleAddToReview}>
+              {submitting ? 'Adding...' : 'Add to Review'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
