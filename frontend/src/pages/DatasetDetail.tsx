@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../services/api';
-import { Dataset, DatasetRow, DatasetVersion } from '../../types';
+import { api } from '../lib/api';
+import { Dataset, DatasetRow, DatasetVersion } from '../types';
 import {
     ChevronLeftIcon,
     CircleStackIcon,
@@ -11,10 +11,11 @@ import {
     MagnifyingGlassIcon,
     PlusIcon,
     XMarkIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    LinkIcon
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Modal, Tabs, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { Badge, Button, Card, IconButton, Input, Modal, Tabs, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface DatasetDetailProps {
     dataset: Dataset;
@@ -58,6 +59,13 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
         example_type: 'gold' as 'gold' | 'anti_pattern',
     });
     const [addError, setAddError] = useState<string | null>(null);
+
+    // Share State
+    const [shareModalOpen, setShareModalOpen] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
+    const [shareLoading, setShareLoading] = useState(false);
+    const [shareError, setShareError] = useState<string | null>(null);
+    const [shareCopied, setShareCopied] = useState(false);
 
     const loadRows = async () => {
         setLoading(true);
@@ -187,6 +195,38 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
         }
     };
 
+    const buildShareUrl = (token: string) => {
+        const base = `${window.location.origin}${window.location.pathname}`;
+        return `${base}#/share-links/${token}`;
+    };
+
+    const openShareModal = async () => {
+        setShareModalOpen(true);
+        setShareLoading(true);
+        setShareError(null);
+        setShareUrl(null);
+        setShareCopied(false);
+        try {
+            const created = await api.createShareLink({
+                project_id: dataset.project_id,
+                object_type: 'dataset',
+                object_id: dataset.id,
+            });
+            setShareUrl(buildShareUrl(created.token));
+        } catch (e: any) {
+            setShareError(e?.message || 'Failed to create share link');
+        } finally {
+            setShareLoading(false);
+        }
+    };
+
+    const copyShareUrl = async () => {
+        if (!shareUrl || !navigator.clipboard) return;
+        await navigator.clipboard.writeText(shareUrl);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+    };
+
     return (
         <><div className="h-full flex flex-col">
 
@@ -218,13 +258,22 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         )}
                     </div>}
                     actions={activeTab !== 'history' && (
-                        <Button
-                            onClick={() => setShowAddModal(true)}
-                            variant="primary"
-                            size="sm"
-                        >
-                            <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                onClick={openShareModal}
+                                variant="secondary"
+                                size="sm"
+                            >
+                                <LinkIcon className="w-4 h-4" /> Share
+                            </Button>
+                            <Button
+                                onClick={() => setShowAddModal(true)}
+                                variant="primary"
+                                size="sm"
+                            >
+                                <PlusIcon className="w-4 h-4" /> {activeTab === 'resources' ? 'Add Resource' : 'Add Eval Row'}
+                            </Button>
+                        </div>
                     )}
                     className="pb-0 border-b-0" />
             </div>
@@ -541,6 +590,36 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                         </div>
                     )}
                 </div>
+            </Modal>
+
+            {/* Share Modal */}
+            <Modal
+                open={shareModalOpen}
+                title="Share Dataset"
+                description="Create a public link to share this dataset with others."
+                onClose={() => setShareModalOpen(false)}
+                footer={<div className="flex justify-end">
+                    <Button variant="primary" onClick={() => setShareModalOpen(false)}>Done</Button>
+                </div>}
+            >
+                {shareLoading ? (
+                    <div className="py-8 text-center text-text-muted italic">Generating link...</div>
+                ) : shareError ? (
+                    <div className="text-rose-500 text-sm">{shareError}</div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="text-sm font-medium text-text-main">Share Link</div>
+                        <div className="flex gap-2">
+                            <Input value={shareUrl || ''} readOnly className="font-mono text-xs" />
+                            <Button onClick={copyShareUrl} variant={shareCopied ? 'success' : 'secondary'}>
+                                {shareCopied ? 'Copied' : 'Copy'}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-text-muted">
+                            Anyone with this link can view this dataset.
+                        </p>
+                    </div>
+                )}
             </Modal>
         </>
     );

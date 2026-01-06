@@ -1,9 +1,9 @@
 import React from 'react';
-import { cx } from '../ui/utils';
+import { cx } from '../components/ui';
 
 interface PageHeaderProps {
     title: string;
-    subtitle?: string;
+    subtitle?: React.ReactNode;
     badge?: React.ReactNode;
     actions?: React.ReactNode;
     breadcrumbs?: React.ReactNode;
@@ -40,9 +40,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                         )}
                     </div>
                     {subtitle && (
-                        <p className="text-sm text-text-muted mt-1.5 font-normal leading-relaxed max-w-3xl">
+                        <div className="text-sm text-text-muted mt-1.5 font-normal leading-relaxed max-w-3xl">
                             {subtitle}
-                        </p>
+                        </div>
                     )}
                 </div>
                 {actions && (

@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
-import { Log, AqlBuilder } from '../../types';
+import { Log, AqlBuilder } from '../types';
 import {
   CpuChipIcon,
   BookmarkIcon,
@@ -13,9 +13,9 @@ import {
   ArrowUpRightIcon,
   ArrowDownRightIcon,
 } from '@heroicons/react/24/outline';
-import { api, View } from '../../services/api';
-import { Badge, Button, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { api, View } from '../lib/api';
+import { Badge, Button, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface LogTableProps {
   projectId: string;

@@ -10,12 +10,12 @@ import {
   XMarkIcon,
   ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Select, Tabs, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
-import { api, API_BASE_URL } from '../../services/api';
-import { Dataset, ModelRegistry, Playground, Trace } from '../../types';
+import { Badge, Button, Card, IconButton, Input, Select, Tabs, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
+import { api, API_BASE_URL } from '../lib/api';
+import { Dataset, ModelRegistry, Playground, Trace } from '../types';
 import TraceDetail from './TraceDetail';
-import { cx } from '../ui/utils';
+import { cx } from '../components/ui';
 
 type MessageRole = 'user' | 'assistant';
 
@@ -335,7 +335,7 @@ const Labs: React.FC<LabsProps> = ({ projectId }) => {
 
   useEffect(() => {
     let isMounted = true;
-    if (!projectId) return () => {};
+    if (!projectId) return () => { };
     const load = async () => {
       try {
         const [playgroundData, datasetData, modelData] = await Promise.all([
@@ -413,38 +413,38 @@ const Labs: React.FC<LabsProps> = ({ projectId }) => {
       typeof config.system_prompt === 'string'
         ? config.system_prompt
         : typeof config.systemPrompt === 'string'
-        ? config.systemPrompt
-        : DEFAULT_SYSTEM_PROMPT;
+          ? config.systemPrompt
+          : DEFAULT_SYSTEM_PROMPT;
     const nextInput = typeof config.input === 'string' ? config.input : '';
     const nextMessages = Array.isArray(config.messages)
       ? config.messages
-          .filter((msg: any) => msg && typeof msg === 'object')
-          .map((msg: any) => ({
-            id: msg.id || makeId('msg'),
-            role: msg.role === 'assistant' ? 'assistant' : 'user',
-            content: typeof msg.content === 'string' ? msg.content : '',
-          }))
+        .filter((msg: any) => msg && typeof msg === 'object')
+        .map((msg: any) => ({
+          id: msg.id || makeId('msg'),
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
+          content: typeof msg.content === 'string' ? msg.content : '',
+        }))
       : [];
     const nextVariants = Array.isArray(config.variants)
       ? config.variants
-          .filter((variant: any) => variant && typeof variant === 'object')
-          .map((variant: any) =>
-            normalizeVariant(
-              {
-                id: variant.id || makeId('variant'),
-                name: variant.name || 'Variant',
-                model: variant.model || DEFAULT_MODELS[0].id,
-                provider: variant.provider,
-                temperature: Number(variant.temperature ?? DEFAULT_TEMPERATURE),
-                top_p: Number(variant.top_p ?? DEFAULT_TOP_P),
-                max_tokens:
-                  variant.max_tokens === null || variant.max_tokens === undefined
-                    ? DEFAULT_MAX_TOKENS
-                    : Number(variant.max_tokens),
-              },
-              modelOptions
-            )
+        .filter((variant: any) => variant && typeof variant === 'object')
+        .map((variant: any) =>
+          normalizeVariant(
+            {
+              id: variant.id || makeId('variant'),
+              name: variant.name || 'Variant',
+              model: variant.model || DEFAULT_MODELS[0].id,
+              provider: variant.provider,
+              temperature: Number(variant.temperature ?? DEFAULT_TEMPERATURE),
+              top_p: Number(variant.top_p ?? DEFAULT_TOP_P),
+              max_tokens:
+                variant.max_tokens === null || variant.max_tokens === undefined
+                  ? DEFAULT_MAX_TOKENS
+                  : Number(variant.max_tokens),
+            },
+            modelOptions
           )
+        )
       : buildDefaultVariants(modelOptions);
 
     const normalizedVariants = nextVariants.length
@@ -991,12 +991,12 @@ const Labs: React.FC<LabsProps> = ({ projectId }) => {
                         {status === 'idle'
                           ? 'Idle'
                           : status === 'running'
-                          ? 'Streaming'
-                          : status === 'success'
-                          ? 'Complete'
-                          : status === 'canceled'
-                          ? 'Canceled'
-                          : 'Error'}
+                            ? 'Streaming'
+                            : status === 'success'
+                              ? 'Complete'
+                              : status === 'canceled'
+                                ? 'Canceled'
+                                : 'Error'}
                       </Badge>
                     </div>
                   );
@@ -1146,8 +1146,8 @@ const Labs: React.FC<LabsProps> = ({ projectId }) => {
                   {showContext
                     ? 'Hide context'
                     : messages.length
-                    ? `Show context (${messages.length})`
-                    : 'Show context'}
+                      ? `Show context (${messages.length})`
+                      : 'Show context'}
                   {showContext ? (
                     <ChevronUpIcon className='w-4 h-4' />
                   ) : (
@@ -1278,12 +1278,12 @@ const Labs: React.FC<LabsProps> = ({ projectId }) => {
                             {status === 'idle'
                               ? 'Idle'
                               : status === 'running'
-                              ? 'Streaming'
-                              : status === 'success'
-                              ? 'Complete'
-                              : status === 'canceled'
-                              ? 'Canceled'
-                              : 'Error'}
+                                ? 'Streaming'
+                                : status === 'success'
+                                  ? 'Complete'
+                                  : status === 'canceled'
+                                    ? 'Canceled'
+                                    : 'Error'}
                           </Badge>
                         </div>
                         <div className='flex items-center gap-2'>

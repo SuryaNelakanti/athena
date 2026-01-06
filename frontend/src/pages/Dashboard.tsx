@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { ChartBarIcon, ClockIcon, CurrencyDollarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { api } from '../../services/api';
-import { AqlBuilder, MonitorChart } from '../../types';
-import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { api } from '../lib/api';
+import { AqlBuilder, MonitorChart } from '../types';
+import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface DashboardProps {
     projectId: string;

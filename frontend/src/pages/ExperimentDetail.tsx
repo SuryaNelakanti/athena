@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '../../services/api';
-import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../../types';
+import { api } from '../lib/api';
+import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../types';
 import {
   ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon,
   BeakerIcon, ChevronDownIcon, ChevronRightIcon,
   CheckCircleIcon, XCircleIcon, ClockIcon, LinkIcon
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface ExperimentDetailProps {
   experiment: Experiment;
@@ -71,6 +71,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareType, setShareType] = useState<'experiment' | 'result'>('result');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -343,20 +344,33 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
     return `${base}#/share-links/${token}?experiment_result_id=${encodeURIComponent(resultId)}`;
   };
 
-  const openShareModal = async (resultId: string) => {
-    if (!selectedRunId) return;
+  const openShareModal = async (resultId?: string) => {
+    if (resultId && !selectedRunId) return;
+
     setShareModalOpen(true);
     setShareLoading(true);
     setShareError(null);
     setShareUrl(null);
     setShareCopied(false);
+    setShareType(resultId ? 'result' : 'experiment');
+
     try {
+      const objectType = resultId ? 'experiment_run' : 'experiment';
+      const objectId = resultId ? selectedRunId! : exp.id;
+
       const created = await api.createShareLink({
         project_id: exp.project_id,
-        object_type: 'experiment_run',
-        object_id: selectedRunId,
+        object_type: objectType,
+        object_id: objectId,
       });
-      const url = buildShareUrl(created.token, resultId);
+
+      let url = '';
+      if (resultId) {
+        url = buildShareUrl(created.token, resultId);
+      } else {
+        const base = `${window.location.origin}${window.location.pathname}`;
+        url = `${base}#/share-links/${created.token}`;
+      }
       setShareUrl(url);
     } catch (e: any) {
       setShareError(e?.message || 'Failed to create share link');
@@ -454,9 +468,20 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
         <PageHeader
           title={exp.name}
           subtitle={`${versions.length} versions | ${datasetRows.length} test cases`}
-          onBack={onBack}
+          breadcrumbs={
+            <button onClick={onBack} className="flex items-center gap-1 hover:text-text-main transition-colors text-xs text-text-muted">
+              <ChevronLeftIcon className="w-3 h-3" /> Back
+            </button>
+          }
           actions={
             <div className="flex items-center gap-3">
+              <Button
+                onClick={() => openShareModal()}
+                variant="secondary"
+                size="sm"
+              >
+                <LinkIcon className="w-4 h-4" /> Share
+              </Button>
               <Button
                 onClick={() => setShowCreateVersion(true)}
                 variant="secondary"
@@ -478,7 +503,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
         />
 
         {/* Explanation Banner */}
-        <div className="px-8 pb-4">
+        < div className="px-8 pb-4" >
           <Card className="bg-amber-500/5 border-amber-500/20">
             <h4 className="text-sm font-bold text-text-main mb-1">What is an Experiment?</h4>
             <p className="text-xs text-text-muted leading-relaxed">
@@ -488,8 +513,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
               Create different versions to try different models, prompts, or parameters.
             </p>
           </Card>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {error && <div className="px-8 py-3 bg-rose-500/10 border-b border-rose-500/20 text-xs text-rose-500 font-bold">{error}</div>}
 
@@ -929,8 +954,8 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
 
       <Modal
         open={shareModalOpen}
-        title="Share Result"
-        description="Create a permalink to this experiment result."
+        title={shareType === 'experiment' ? 'Share Experiment' : 'Share Result'}
+        description={shareType === 'experiment' ? 'Share this experiment and its versions.' : 'Create a permalink to this experiment result.'}
         onClose={() => setShareModalOpen(false)}
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -1073,7 +1098,7 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
           </div>
         </div>
       </Modal>
-    </div>
+    </div >
   );
 };
 

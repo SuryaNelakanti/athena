@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../src/services/api';
+import { API_BASE_URL } from '../../src/lib/api';
 import {
   seedLogs,
   seedProject,
@@ -379,7 +379,7 @@ export const mockSeedStoryApi = async (page: Page) => {
           project_id: payload.project_id || seedProject.id,
           dataset_id: payload.dataset_id,
           name: payload.name,
-          status: 'completed',
+          status: 'completed' as const,
           summary: { avg_score: 0.0 },
           created_at: Date.now(),
         };

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../services/api';
-import { Dataset } from '../../types';
+import { api } from '../lib/api';
+import { Dataset } from '../types';
 import { CircleStackIcon, PlusIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import { Button, Input, Modal, SectionHeader, Textarea, Badge, Select } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { Button, Input, Modal, SectionHeader, Textarea, Badge, Select } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface DatasetListProps {
     projectId: string;

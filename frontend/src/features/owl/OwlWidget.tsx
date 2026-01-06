@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api, API_BASE_URL } from '../../services/api';
-import { Badge, Button, Input, Select, Textarea } from '../ui';
+import { api, API_BASE_URL } from '../../lib/api';
+import { Badge, Button, Input, Select, Textarea } from '../../components/ui';
 import { ChatBubbleLeftRightIcon, XMarkIcon, ChevronDownIcon, ChevronRightIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 
 interface OwlWidgetProps {
@@ -390,8 +390,8 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-xs ${msg.role === 'user'
-                      ? 'bg-primary/15 text-text-main'
-                      : 'bg-panel-hover text-text-main border border-border-hairline'
+                    ? 'bg-primary/15 text-text-main'
+                    : 'bg-panel-hover text-text-main border border-border-hairline'
                     }`}
                 >
                   <div className="whitespace-pre-wrap">{msg.content}</div>

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../services/api';
-import { Experiment } from '../../types';
+import { api } from '../lib/api';
+import { Experiment } from '../types';
 import { BeakerIcon, PlusIcon, ChevronRightIcon, PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { Badge, Button, Input, Modal, Select } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { Badge, Button, Input, Modal, Select } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface ExperimentListProps {
     projectId: string;

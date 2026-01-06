@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AgentSession } from '../../types';
-import { api } from '../../services/api';
-import { Badge, Button, Card, Input, Select } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { AgentSession } from '../types';
+import { api } from '../lib/api';
+import { Badge, Button, Card, Input, Select } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 import {
   QueueListIcon,
   MagnifyingGlassIcon,

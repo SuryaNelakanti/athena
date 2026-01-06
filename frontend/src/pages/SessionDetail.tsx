@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AgentRun, AgentSession, SessionAnnotation, SessionEvent } from '../../types';
-import { api } from '../../services/api';
-import { Badge, Button, Card, Input, Select, SectionHeader, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { AgentRun, AgentSession, SessionAnnotation, SessionEvent } from '../types';
+import { api } from '../lib/api';
+import { Badge, Button, Card, Input, Select, SectionHeader, Textarea, Modal } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 import {
   ArrowLeftIcon,
   ArrowTopRightOnSquareIcon,
@@ -12,7 +12,9 @@ import {
   DocumentTextIcon,
   ChatBubbleLeftEllipsisIcon,
   PlayCircleIcon,
+
   CurrencyDollarIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline';
 
 interface SessionDetailProps {
@@ -80,6 +82,13 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ session, runs, onBack, on
   const [annotationStatus, setAnnotationStatus] = useState('open');
   const [annotationBusy, setAnnotationBusy] = useState(false);
 
+  // Share State
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
   useEffect(() => {
     if (!session.id) return;
     api.getSessionTimeline(session.id, { limit: 200 }).then(setTimeline).catch(() => setTimeline([]));
@@ -127,6 +136,38 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ session, runs, onBack, on
     }
   };
 
+  const buildShareUrl = (token: string) => {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}#/share-links/${token}`;
+  };
+
+  const openShareModal = async () => {
+    setShareModalOpen(true);
+    setShareLoading(true);
+    setShareError(null);
+    setShareUrl(null);
+    setShareCopied(false);
+    try {
+      const created = await api.createShareLink({
+        project_id: session.project_id,
+        object_type: 'agent_session',
+        object_id: session.id,
+      });
+      setShareUrl(buildShareUrl(created.token));
+    } catch (e: any) {
+      setShareError(e?.message || 'Failed to create share link');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!shareUrl || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  };
+
   return (
     <div className="h-full flex flex-col bg-app">
       <PageHeader
@@ -134,10 +175,16 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ session, runs, onBack, on
         subtitle={`Run group ${session.id}`}
         badge={<Badge variant={statusVariant(session.status)}>{session.status}</Badge>}
         actions={
-          <Button variant="secondary" size="sm" onClick={onBack}>
-            <ArrowLeftIcon className="w-4 h-4" />
-            Back to Agent Runs
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={openShareModal}>
+              <LinkIcon className="w-4 h-4" />
+              Share
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onBack}>
+              <ArrowLeftIcon className="w-4 h-4" />
+              Back to Agent Runs
+            </Button>
+          </div>
         }
       />
 
@@ -298,10 +345,10 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ session, runs, onBack, on
                 >
                   <div
                     className={`w-2 h-2 rounded-full shrink-0 ${run.status === 'error'
-                        ? 'bg-rose-500'
-                        : run.status === 'active'
-                          ? 'bg-primary animate-pulse'
-                          : 'bg-emerald-500'
+                      ? 'bg-rose-500'
+                      : run.status === 'active'
+                        ? 'bg-primary animate-pulse'
+                        : 'bg-emerald-500'
                       }`}
                   />
                   <div className="flex-1 min-w-0">
@@ -484,7 +531,39 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ session, runs, onBack, on
           </Card>
         </div>
       </div>
-    </div>
+
+
+      {/* Share Modal */}
+      < Modal
+        open={shareModalOpen}
+        title="Share Session"
+        description="Create a public link to share this session."
+        onClose={() => setShareModalOpen(false)}
+        footer={< div className="flex justify-end" >
+          <Button variant="primary" onClick={() => setShareModalOpen(false)}>Done</Button>
+        </div >}
+      >
+        {
+          shareLoading ? (
+            <div className="py-8 text-center text-text-muted italic" > Generating link...</div>
+          ) : shareError ? (
+            <div className="text-rose-500 text-sm">{shareError}</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-sm font-medium text-text-main">Share Link</div>
+              <div className="flex gap-2">
+                <Input value={shareUrl || ''} readOnly className="font-mono text-xs" />
+                <Button onClick={copyShareUrl} variant={shareCopied ? 'success' : 'secondary'}>
+                  {shareCopied ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+              <p className="text-xs text-text-muted">
+                Anyone with this link can view this session.
+              </p>
+            </div>
+          )}
+      </Modal >
+    </div >
   );
 };
 

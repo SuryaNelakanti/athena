@@ -1,26 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import Layout from './design/layout/Layout';
-import LogTable from './design/pages/LogTable';
-import TraceDetail from './design/pages/TraceDetail';
-import Dashboard from './design/pages/Dashboard';
-import Labs from './design/pages/Labs';
-import DatasetList from './design/pages/DatasetList';
-import ExperimentList from './design/pages/ExperimentList';
-import DatasetDetail from './design/pages/DatasetDetail';
-import ExperimentDetail from './design/pages/ExperimentDetail';
-import Settings from './design/pages/Settings';
-import ReviewQueue from './design/pages/ReviewQueue';
-import Collaboration from './design/pages/Collaboration';
-import SessionList from './design/pages/SessionList';
-import SessionDetail from './design/pages/SessionDetail';
-import RunDetail from './design/pages/RunDetail';
-// TODO: Re-enable when Python scorer execution is implemented in backend
-// import FunctionsList from './design/pages/FunctionsList';
-import OwlWidget from './design/components/OwlWidget';
-import { fetchProjects, api } from './services/api'; // Added api import
+import Layout from './layouts/Layout';
+import LogTable from './pages/LogTable';
+import TraceDetail from './pages/TraceDetail';
+import Dashboard from './pages/Dashboard';
+import Labs from './pages/Labs';
+import DatasetList from './pages/DatasetList';
+import ExperimentList from './pages/ExperimentList';
+import DatasetDetail from './pages/DatasetDetail';
+import ExperimentDetail from './pages/ExperimentDetail';
+import Settings from './pages/Settings';
+import ReviewQueue from './pages/ReviewQueue';
+
+import SessionList from './pages/SessionList';
+import SessionDetail from './pages/SessionDetail';
+import RunDetail from './pages/RunDetail';
+import OwlWidget from './features/owl/OwlWidget';
+import { fetchProjects, api } from './lib/api';
 import { AgentSessionDetail, Project, Trace, Log } from './types';
-import { Button, Card, Input } from './design/ui';
-import { initAccent } from './design/theme/accent';
+import { Button, Card, Input } from './components/ui';
+import { initAccent } from './lib/theme/accent';
 
 const parseHashRoute = () => {
   const raw = window.location.hash.replace(/^#/, '');
@@ -119,12 +117,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentProject) return;
     setLoading(true);
-    import('./services/api').then(({ api }) => {
-      api.getTraces(currentProject.id, filters)
-        .then(data => setTraces(data))
-        .catch(err => console.error(err))
-        .finally(() => setLoading(false));
-    });
+    api.getTraces(currentProject.id, filters)
+      .then(data => setTraces(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   }, [currentProject, filters]);
 
   // Handle opening trace from log row
@@ -325,7 +321,13 @@ const App: React.FC = () => {
       return <div className="flex items-center justify-center h-full text-text-muted">Loading...</div>;
     }
 
+    // Redirect root to /runs (primary entry)
     if (currentPath === '/') {
+      navigate('/runs');
+      return null;
+    }
+
+    if (currentPath === '/overview') {
       return <Dashboard projectId={currentProject?.id || ''} />;
     }
     if (currentPath.startsWith('/share-links')) {
@@ -352,9 +354,48 @@ const App: React.FC = () => {
     if (currentPath === '/review') {
       return <ReviewQueue projectId={currentProject?.id || ''} />;
     }
-    if (currentPath === '/collaboration') {
-      return <Collaboration projectId={currentProject?.id || ''} />;
+
+    // New /runs route (primary entry per UX spec)
+    if (currentPath === '/runs') {
+      if (activeRunId) {
+        return (
+          <RunDetail
+            runId={activeRunId}
+            onBack={(sessionId) => navigate('/runs', { session_id: sessionId })}
+            onOpenTrace={(traceId) => navigate('/logs', { trace_id: traceId })}
+          />
+        );
+      }
+      if (activeSessionId) {
+        if (!selectedSession) {
+          return (
+            <div className="flex items-center justify-center h-full text-text-muted">
+              Loading session...
+            </div>
+          );
+        }
+        return (
+          <SessionDetail
+            session={selectedSession.session}
+            runs={selectedSession.runs}
+            onBack={() => navigate('/runs')}
+            onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
+          />
+        );
+      }
+      return (
+        <SessionList
+          projectId={currentProject?.id || ''}
+          selectedSessionId={activeSessionId}
+          onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
+          onSelectSession={(session) => {
+            setSelectedSession(null);
+            navigate('/runs', { session_id: session.id });
+          }}
+        />
+      );
     }
+    // Legacy /sessions route - redirect to /runs
     if (currentPath === '/sessions') {
       if (activeSessionId) {
         if (!selectedSession) {
@@ -368,7 +409,7 @@ const App: React.FC = () => {
           <SessionDetail
             session={selectedSession.session}
             runs={selectedSession.runs}
-            onBack={() => navigate('/sessions')}
+            onBack={() => navigate('/runs')}
             onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
           />
         );
@@ -380,24 +421,8 @@ const App: React.FC = () => {
           onOpenRun={(runId) => navigate('/runs', { run_id: runId })}
           onSelectSession={(session) => {
             setSelectedSession(null);
-            navigate('/sessions', { session_id: session.id });
+            navigate('/runs', { session_id: session.id });
           }}
-        />
-      );
-    }
-    if (currentPath === '/runs') {
-      if (!activeRunId) {
-        return (
-          <div className="flex items-center justify-center h-full text-text-muted">
-            Select a run to view details.
-          </div>
-        );
-      }
-      return (
-        <RunDetail
-          runId={activeRunId}
-          onBack={(sessionId) => navigate('/sessions', { session_id: sessionId })}
-          onOpenTrace={(traceId) => navigate('/logs', { trace_id: traceId })}
         />
       );
     }
@@ -460,18 +485,65 @@ const App: React.FC = () => {
         />
       );
     }
-    // TODO: Re-enable when Python scorer execution is implemented in backend
-    // if (currentPath === '/functions') {
-    //   return <FunctionsList projectId={currentProject?.id || ''} />;
-    // }
     if (currentPath === '/settings') {
       return <Settings />;
+    }
+    // Placeholder pages for Operate mode
+    if (currentPath === '/proxy') {
+      return (
+        <div className="flex items-center justify-center h-full text-text-muted">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Proxy Configuration</h2>
+            <p>Configure your AI proxy settings here.</p>
+          </div>
+        </div>
+      );
+    }
+    if (currentPath === '/providers') {
+      return (
+        <div className="flex items-center justify-center h-full text-text-muted">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Providers</h2>
+            <p>Manage your AI provider connections here.</p>
+          </div>
+        </div>
+      );
+    }
+    if (currentPath === '/environments') {
+      return (
+        <div className="flex items-center justify-center h-full text-text-muted">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Environments</h2>
+            <p>Configure development, staging, and production environments.</p>
+          </div>
+        </div>
+      );
+    }
+    if (currentPath === '/access') {
+      return (
+        <div className="flex items-center justify-center h-full text-text-muted">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Access Control</h2>
+            <p>Manage users, roles, and permissions.</p>
+          </div>
+        </div>
+      );
+    }
+    if (currentPath === '/integrations') {
+      return (
+        <div className="flex items-center justify-center h-full text-text-muted">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Integrations</h2>
+            <p>Connect to external services and APIs.</p>
+          </div>
+        </div>
+      );
     }
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Phase 2: More to come</h2>
-          <p>Settings and refined dashboard views are in progress.</p>
+          <h2 className="text-xl font-semibold mb-2">Page Not Found</h2>
+          <p>The requested page does not exist.</p>
         </div>
       </div>
     );

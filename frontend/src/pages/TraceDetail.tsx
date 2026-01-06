@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Trace, Span } from '../../types';
+import { Trace, Span } from '../types';
 import {
     CodeBracketIcon,
     CheckCircleIcon,
@@ -19,9 +19,10 @@ import {
     ArrowDownRightIcon,
     ArrowsRightLeftIcon
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../ui';
-import { api } from '../../services/api';
-import { Dataset } from '../../types';
+import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea, Tooltip } from '../components/ui';
+import { api } from '../lib/api';
+import { Dataset } from '../types';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface TraceDetailProps {
     trace: Trace;
@@ -512,49 +513,94 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
 
     return (
         <div className="h-full flex flex-col bg-panel border-l border-border-base text-text-main font-sans">
-            {/* Header - Row 1: Title & Close */}
-            <div className="px-6 py-4 border-b border-border-hairline flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <IconButton onClick={onClose} variant="ghost" size="sm">
-                        <ChevronRightIcon className="w-5 h-5" />
-                    </IconButton>
-                    <div>
-                        <h2 className="text-xl font-serif font-bold text-text-main">{trace.root_span.name}</h2>
+            {/* Header */}
+            <div className="border-b border-border-hairline shrink-0">
+                <PageHeader
+                    title={trace.root_span.name}
+                    subtitle={
                         <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
-                            <span>{trace.id.substring(0, 12)}...</span>
+                            <span className="font-mono">{trace.id.substring(0, 12)}...</span>
                             <span>•</span>
                             <span>{new Date(trace.timestamp).toLocaleString()}</span>
                         </div>
-                    </div>
-                </div>
-                {trace.status === 'error' && (
-                    <Badge variant="danger" className="gap-1">
-                        <ExclamationCircleIcon className="w-3 h-3" /> Error
-                    </Badge>
-                )}
-            </div>
+                    }
+                    badge={trace.status === 'error' ? (
+                        <Badge variant="danger" className="gap-1">
+                            <ExclamationCircleIcon className="w-3 h-3" /> Error
+                        </Badge>
+                    ) : (
+                        <Badge variant={statusVariant(trace.status)}>{trace.status}</Badge>
+                    )}
+                    actions={
+                        <div className="flex items-center gap-2">
+                            <IconButton onClick={onClose} variant="ghost" size="sm">
+                                <ChevronRightIcon className="w-5 h-5" />
+                            </IconButton>
+                            <div className="h-4 w-px bg-border-base mx-1" />
 
-            {/* Header - Row 2: Metrics */}
-            <div className="px-6 py-3 border-b border-border-hairline flex items-center gap-6 text-sm">
-                <div>
-                    <span className="text-text-muted text-xs">Latency</span>
-                    <div className="font-medium tabular-nums">{trace.total_latency}ms</div>
-                </div>
-                <div>
-                    <span className="text-text-muted text-xs">Tokens</span>
-                    <div className="font-medium tabular-nums">{trace.total_tokens}</div>
-                </div>
-                <div>
-                    <span className="text-text-muted text-xs">Cost</span>
-                    <div className="font-medium tabular-nums">${trace.total_cost.toFixed(4)}</div>
+                            <div className="flex bg-panel rounded-lg p-1 border border-border-base mr-2">
+                                <Tooltip content="Assign">
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('assignment')}>
+                                        <UserPlusIcon className="w-4 h-4" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip content="Mention">
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('mention')}>
+                                        <AtSymbolIcon className="w-4 h-4" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip content="Share">
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('share')}>
+                                        <LinkIcon className="w-4 h-4" />
+                                    </IconButton>
+                                </Tooltip>
+                            </div>
+                            <Button onClick={handleSendToReview} variant="secondary" size="sm">
+                                <InboxArrowDownIcon className="w-4 h-4" />
+                                Review
+                            </Button>
+                        </div>
+                    }
+                    className="pb-0 border-b-0"
+                />
+
+                {/* Metrics Strip */}
+                <div className="px-6 py-3 flex items-center gap-6 text-sm bg-app/50 border-t border-border-hairline">
+                    <div>
+                        <span className="text-text-muted text-xs uppercase tracking-wider font-bold block mb-0.5">Latency</span>
+                        <div className="font-medium tabular-nums">{trace.total_latency}ms</div>
+                    </div>
+                    <div>
+                        <span className="text-text-muted text-xs uppercase tracking-wider font-bold block mb-0.5">Tokens</span>
+                        <div className="font-medium tabular-nums">{trace.total_tokens}</div>
+                    </div>
+                    <div>
+                        <span className="text-text-muted text-xs uppercase tracking-wider font-bold block mb-0.5">Cost</span>
+                        <div className="font-medium tabular-nums">${trace.total_cost.toFixed(4)}</div>
+                    </div>
+                    <div className="flex-1" />
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => handleActionClick('good')} variant="ghost" size="sm" className="text-emerald-600 hover:bg-emerald-50">
+                            <HandThumbUpIcon className="w-4 h-4" />
+                            Good
+                        </Button>
+                        <Button onClick={() => handleActionClick('correct')} variant="ghost" size="sm" className="text-text-muted hover:text-text-main">
+                            <PencilSquareIcon className="w-4 h-4" />
+                            Correct
+                        </Button>
+                        <Button onClick={() => handleActionClick('bad')} variant="ghost" size="sm" className="text-rose-600 hover:bg-rose-50">
+                            <HandThumbDownIcon className="w-4 h-4" />
+                            Bad
+                        </Button>
+                    </div>
                 </div>
             </div>
 
             {showLineage && (
-                <div className="px-6 py-5 border-b border-border-hairline bg-gradient-to-br from-primary/10 via-transparent to-amber-500/10 relative overflow-hidden">
+                <div className="px-6 py-5 border-b border-border-hairline bg-gradient-to-br from-primary/5 via-transparent to-amber-500/5 relative overflow-hidden">
                     <div className="absolute inset-0 pointer-events-none">
-                        <div className="absolute left-10 right-10 top-1/2 h-px bg-gradient-to-r from-primary/0 via-primary/30 to-amber-500/0" />
-                        <div className="absolute top-6 bottom-6 left-1/2 w-px bg-gradient-to-b from-amber-500/20 via-border-base/60 to-primary/20" />
+                        <div className="absolute left-10 right-10 top-1/2 h-px bg-gradient-to-r from-primary/0 via-primary/20 to-amber-500/0" />
+                        <div className="absolute top-6 bottom-6 left-1/2 w-px bg-gradient-to-b from-amber-500/10 via-border-base/40 to-primary/10" />
                     </div>
                     <div className="relative">
                         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -563,7 +609,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
                                     Lineage Map
                                 </div>
                                 <div className="text-xs text-text-muted mt-1 max-w-[520px]">
-                                    Follow upstream context, sibling runs, and downstream fixes without leaving the trace view.
+                                    Upstream context, sibling runs, and downstream fixes.
                                 </div>
                             </div>
                             {parentTraceId && (
@@ -617,6 +663,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
                                                     </div>
                                                 </>
                                             )}
+                                            {/* ... (Lineage content preserved/simplified) */}
                                             {parentTrace && (
                                                 <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-text-muted">
                                                     <span className="px-2 py-1 rounded-full border border-border-base bg-panel">
@@ -768,37 +815,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
                 </div>
             )}
 
-            {/* Header - Row 3: Actions */}
-            <div className="px-6 py-3 border-b border-border-base flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1 mr-2">
-                    <IconButton title="Assign" variant="ghost" size="sm" onClick={() => openCollab('assignment')}>
-                        <UserPlusIcon className="w-4 h-4" />
-                    </IconButton>
-                    <IconButton title="Mention" variant="ghost" size="sm" onClick={() => openCollab('mention')}>
-                        <AtSymbolIcon className="w-4 h-4" />
-                    </IconButton>
-                    <IconButton title="Share" variant="ghost" size="sm" onClick={() => openCollab('share')}>
-                        <LinkIcon className="w-4 h-4" />
-                    </IconButton>
-                </div>
-                <Button onClick={handleSendToReview} variant="secondary" size="sm">
-                    <InboxArrowDownIcon className="w-4 h-4" />
-                    Review
-                </Button>
-                <div className="flex-1" />
-                <Button onClick={() => handleActionClick('good')} variant="success" size="sm">
-                    <HandThumbUpIcon className="w-4 h-4" />
-                    Good
-                </Button>
-                <Button onClick={() => handleActionClick('correct')} variant="secondary" size="sm">
-                    <PencilSquareIcon className="w-4 h-4" />
-                    Correct
-                </Button>
-                <Button onClick={() => handleActionClick('bad')} variant="danger" size="sm">
-                    <HandThumbDownIcon className="w-4 h-4" />
-                    Bad
-                </Button>
-            </div>
+
 
             {reviewNotice && (
                 <div

@@ -9,10 +9,10 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from '@heroicons/react/24/outline';
-import { api } from '../../services/api';
-import { Dataset, ReviewItem } from '../../types';
-import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { api } from '../lib/api';
+import { Dataset, ReviewItem } from '../types';
+import { Badge, Button, Card, Input, SectionHeader, Select, Tabs, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface ReviewQueueProps {
   projectId: string;
@@ -180,22 +180,7 @@ const ReviewQueue: React.FC<ReviewQueueProps> = ({ projectId }) => {
       <PageHeader
         title="Review Queue"
         subtitle="Triage production traces, label failures, and promote to datasets."
-        actions={
-          <div className="flex bg-panel rounded-lg p-1 border border-border-base">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id as any)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${statusFilter === tab.id
-                  ? 'bg-primary/10 text-primary shadow-sm'
-                  : 'text-text-muted hover:text-text-main hover:bg-panel-hover'
-                  }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        }
+
         className="pb-0 border-b-0"
       >
         <div className="flex flex-wrap items-center gap-4 pb-4 px-6">

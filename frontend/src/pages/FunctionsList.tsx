@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../services/api';
-import { Function } from '../../types';
+import { api } from '../lib/api';
+import { Function } from '../types';
 import {
     CpuChipIcon,
     PlusIcon,
@@ -11,8 +11,8 @@ import {
     CheckCircleIcon,
     XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, Input, Modal, Select, Textarea } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
+import { Badge, Button, Card, Input, Modal, Select, Textarea } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
 
 interface FunctionsListProps {
     projectId: string;

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '../../services/api';
-import { ModelRegistry } from '../../types';
+import { api } from '../lib/api';
+import { ModelRegistry } from '../types';
 import {
     ArrowPathIcon,
     KeyIcon,
@@ -12,9 +12,9 @@ import {
     SparklesIcon,
     CpuChipIcon
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, Input } from '../ui';
-import { PageHeader } from '../layout/PageHeader';
-import { ACCENT_OPTIONS, AccentId, getStoredAccent, setAccent as applyAccent } from '../theme/accent';
+import { Badge, Button, Card, Input } from '../components/ui';
+import { PageHeader } from '../layouts/PageHeader';
+import { ACCENT_OPTIONS, AccentId, getStoredAccent, setAccent as applyAccent } from '../lib/theme/accent';
 
 type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'mock';
 
@@ -323,8 +323,8 @@ const Settings: React.FC = () => {
                                                                         <button
                                                                             onClick={() => toggleModel(m.id, !m.enabled)}
                                                                             className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${m.enabled
-                                                                                    ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25'
-                                                                                    : 'bg-panel-hover text-text-muted hover:bg-panel-hover/80'
+                                                                                ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25'
+                                                                                : 'bg-panel-hover text-text-muted hover:bg-panel-hover/80'
                                                                                 }`}
                                                                         >
                                                                             {m.enabled ? (
@@ -389,8 +389,8 @@ const Settings: React.FC = () => {
                                             onClick={() => handleAccentChange(option.id)}
                                             aria-pressed={isActive}
                                             className={`relative text-left rounded-lg border p-3 transition-all ${isActive
-                                                    ? 'border-primary/50 bg-primary/5 shadow-sm'
-                                                    : 'border-border-base bg-panel hover:border-border-hover'
+                                                ? 'border-primary/50 bg-primary/5 shadow-sm'
+                                                : 'border-border-base bg-panel hover:border-border-hover'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-2">
