@@ -1,1129 +1,1047 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Athena is an AI proxy, observability, and evaluation platform with a closed-loop workflow from logs to datasets to experiments.">
-    <title>Athena | AI Proxy + Observability + Evaluation</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      :root {
-        --bg: #ffffff;
-        --bg-2: #f4f4f0;
-        --ink: #0c0c0c;
-        --muted: #3b3b3b;
-        --accent: #0c0c0c;
-        --accent-2: #e53935;
-        --accent-3: #e53935;
-        --surface: #ffffff;
-        --surface-2: #f2f2ee;
-        --border: #0c0c0c;
-        --shadow-hero: 10px 10px 0 #0c0c0c;
-        --shadow-card: 6px 6px 0 #0c0c0c;
-        --radius: 2px;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html, body {
-        margin: 0;
-        padding: 0;
-        font-family: "IBM Plex Mono", monospace;
-        color: var(--ink);
-        background-color: var(--bg);
-        background-image: none;
-        min-height: 100%;
-      }
-
-      body {
-        overflow-x: hidden;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      img {
-        max-width: 100%;
-        display: block;
-      }
-
-      .page {
-        position: relative;
-        isolation: isolate;
-      }
-
-      .bg-grid {
-        position: absolute;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(12, 12, 12, 0.08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(12, 12, 12, 0.08) 1px, transparent 1px);
-        background-size: 72px 72px;
-        opacity: 0.18;
-        pointer-events: none;
-        z-index: 0;
-      }
-
-      .nav {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: var(--bg);
-        border-bottom: 2px solid var(--border);
-      }
-
-      .nav-inner {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 18px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-
-      .logo {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-family: "Space Grotesk", sans-serif;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .logo-mark {
-        width: 34px;
-        height: 34px;
-        border-radius: 4px;
-        background: var(--ink);
-        border: 2px solid var(--accent-2);
-      }
-
-      .nav-links {
-        display: flex;
-        gap: 18px;
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--ink);
-      }
-
-      .nav-actions {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-      }
-
-      .button {
-        padding: 12px 20px;
-        border-radius: 2px;
-        font-family: "Space Grotesk", sans-serif;
-        font-weight: 600;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        border: 2px solid var(--ink);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        transition: background 0.2s ease, color 0.2s ease;
-      }
-
-      .button.primary {
-        background: var(--ink);
-        color: var(--bg);
-      }
-
-      .button.secondary {
-        background: transparent;
-        color: var(--ink);
-      }
-
-      .button:hover {
-        transform: none;
-        box-shadow: none;
-      }
-
-      .button.primary:hover {
-        background: var(--accent-2);
-        color: var(--ink);
-      }
-
-      .button.secondary:hover {
-        background: var(--ink);
-        color: var(--bg);
-      }
-
-      main {
-        position: relative;
-        z-index: 2;
-      }
-
-      .section {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 90px 24px;
-        position: relative;
-      }
-
-      .section::after {
-        content: "";
-        position: absolute;
-        left: -100vw;
-        right: -100vw;
-        height: 2px;
-        background: var(--ink);
-        bottom: 0;
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: repeat(12, minmax(0, 1fr));
-        gap: 32px;
-        align-items: center;
-        padding-top: 110px;
-      }
-
-      .hero-copy {
-        grid-column: span 6;
-        display: grid;
-        gap: 22px;
-      }
-
-      .eyebrow {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 11px;
-        letter-spacing: 0.32em;
-        text-transform: uppercase;
-        color: var(--accent);
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 10px;
-        border: 2px solid var(--ink);
-        background: var(--surface-2);
-        flex-wrap: wrap;
-      }
-
-      .eyebrow::before {
-        content: "";
-        width: 6px;
-        height: 6px;
-        background: var(--ink);
-        display: inline-block;
-      }
-
-      h1, h2, h3 {
-        font-family: "Space Grotesk", sans-serif;
-        margin: 0;
-      }
-
-      h3 {
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-      }
-
-      .hero h1 {
-        font-size: clamp(2.8rem, 5vw, 4.6rem);
-        line-height: 1.02;
-        text-transform: uppercase;
-      }
-
-      .hero h1 span {
-        color: var(--accent-2);
-      }
-
-      .hero p {
-        color: var(--muted);
-        font-size: 1.05rem;
-        line-height: 1.7;
-        margin: 0;
-      }
-
-      .hero-actions {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .code-card {
-        border-radius: 2px;
-        border: 2px solid var(--ink);
-        background: var(--surface);
-        box-shadow: var(--shadow-card);
-        padding: 14px 16px;
-        overflow: hidden;
-      }
-
-      .code-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin: -14px -16px 12px;
-        padding: 10px 12px;
-        border-bottom: 2px solid var(--ink);
-        background: var(--surface-2);
-      }
-
-      .code-pill {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        padding: 6px 10px;
-        border-radius: 2px;
-        border: 2px solid var(--ink);
-        background: var(--accent-2);
-        color: var(--ink);
-      }
-
-      .code-meta {
-        font-size: 10px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-      }
-
-      pre {
-        margin: 0;
-        padding: 12px;
-        border-radius: 2px;
-        border: 2px solid var(--ink);
-        background: var(--bg-2);
-        overflow: auto;
-      }
-
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        font-size: 12px;
-        line-height: 1.6;
-        color: var(--ink);
-      }
-
-      .hero-highlights {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 12px;
-      }
-
-      .highlight {
-        padding: 14px 16px;
-        border-radius: 2px;
-        background: var(--surface-2);
-        border: 2px solid var(--ink);
-      }
-
-      .highlight strong {
-        display: block;
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 0.9rem;
-      }
-
-      .highlight span {
-        font-size: 0.75rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      .hero-visual {
-        grid-column: span 6;
-        position: relative;
-        min-height: 520px;
-        display: grid;
-        align-items: center;
-      }
-
-      .hero-frame {
-        padding: 12px;
-        border-radius: 4px;
-        border: 2px solid var(--ink);
-        background: var(--surface);
-        box-shadow: var(--shadow-hero);
-        position: relative;
-      }
-
-      .frame-corner {
-        position: absolute;
-        width: 16px;
-        height: 16px;
-        pointer-events: none;
-      }
-
-      .frame-corner.tl {
-        top: 8px;
-        left: 8px;
-        border-top: 2px solid var(--ink);
-        border-left: 2px solid var(--ink);
-      }
-
-      .frame-corner.tr {
-        top: 8px;
-        right: 8px;
-        border-top: 2px solid var(--ink);
-        border-right: 2px solid var(--ink);
-      }
-
-      .frame-corner.bl {
-        bottom: 8px;
-        left: 8px;
-        border-bottom: 2px solid var(--ink);
-        border-left: 2px solid var(--ink);
-      }
-
-      .frame-corner.br {
-        bottom: 8px;
-        right: 8px;
-        border-bottom: 2px solid var(--ink);
-        border-right: 2px solid var(--ink);
-      }
-
-      .loop-svg {
-        width: 100%;
-        height: auto;
-        display: block;
-        border-radius: 2px;
-        border: 2px solid var(--ink);
-        background: var(--surface);
-      }
-
-      .loop-path {
-        fill: none;
-        stroke: var(--ink);
-        stroke-width: 10;
-        stroke-linecap: round;
-        opacity: 0.22;
-      }
-
-      .loop-path-anim {
-        fill: none;
-        stroke: var(--accent-2);
-        stroke-width: 6;
-        stroke-linecap: round;
-        stroke-dasharray: 22 14;
-        animation: dash 2.6s linear infinite;
-        filter: drop-shadow(0 0 8px rgba(229, 57, 53, 0.35));
-      }
-
-      .node circle {
-        fill: rgba(255, 255, 255, 0.95);
-        stroke: rgba(12, 12, 12, 0.22);
-        stroke-width: 2;
-        transform-origin: center;
-        transform-box: fill-box;
-      }
-
-      .node text {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 14px;
-        fill: rgba(12, 12, 12, 0.78);
-        text-anchor: middle;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-      }
-
-      .node.logs circle {
-        animation: pulse 2.6s infinite;
-      }
-
-      .node.dataset circle {
-        animation: pulse 2.6s infinite;
-        animation-delay: 0.65s;
-      }
-
-      .node.exp circle {
-        animation: pulse 2.6s infinite;
-        animation-delay: 1.3s;
-      }
-
-      .node.ship circle {
-        animation: pulse 2.6s infinite;
-        animation-delay: 1.95s;
-      }
-
-      .trace rect {
-        fill: rgba(12, 12, 12, 0.04);
-        stroke: rgba(12, 12, 12, 0.28);
-      }
-
-      .trace path {
-        stroke: rgba(12, 12, 12, 0.65);
-        stroke-width: 2;
-      }
-
-      .trace circle {
-        fill: var(--accent-3);
-      }
-
-      .trace text {
-        font-size: 12px;
-        fill: rgba(12, 12, 12, 0.6);
-        font-family: "IBM Plex Mono", monospace;
-        letter-spacing: 0.1em;
-      }
-
-      [data-tilt] {
-        transform: perspective(1200px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-        transition: transform 0.25s ease;
-      }
-
-      .float-card {
-        position: absolute;
-        padding: 12px 14px;
-        border-radius: 2px;
-        background: var(--surface);
-        border: 2px solid var(--ink);
-        box-shadow: none;
-        font-size: 11px;
-      }
-
-      .float-card strong {
-        display: block;
-        font-size: 0.95rem;
-      }
-
-      .float-card span {
-        color: var(--muted);
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        font-size: 9px;
-      }
-
-      .float-card.one {
-        top: 12%;
-        left: -6%;
-      }
-
-      .float-card.two {
-        bottom: 10%;
-        right: -6%;
-      }
-
-      .signal-band {
-        border-top: 2px solid var(--ink);
-        border-bottom: 2px solid var(--ink);
-        overflow: hidden;
-        padding: 18px 0;
-        background: var(--ink);
-      }
-
-      .signal-track {
-        display: flex;
-        gap: 32px;
-        white-space: nowrap;
-        animation: marquee 18s linear infinite;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.28em;
-        color: var(--bg);
-      }
-
-      @keyframes marquee {
-        to {
-          transform: translateX(-50%);
-        }
-      }
-
-      @keyframes dash {
-        to {
-          stroke-dashoffset: -72;
-        }
-      }
-
-      @keyframes pulse {
-        0%, 100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.06);
-        }
-      }
-
-      .section-head {
-        display: grid;
-        gap: 12px;
-        max-width: 680px;
-        margin-bottom: 36px;
-      }
-
-      .section-head[data-step]::before {
-        content: attr(data-step);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.3em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      .section-head h2 {
-        font-size: clamp(2rem, 3.2vw, 3rem);
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
-      }
-
-      .section-head p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.6;
-      }
-
-      .product-grid,
-      .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(12, minmax(0, 1fr));
-        gap: 20px;
-      }
-
-      .panel,
-      .feature-card {
-        background: var(--surface);
-        border-radius: var(--radius);
-        border: 2px solid var(--ink);
-        padding: 20px;
-        display: grid;
-        gap: 16px;
-      }
-
-      .panel-meta {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      .panel span,
-      .feature-card p {
-        color: var(--muted);
-        font-size: 0.95rem;
-        line-height: 1.6;
-        margin: 0;
-      }
-
-      .panel img {
-        border-radius: 2px;
-        border: 2px solid var(--ink);
-      }
-
-      .feature-card h3 {
-        margin: 0;
-      }
-
-      .span-7 { grid-column: span 7; }
-      .span-5 { grid-column: span 5; }
-      .span-4 { grid-column: span 4; }
-
-      .workflow {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 18px;
-      }
-
-      .workflow-step {
-        border-radius: var(--radius);
-        padding: 20px;
-        border: 2px solid var(--ink);
-        background: var(--surface);
-        display: grid;
-        gap: 10px;
-      }
-
-      .workflow-step strong {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.8rem;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      .workflow-step span {
-        color: var(--muted);
-        line-height: 1.5;
-      }
-
-      .security-callout {
-        display: grid;
-        grid-template-columns: repeat(12, minmax(0, 1fr));
-        gap: 20px;
-        align-items: center;
-        position: relative;
-      }
-
-      .security-callout[data-step]::before {
-        content: attr(data-step);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 10px;
-        letter-spacing: 0.3em;
-        text-transform: uppercase;
-        color: var(--muted);
-        grid-column: span 12;
-      }
-
-      .security-text {
-        grid-column: span 6;
-      }
-
-      .security-list {
-        grid-column: span 6;
-        display: grid;
-        gap: 12px;
-      }
-
-      .security-item {
-        padding: 16px;
-        border-radius: var(--radius);
-        border: 2px solid var(--ink);
-        background: var(--surface);
-      }
-
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 18px;
-      }
-
-      .metric {
-        padding: 20px;
-        border-radius: var(--radius);
-        border: 2px solid var(--ink);
-        background: var(--surface);
-      }
-
-      .metric strong {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.4rem;
-        letter-spacing: 0.04em;
-      }
-
-      .early-access {
-        margin-top: 24px;
-        padding: 20px;
-        border-radius: var(--radius);
-        border: 2px solid var(--ink);
-        background: var(--surface-2);
-        display: grid;
-        gap: 8px;
-      }
-
-      .early-access strong {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.75rem;
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      .early-access p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.6;
-      }
-
-      .testimonial {
-        margin-top: 24px;
-        padding: 28px;
-        border-radius: var(--radius);
-        border: 2px solid var(--ink);
-        background: var(--surface);
-        display: grid;
-        gap: 12px;
-      }
-
-      .testimonial p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.7;
-      }
-
-      .cta {
-        text-align: center;
-        padding: 60px 32px;
-        border-radius: 4px;
-        border: 2px solid var(--ink);
-        background: var(--surface);
-        box-shadow: var(--shadow-card);
-      }
-
-      .footer {
-        text-align: center;
-        padding: 40px 24px 60px;
-        color: var(--muted);
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-      }
-
-      [data-reveal] {
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description"
+    content="Athena is the underlying architecture for autonomous AI — a distributed platform for proxying, observing, and evaluating agentic workflows.">
+  <title>Athena | Tactical AI Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F7F7F2;
+      --ink: #0C0C0C;
+      --accent: #FF4400;
+      /* Bright orange */
+      --surface: #FFFFFF;
+      --border-color: #0C0C0C;
+
+      --font-serif: "DM Serif Display", serif;
+      --font-mono: "IBM Plex Mono", monospace;
+      --font-sans: "Inter", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-mono);
+      /* Scrolling enabled */
+      overflow-x: hidden;
+    }
+
+    /* Utility */
+    .uppercase {
+      text-transform: uppercase;
+    }
+
+    .flex {
+      display: flex;
+    }
+
+    .flex-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .items-center {
+      align-items: center;
+    }
+
+    .justify-between {
+      justify-content: space-between;
+    }
+
+    .w-full {
+      width: 100%;
+    }
+
+    .text-accent {
+      color: var(--accent);
+    }
+
+    /* App Shell */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      max-width: 1440px;
+      margin: 0 auto;
+      border-left: 2px solid var(--border-color);
+      border-right: 2px solid var(--border-color);
+      background: var(--bg);
+    }
+
+    /* Top Bar */
+    .top-bar {
+      background: var(--ink);
+      color: var(--bg);
+      padding: 8px 16px;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 32px;
+      border-bottom: 2px solid var(--border-color);
+      background: var(--bg);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-serif);
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-icon {
+      width: 0;
+      height: 0;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-bottom: 20px solid var(--ink);
+    }
+
+    .nav-links a {
+      margin-left: 2rem;
+      text-decoration: none;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+
+    /* HERO SECTION */
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 55% 45%;
+      border-bottom: 2px solid var(--border-color);
+      min-height: 85vh;
+      /* Taller hero */
+    }
+
+    /* Left Panel */
+    .left-panel {
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 2px solid var(--border-color);
+      position: relative;
+    }
+
+    .panel-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      margin-bottom: 3rem;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(3rem, 5.5vw, 6rem);
+      line-height: 0.9;
+      margin: 0 0 2rem 0;
+      font-weight: 400;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hero-copy {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 480px;
+      margin-bottom: 3rem;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .cta-btn {
+      background: var(--accent);
+      color: var(--ink);
+      /* Black text on orange */
+      border: 2px solid var(--ink);
+      padding: 16px 32px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      display: inline-block;
+      box-shadow: 4px 4px 0 var(--ink);
+      transition: transform 0.1s;
+      text-decoration: none;
+    }
+
+    .cta-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 var(--ink);
+      background: white;
+    }
+
+    .cta-link {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .infra-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: auto;
+      padding-top: 48px;
+    }
+
+    .stat-block {
+      background: var(--ink);
+      color: var(--bg);
+      padding: 24px;
+      min-width: 240px;
+    }
+
+    .stat-val {
+      font-family: var(--font-serif);
+      font-size: 3rem;
+      line-height: 1;
+    }
+
+    .stat-desc {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      max-width: 180px;
+      line-height: 1.4;
+      margin-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      padding-top: 12px;
+    }
+
+    /* Right Panel */
+    .right-panel {
+      padding: 48px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background-color: #F2F2EE;
+      overflow: hidden;
+    }
+
+    .system-status {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      margin-bottom: 32px;
+    }
+
+    .terminal-window {
+      position: relative;
+      z-index: 2;
+      border: 2px solid var(--ink);
+      background: var(--surface);
+      padding: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.6;
+      min-height: 200px;
+      max-width: 380px;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .log-entry {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .log-entry.success {
+      color: var(--ink);
+    }
+
+    .log-entry.dim {
+      color: #888;
+    }
+
+    .blink {
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% {
         opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.8s ease, transform 0.8s ease;
+      }
+    }
+
+    .radar-viz {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      z-index: 1;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .radar-circle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px dashed var(--ink);
+      border-radius: 50%;
+      will-change: transform, opacity;
+    }
+
+    .c1 {
+      width: 100%;
+      height: 100%;
+      border-style: dotted;
+      animation: spin 60s linear infinite;
+    }
+
+    .c2 {
+      width: 75%;
+      height: 75%;
+      border-color: var(--accent);
+      opacity: 0.5;
+      border-style: solid;
+      border-width: 1px;
+      border-bottom-color: transparent;
+      border-left-color: transparent;
+      animation: spin-reverse 20s linear infinite;
+    }
+
+    .c3 {
+      width: 50%;
+      height: 50%;
+      border-style: solid;
+      border-width: 1px;
+      animation: pulse-ring 4s ease-in-out infinite;
+    }
+
+    .radar-sweep {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 50%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--accent) 100%);
+      transform-origin: left center;
+      animation: radar-sweep 4s linear infinite;
+      opacity: 0.6;
+      box-shadow: 4px 0 10px var(--accent);
+    }
+
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+    }
+
+    .crosshair::before {
+      content: "";
+      position: absolute;
+      background: var(--ink);
+      top: 9px;
+      left: 0;
+      width: 20px;
+      height: 2px;
+    }
+
+    .crosshair::after {
+      content: "";
+      position: absolute;
+      background: var(--ink);
+      left: 9px;
+      top: 0;
+      width: 2px;
+      height: 20px;
+    }
+
+    @keyframes spin {
+      from {
+        transform: translate(-50%, -50%) rotate(0deg);
       }
 
-      [data-reveal].visible {
+      to {
+        transform: translate(-50%, -50%) rotate(360deg);
+      }
+    }
+
+    @keyframes spin-reverse {
+      from {
+        transform: translate(-50%, -50%) rotate(360deg);
+      }
+
+      to {
+        transform: translate(-50%, -50%) rotate(0deg);
+      }
+    }
+
+    @keyframes pulse-ring {
+
+      0%,
+      100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.4;
+      }
+
+      50% {
+        transform: translate(-50%, -50%) scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    @keyframes radar-sweep {
+      from {
+        transform: translateY(-50%) rotate(0deg);
+      }
+
+      to {
+        transform: translateY(-50%) rotate(360deg);
+      }
+    }
+
+    .corner-brackets::before {
+      content: "";
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      width: 20px;
+      height: 20px;
+      border-top: 2px solid var(--ink);
+      border-left: 2px solid var(--ink);
+    }
+
+    .corner-brackets::after {
+      content: "";
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 20px;
+      height: 20px;
+      border-bottom: 2px solid var(--ink);
+      border-right: 2px solid var(--ink);
+    }
+
+    /* SECTIONS */
+    .section-loop {
+      background: var(--ink);
+      color: var(--bg);
+      padding: 64px 48px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .loop-track {
+      display: flex;
+      gap: 6rem;
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      white-space: nowrap;
+      opacity: 0.9;
+      animation: marquee 20s linear infinite;
+    }
+
+    .loop-sub {
+      font-family: var(--font-mono);
+      color: var(--bg);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      margin-top: 1rem;
+      opacity: 0.7;
+      text-transform: uppercase;
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .feature-col {
+      border-right: 2px solid var(--border-color);
+      padding: 48px 32px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .feature-col:hover {
+      background: #FFFFFF;
+    }
+
+    .feature-col:active {
+      background: #F0F0F0;
+    }
+
+    .feature-col:last-child {
+      border-right: none;
+    }
+
+    /* Technical Markers */
+    .tech-marker {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--accent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-col:hover .tech-marker {
+      opacity: 1;
+    }
+
+    .tm-tl {
+      top: 12px;
+      left: 12px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .tm-tr {
+      top: 12px;
+      right: 12px;
+      border-left: none;
+      border-bottom: none;
+    }
+
+    .tm-bl {
+      bottom: 12px;
+      left: 12px;
+      border-right: none;
+      border-top: none;
+    }
+
+    .tm-br {
+      bottom: 12px;
+      right: 12px;
+      border-left: none;
+      border-top: none;
+    }
+
+    .feature-head {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-bottom: 16px;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .feature-icon-anim {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--ink);
+      transform: rotate(45deg);
+      animation: spin-slow 10s linear infinite;
+    }
+
+    .feature-title {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      margin-bottom: 24px;
+      line-height: 1.1;
+    }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .feature-list li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #444;
+    }
+
+    .feature-list li::before {
+      content: "+";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    /* Data Plane Section */
+    .data-section {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .data-content {
+      padding: 64px;
+      border-right: 2px solid var(--border-color);
+    }
+
+    .data-sidebar {
+      background: #EAEAE4;
+      padding: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scan-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: rgba(12, 12, 12, 0.1);
+      animation: scan 3s linear infinite;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .secure-icon {
+      border: 2px solid var(--ink);
+      padding: 24px;
+      background: white;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+    }
+
+    .secure-status {
+      position: absolute;
+      bottom: 12px;
+      width: 100%;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--accent);
+      opacity: 0;
+      animation: flash 2s step-end infinite;
+    }
+
+    /* Animation Keyframes */
+    @keyframes marquee {
+      0% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(-50%);
+      }
+    }
+
+    @keyframes scan {
+      0% {
+        top: -10%;
+        opacity: 0;
+      }
+
+      10% {
         opacity: 1;
-        transform: translateY(0);
       }
 
-      @media (max-width: 980px) {
-        .nav-links {
-          display: none;
-        }
-
-        .hero {
-          grid-template-columns: 1fr;
-        }
-
-        .hero-copy,
-        .hero-visual,
-        .security-text,
-        .security-list {
-          grid-column: span 12;
-        }
-
-        .hero-visual {
-          min-height: 420px;
-        }
-
-        .product-grid,
-        .feature-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .span-7,
-        .span-5,
-        .span-4 {
-          grid-column: span 1;
-        }
-
-        .workflow {
-          grid-template-columns: 1fr;
-        }
-
-        .float-card.one,
-        .float-card.two {
-          position: static;
-        }
+      90% {
+        opacity: 1;
       }
 
-      @media (max-width: 640px) {
-        .hero-actions {
-          flex-direction: column;
-          align-items: stretch;
-        }
+      100% {
+        top: 110%;
+        opacity: 0;
+      }
+    }
 
-        .code-card code {
-          font-size: 11px;
-        }
+    @keyframes spin-slow {
+      from {
+        transform: rotate(0deg);
       }
 
-      @media (prefers-reduced-motion: reduce) {
-        .signal-track {
-          animation: none;
-        }
-
-        [data-tilt] {
-          transform: none;
-        }
-
-        .loop-path-anim,
-        .node.logs circle,
-        .node.dataset circle,
-        .node.exp circle,
-        .node.ship circle {
-          animation: none;
-        }
+      to {
+        transform: rotate(360deg);
       }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="bg-grid" aria-hidden="true"></div>
+    }
 
-      <header class="nav">
-        <div class="nav-inner">
-          <div class="logo">
-            <div class="logo-mark"></div>
-            <span>Athena</span>
-          </div>
-          <nav class="nav-links">
-            <a href="#platform">Platform</a>
-            <a href="#product">Product</a>
-            <a href="#workflow">Workflow</a>
-            <a href="#security">Security</a>
-            <a href="#demo">Demo</a>
-          </nav>
-          <div class="nav-actions">
-            <a class="button secondary" href="#demo">Book a walkthrough</a>
-            <a class="button primary" href="#demo">Start free</a>
+    @keyframes flash {
+
+      0%,
+      100% {
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #00FF00;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      box-shadow: 0 0 5px #00FF00;
+      animation: pulse-dot 1s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
+    /* Footer */
+    .page-footer {
+      padding: 48px;
+      text-align: center;
+      background: var(--surface);
+    }
+
+    .footer-meta {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #666;
+      display: flex;
+      justify-content: space-between;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #ddd;
+    }
+
+    @media (max-width: 1000px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+
+      .data-section {
+        grid-template-columns: 1fr;
+      }
+
+      .left-panel {
+        border-right: none;
+        border-bottom: 2px solid var(--border-color);
+      }
+
+      .right-panel {
+        display: none;
+      }
+
+      /* Hide viz on mobile */
+      .feature-col {
+        border-right: none;
+        border-bottom: 2px solid var(--border-color);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <span><span class="live-dot"></span>CONFIDENTIAL — FIELD DEPLOYMENT READY</span>
+      <span>TACTICAL AI LABORATORY</span>
+      <span>>>> ADAPTIVE AGENT SURVEILLANCE</span>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon"></div>
+        <span>Athena</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#">Process</a>
+        <a href="#">Team</a>
+        <a href="#">Docs</a>
+        <a href="#">Login</a>
+      </nav>
+    </header>
+
+    <!-- HERO -->
+    <div class="hero-grid">
+      <div class="left-panel">
+        <div class="panel-label">
+          <span>AI-OPS DIVISION</span>
+          <span>/</span>
+          <span>REGION [GLOBAL] NODE</span>
+        </div>
+
+        <div>
+          <h1 class="hero-title">
+            <span>Proxy.</span>
+            <span>Observability.</span>
+            <span>Evals.</span>
+          </h1>
+          <p class="hero-copy">
+            Athena is the underlying architecture for autonomous AI.
+            See what happened in production, promote failures into datasets, and measure fixes with experiments.
+          </p>
+
+          <div class="cta-group">
+            <a href="#" class="cta-btn">Get Early Access</a>
+            <span class="cta-link">Read Documentation</span>
           </div>
         </div>
-      </header>
 
-      <main>
-        <section class="section hero" id="platform">
-          <div class="hero-copy" data-reveal>
-            <div class="eyebrow">ATHENA // LOGS  DATASETS  EXPERIMENTS</div>
-            <h1>Debug, evaluate, ship from <span>production truth</span>.</h1>
-            <p>
-              Athena is an LLM proxy + observability + evaluation system. Capture traces in prod,
-              promote failures to datasets, and run scored experiments before you ship.
+        <div class="infra-footer">
+          <span class="text-xs uppercase tracking-widest" style="margin-bottom: 24px;">AI-OPS INFRASTRUCTURE // BUILT BY
+            ENGINEERS</span>
+
+          <div class="stat-block">
+            <span class="stat-label">OBSERVABILITY LOCK</span>
+            <div class="stat-val">100%</div>
+            <p class="stat-desc">
+              Close the loop between production and evaluation. No manual glue.
             </p>
-            <div class="hero-actions">
-              <a class="button primary" href="#demo">Start free</a>
-              <a class="button secondary" href="#demo">Book a walkthrough</a>
-            </div>
-            <div class="code-card" aria-label="Quickstart">
-              <div class="code-head">
-                <span class="code-pill">Quickstart</span>
-                <span class="code-meta">~10 min to instrument</span>
-              </div>
-              <pre><code>npm i @athena/sdk
-
-import { Athena } from "@athena/sdk";
-
-const athena = new Athena({ apiKey: process.env.ATHENA_KEY });
-
-const res = await athena.chat.completions.create({
-  model: "gpt-4.1",
-  messages: [{ role: "user", content: "..." }],
-  trace: { trace_group_id: "session_123" }
-});</code></pre>
-            </div>
-            <div class="hero-highlights">
-              <div class="highlight">
-                <span>Unified</span>
-                <strong>Provider proxy</strong>
-              </div>
-              <div class="highlight">
-                <span>Separated</span>
-                <strong>Reasoning traces</strong>
-              </div>
-              <div class="highlight">
-                <span>Private</span>
-                <strong>Data plane</strong>
-              </div>
-            </div>
           </div>
-          <div class="hero-visual" data-reveal>
-            <div class="hero-frame" data-tilt>
-              <svg class="loop-svg" viewBox="0 0 720 520" role="img" aria-label="Athena loop: Logs to Datasets to Experiments">
-                <path class="loop-path" d="M140,260 C180,120 340,80 430,150 C520,220 560,360 460,400 C360,440 220,400 190,320" fill="none"></path>
-                <path class="loop-path-anim" d="M140,260 C180,120 340,80 430,150 C520,220 560,360 460,400 C360,440 220,400 190,320" fill="none"></path>
+        </div>
+      </div>
 
-                <g class="node logs" transform="translate(120 235)">
-                  <circle r="30" cx="30" cy="30"></circle>
-                  <text x="30" y="68">LOGS</text>
-                </g>
+      <div class="right-panel corner-brackets">
+        <div class="system-status">
+          <span>SYSTEM MODE: ACTIVE TRACE RESOLUTION</span>
+          <span>ADS-991</span>
+        </div>
 
-                <g class="node dataset" transform="translate(410 120)">
-                  <circle r="30" cx="30" cy="30"></circle>
-                  <text x="30" y="68">DATASET</text>
-                </g>
+        <div class="terminal-window">
+          <div class="log-entry">[ SYSTEM LOG ]</div>
+          <div class="log-entry success"># INIT... OK</div>
+          <div class="log-entry success"># PROXY... ONLINE</div>
+          <div class="log-entry success"># SIGNAL LOCK... STABLE</div>
+          <div class="log-entry success"># EVALUATION LOOP... CONNECTED</div>
+          <div class="log-entry success"># MCP AGENT... ACTIVE</div>
+          <div class="log-entry dim">-</div>
+          <div class="log-entry blink">_</div>
 
-                <g class="node exp" transform="translate(470 360)">
-                  <circle r="30" cx="30" cy="30"></circle>
-                  <text x="30" y="68">EXPERIMENT</text>
-                </g>
+          <div
+            style="position: absolute; top: 24px; right: 24px; border: 1px solid var(--ink); padding: 8px; text-align: center;">
+            <div style="font-size: 8px; margin-bottom: 4px;">CURRENT FREQ:</div>
+            <div style="font-size: 16px; font-weight: bold;">300.733</div>
+            <div style="font-size: 12px;">MHZ</div>
+          </div>
+        </div>
 
-                <g class="node ship" transform="translate(220 340)">
-                  <circle r="30" cx="30" cy="30"></circle>
-                  <text x="30" y="68">SHIP</text>
-                </g>
-
-                <g class="trace" transform="translate(255 190)">
-                  <rect x="0" y="0" width="210" height="120" rx="14"></rect>
-                  <path d="M30,30 L70,30 L70,55 L115,55" fill="none"></path>
-                  <path d="M30,30 L70,30 L70,85 L150,85" fill="none"></path>
-                  <circle cx="30" cy="30" r="6"></circle>
-                  <circle cx="115" cy="55" r="6"></circle>
-                  <circle cx="150" cy="85" r="6"></circle>
-                  <text x="18" y="110">TRACE + SPANS</text>
-                </g>
-              </svg>
-              <span class="frame-corner tl" aria-hidden="true"></span>
-              <span class="frame-corner tr" aria-hidden="true"></span>
-              <span class="frame-corner bl" aria-hidden="true"></span>
-              <span class="frame-corner br" aria-hidden="true"></span>
-            </div>
-          </div>
-        </section>
-
-        <section class="signal-band" aria-hidden="true">
-          <div class="signal-track">
-            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
-            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
-            <span>LOGS / DATASETS / EXPERIMENTS / MCP /</span>
-          </div>
-        </section>
-
-        <section class="section" id="product">
-          <div class="section-head" data-reveal data-step="01 - PRODUCT">
-            <div class="eyebrow">PRODUCT SURFACES</div>
-            <h2>Every surface is designed to reduce time-to-trust.</h2>
-            <p>Move from production issues to scored experiments with context intact across the platform.</p>
-          </div>
-          <div class="product-grid">
-            <article class="panel span-7" data-reveal>
-              <div class="panel-meta">Logs + traces</div>
-              <img src="assets/2025-12-28%2000.08.37%20localhost%2064dd3eeef57f.png" alt="Athena logs table with filters and trace links" loading="lazy">
-              <span>Filter, drill, and share traces in seconds with saved views and AQL filters.</span>
-            </article>
-            <article class="panel span-5" data-reveal>
-              <div class="panel-meta">Dashboard</div>
-              <img src="assets/2025-12-28%2000.08.53%20localhost%20d57fde690784.png" alt="Athena dashboard with request volume and latency charts" loading="lazy">
-              <span>Monitor latency, cost, and error rates in real time with live dashboards.</span>
-            </article>
-            <article class="panel span-4" data-reveal>
-              <div class="panel-meta">Review queue</div>
-              <img src="assets/2025-12-28%2000.09.03%20localhost%20106ec700cd3f.png" alt="Athena review queue with input and output previews" loading="lazy">
-              <span>Route high-impact failures to reviewers, label them, and promote to datasets.</span>
-            </article>
-            <article class="panel span-4" data-reveal>
-              <div class="panel-meta">Experiments</div>
-              <img src="assets/2025-12-28%2000.09.48%20localhost%204cf407d6d4fb.png" alt="Athena experiment results with scoring summaries" loading="lazy">
-              <span>Run multi-scorer experiments and compare baselines with clarity.</span>
-            </article>
-            <article class="panel span-4" data-reveal>
-              <div class="panel-meta">Playground</div>
-              <img src="assets/2025-12-28%2000.10.24%20localhost%20114518c88116.png" alt="Athena playground for prompt and model experimentation" loading="lazy">
-              <span>Experiment with prompts, models, and parameters side-by-side.</span>
-            </article>
-          </div>
-        </section>
-
-        <section class="section" id="workflow">
-          <div class="section-head" data-reveal data-step="02 - WORKFLOW">
-            <div class="eyebrow">THE LOOP</div>
-            <h2>A single workflow from live data to trusted launches.</h2>
-            <p>Athena keeps production and development in sync, so every release is backed by evidence.</p>
-          </div>
-          <div class="workflow">
-            <div class="workflow-step" data-reveal>
-              <strong>Capture</strong>
-              <span>Proxy logs, traces, and spans across every provider.</span>
-            </div>
-            <div class="workflow-step" data-reveal>
-              <strong>Curate</strong>
-              <span>Review outputs, label failures, and build datasets fast.</span>
-            </div>
-            <div class="workflow-step" data-reveal>
-              <strong>Evaluate</strong>
-              <span>Run LLM judges, criteria checks, and tool correctness.</span>
-            </div>
-            <div class="workflow-step" data-reveal>
-              <strong>Ship</strong>
-              <span>Compare baselines, prove quality, and deploy confidently.</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <div class="section-head" data-reveal data-step="03 - CAPABILITIES">
-            <div class="eyebrow">CORE CAPABILITIES</div>
-            <h2>Infrastructure that makes quality obvious.</h2>
-            <p>Everything you need to operate AI in production and prove every release.</p>
-          </div>
-          <div class="feature-grid">
-            <article class="feature-card span-4" data-reveal>
-              <h3>Athena proxy</h3>
-              <p>Unified API, streaming SSE, fail-open resilience, and encrypted caching.</p>
-            </article>
-            <article class="feature-card span-4" data-reveal>
-              <h3>Observability</h3>
-              <p>Trace trees, span metrics, and shareable permalinks for every run.</p>
-            </article>
-            <article class="feature-card span-4" data-reveal>
-              <h3>Evaluation</h3>
-              <p>LLM judges, criteria checklists, and weighted scoring in one experiment.</p>
-            </article>
-            <article class="feature-card span-4" data-reveal>
-              <h3>MCP server</h3>
-              <p>IDE agents can query logs, infer schemas, and generate permalinks.</p>
-            </article>
-            <article class="feature-card span-4" data-reveal>
-              <h3>Playgrounds</h3>
-              <p>Compare prompts, models, and scorers with side-by-side runs.</p>
-            </article>
-            <article class="feature-card span-4" data-reveal>
-              <h3>Governance</h3>
-              <p>Org-level permissions, service tokens, and environment separation.</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="section" id="security">
-          <div class="security-callout" data-reveal data-step="04 - SECURITY">
-            <div class="security-text">
-              <div class="eyebrow">SECURITY</div>
-              <h2>Control plane speed, data plane privacy.</h2>
-              <p>
-                Keep sensitive logs inside your cloud with a first class data plane. Athena handles auth,
-                routing, and observability while your data stays where compliance expects.
-              </p>
-            </div>
-            <div class="security-list">
-              <div class="security-item">Org and object level access control, with scoped service tokens.</div>
-              <div class="security-item">Data plane deployment keeps raw telemetry in customer cloud.</div>
-              <div class="security-item">Attachments stored in your object store, with external support.</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="section" id="proof">
-          <div class="section-head" data-reveal data-step="05 - PROOF">
-            <div class="eyebrow">CAPABILITY PROOF</div>
-            <h2>Proof that comes from the platform itself.</h2>
-            <p>Capabilities you can verify in the product from day one.</p>
-          </div>
-          <div class="metrics">
-            <div class="metric" data-reveal>
-              <strong>&lt;30 min install</strong>
-              <p>SDK + proxy drop-in with a single client call.</p>
-            </div>
-            <div class="metric" data-reveal>
-              <strong>Hybrid: customer data plane</strong>
-              <p>Keep raw logs in your cloud while Athena runs the control plane.</p>
-            </div>
-            <div class="metric" data-reveal>
-              <strong>Trace trees + tool calls</strong>
-              <p>See nested spans, retries, and tool arguments in one view.</p>
-            </div>
-            <div class="metric" data-reveal>
-              <strong>LLM judge + criteria scoring</strong>
-              <p>Run semantic and checklist scoring side by side.</p>
-            </div>
-          </div>
-          <div class="early-access" data-reveal>
-            <strong>Design partner program</strong>
-            <p>We are onboarding a small set of teams for early access. References shared on request.</p>
-          </div>
-        </section>
-
-        <section class="section" id="demo">
-          <div class="cta" data-reveal>
-            <div class="eyebrow">READY TO MOVE FASTER</div>
-            <h2>Stop guessing. Start proving.</h2>
-            <p>Get a live walkthrough of Athena, custom to your stack. We will help you design the loop from raw logs to production ready evals.</p>
-            <div class="hero-actions" style="justify-content: center;">
-              <a class="button primary" href="mailto:hello@athena.dev">Book a walkthrough</a>
-              <a class="button secondary" href="mailto:hello@athena.dev">Ask for pricing</a>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer class="footer">Athena. Build, observe, and improve AI with confidence.</footer>
+        <div class="radar-viz">
+          <div class="radar-circle c1"></div>
+          <div class="radar-circle c2"></div>
+          <div class="radar-circle c3"></div>
+          <div class="radar-sweep"></div>
+          <div class="crosshair"></div>
+        </div>
+      </div>
     </div>
-    <script src="main.js"></script>
-  </body>
+
+    <!-- THE LOOP (Divider) -->
+    <div class="section-loop">
+      <div class="loop-track">
+        LOGS &rarr; DATASET &rarr; EXPERIMENT &rarr; LOGS &rarr; DATASET &rarr; EXPERIMENT &rarr; LOGS &rarr; DATASET
+        &rarr; EXPERIMENT &rarr; LOGS &rarr; DATASET
+      </div>
+      <div class="loop-sub">
+        <span>Capture real failures</span>
+        <span>&rarr;</span>
+        <span>curate examples</span>
+        <span>&rarr;</span>
+        <span>run evals</span>
+        <span>&rarr;</span>
+        <span>monitor drift</span>
+      </div>
+    </div>
+
+    <!-- FEATURES GRID -->
+    <div class="grid-container">
+      <!-- Proxy -->
+      <div class="feature-col">
+        <div class="tech-marker tm-tl"></div>
+        <div class="tech-marker tm-tr"></div>
+        <div class="tech-marker tm-bl"></div>
+        <div class="tech-marker tm-br"></div>
+
+        <div class="feature-head">
+          <span>01 // INFERENCE</span>
+          <div class="feature-icon-anim"></div>
+        </div>
+        <h3 class="feature-title">Universal <br>Proxy</h3>
+        <ul class="feature-list">
+          <li>One integration across all providers</li>
+          <li>Unified request/response + streaming (SSE)</li>
+          <li>Metrics capture (tokens, latency, cost)</li>
+          <li>Trace/span context propagation</li>
+          <li>Fail-open fallback mechanisms</li>
+          <li>Optional caching with explicit bypass</li>
+        </ul>
+      </div>
+
+      <!-- Observability -->
+      <div class="feature-col">
+        <div class="tech-marker tm-tl"></div>
+        <div class="tech-marker tm-tr"></div>
+        <div class="tech-marker tm-bl"></div>
+        <div class="tech-marker tm-br"></div>
+
+        <div class="feature-head">
+          <span>02 // SURVEILLANCE</span>
+          <div class="feature-icon-anim" style="animation-direction: reverse;"></div>
+        </div>
+        <h3 class="feature-title">Agent-Native <br>Observability</h3>
+        <ul class="feature-list">
+          <li>Logs table + trace view</li>
+          <li>Sessions and runs (stable timeline)</li>
+          <li>Graph debugging for runs (branches, retries)</li>
+          <li>Permalinks to exact bad runs for review</li>
+          <li>Full tool call introspection</li>
+        </ul>
+      </div>
+
+      <!-- Evaluation -->
+      <div class="feature-col">
+        <div class="tech-marker tm-tl"></div>
+        <div class="tech-marker tm-tr"></div>
+        <div class="tech-marker tm-bl"></div>
+        <div class="tech-marker tm-br"></div>
+
+        <div class="feature-head">
+          <span>03 // ANALYSIS</span>
+          <div class="feature-icon-anim" style="animation-duration: 5s;"></div>
+        </div>
+        <h3 class="feature-title">Semantic <br>Evaluation</h3>
+        <ul class="feature-list">
+          <li>LLM judge (auditable: prompt/model stored)</li>
+          <li>Criteria checklist scorer</li>
+          <li>Tool correctness scorer</li>
+          <li>Outcome/decision scorer</li>
+          <li>Deterministic checks (exact/regex)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- IDE & DATA -->
+    <div class="data-section">
+      <div class="data-content">
+        <div class="feature-head">04 // INTEGRATION</div>
+        <h2 style="font-family: var(--font-serif); font-size: 2.5rem; margin-top: 0; line-height: 1.1;">
+          Optimized for the <br>Agentic Workflow
+        </h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 48px;">
+          <div>
+            <h4
+              style="margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block;">
+              IDE Integration</h4>
+            <p style="font-size: 13px; line-height: 1.6;">
+              MCP server allows IDE agents to query Athena directly. Search docs, run AQL queries, and fetch experiment
+              summaries without leaving your editor.
+            </p>
+          </div>
+          <div>
+            <h4
+              style="margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block;">
+              Data Isolation</h4>
+            <p style="font-size: 13px; line-height: 1.6;">
+              Optional customer-owned data plane ensures raw telemetry never leaves your environment. You keep the logs;
+              we provide the intelligence.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="data-sidebar">
+        <div class="scan-line"></div>
+        <div class="secure-icon">
+          <div>
+            <div style="font-size: 48px;">&#9737;</div>
+            <div style="font-size: 10px; letter-spacing: 0.2em; margin-top: 16px;">SECURE PROTOCOL</div>
+            <div class="secure-status">ENCRYPTION ACTIVE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="page-footer">
+      <div style="margin-bottom: 32px;">
+        <div class="logo" style="justify-content: center; margin-bottom: 16px;">
+          <div class="logo-icon" style="border-bottom-width: 16px; border-bottom-color: var(--accent);"></div>
+        </div>
+        <h2 style="font-family: var(--font-serif); font-size: 2rem;">Ship faster without losing track of quality.</h2>
+      </div>
+
+      <a href="#" class="cta-btn">Book a Demo</a>
+
+      <div class="footer-meta">
+        <span>All research conducted under field spec: 2401-AD / FWD OPS</span>
+        <span>© 2025 Athena AI</span>
+      </div>
+    </footer>
+  </div>
+</body>
+
 </html>
