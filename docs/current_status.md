@@ -10,6 +10,9 @@ This file summarizes what is implemented in the current repo vs. the intended di
 - Hash-based router with primary pages: Dashboard, Agent Runs, Logs (with Trace detail), Review, Collaboration, Datasets, Experiments, Playgrounds, Settings (`frontend/src/App.tsx`, `frontend/src/design/layout/Layout.tsx`).
 - OwlWidget is mounted globally and appears on every screen (`frontend/src/App.tsx`, `frontend/src/design/components/OwlWidget.tsx`).
 
+### Testing
+- Playwright MVP customer-flow coverage using mocked API fixtures (dashboard charts, logs->trace collaboration/share/review/promote, review->dataset, experiments run/compare/share, collaboration lists) (`frontend/tests/mvp.customer-flow.spec.ts`, `frontend/tests/fixtures/mockApi.ts`, `frontend/tests/fixtures/seedStoryData.ts`).
+
 ### Auth (current state)
 - No end-user auth/RBAC yet; the backend seeds a default organization + project for local/dev flows (`backend/app/main.py`).
 
