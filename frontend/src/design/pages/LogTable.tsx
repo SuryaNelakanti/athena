@@ -1011,7 +1011,7 @@ const LogTable: React.FC<LogTableProps> = ({
 
                 {/* Cost */}
                 <div className="col-span-1 text-text-muted text-xs flex items-center justify-end tabular-nums">
-                  {log.cost !== undefined ? `$${log.cost.toFixed(6)}` : '-'}
+                  {log.cost !== undefined && log.cost !== null ? `$${log.cost.toFixed(6)}` : '-'}
                 </div>
 
                 {/* Status */}

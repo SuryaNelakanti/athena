@@ -131,9 +131,24 @@ class GeminiEnvoy(TitanEnvoy):
             )
 
     async def list_models(self) -> List[str]:
-        # Keep this static to avoid requiring network access at runtime.
-        return [
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-        ]
+        if not self._has_api_key:
+            return []
+        try:
+            # genai.list_models() is synchronous, returns generator of Model objects
+            models = []
+            for model in genai.list_models():
+                # Only include models that support generateContent
+                if 'generateContent' in (model.supported_generation_methods or []):
+                    # Model name format is "models/gemini-1.5-pro" - extract just the model ID
+                    model_id = model.name.replace('models/', '') if model.name.startswith('models/') else model.name
+                    models.append(model_id)
+            return models
+        except Exception as e:
+            print(f"Error fetching Gemini models: {e}")
+            # Fallback to known models if API fails
+            return [
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+            ]
+

@@ -158,9 +158,19 @@ class AnthropicEnvoy(TitanEnvoy):
                 )
     
     async def list_models(self) -> List[str]:
-        return [
-            "claude-3-5-sonnet-20240620",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307"
-        ]
+        try:
+            # Anthropic SDK has models.list() in newer versions
+            models_page = await self.client.models.list()
+            return [m.id for m in models_page.data]
+        except Exception as e:
+            print(f"Error fetching Anthropic models: {e}")
+            # Fallback to known models if API fails
+            return [
+                "claude-sonnet-4-20250514",
+                "claude-3-5-sonnet-20241022",
+                "claude-3-5-haiku-20241022",
+                "claude-3-opus-20240229",
+                "claude-3-sonnet-20240229",
+                "claude-3-haiku-20240307"
+            ]
+
