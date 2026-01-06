@@ -327,6 +327,12 @@ export const api = {
         return response.json();
     },
 
+    getLog: async (logId: string): Promise<Log> => {
+        const response = await fetch(`${API_BASE_URL}/logs/id/${logId}`);
+        if (!response.ok) throw new Error('Failed to fetch log');
+        return response.json();
+    },
+
     createLog: async (log: {
         project_id: string;
         level?: string;
@@ -867,6 +873,12 @@ export const api = {
     getExperimentVersions: async (experimentId: string): Promise<any[]> => {
         const response = await fetch(`${API_BASE_URL}/experiments/${experimentId}/versions`);
         if (!response.ok) throw new Error('Failed to fetch experiment versions');
+        return response.json();
+    },
+
+    getExperimentVersion: async (versionId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/experiments/versions/${versionId}`);
+        if (!response.ok) throw new Error('Failed to fetch experiment version');
         return response.json();
     },
 

@@ -14,10 +14,10 @@ This file summarizes what is implemented in the current repo vs. the intended di
 - No end-user auth/RBAC yet; the backend seeds a default organization + project for local/dev flows (`backend/app/main.py`).
 
 ### OwlWidget (in-app assistant)
-- Page-aware system prompt includes route + params + project context.
+- Page-aware context (route + params + project) is sent to the backend for system prompt construction.
 - Playbooks: AQL authoring, prompt optimization, scorer draft, dataset ideas, experiment summary, docs search.
-- Uses Proxy chat endpoint (`POST /v1/chat/completions`) and sets `trace_id` for correlation.
-- Uses `POST /owl/search-docs` for lightweight docs search across repo markdown.
+- Uses server-managed Owl chat endpoint (`POST /owl/chat`), which auto-selects a model based on configured provider keys and returns `trace_id`/`span_id` for correlation.
+- Uses `POST /owl/search-docs` for lightweight docs search across repo markdown; `GET /owl/available-model` reports active provider/model.
 
 ### Proxy (unified inference)
 - `POST /v1/chat/completions` supports streaming and returns trace context headers (`X-Athena-Trace-ID`, `X-Athena-Span-ID`), and accepts parent context (`X-Athena-Trace-ID`, `X-Athena-Parent-Span-ID`) (`backend/app/routers/proxy.py`).
@@ -48,13 +48,15 @@ This file summarizes what is implemented in the current repo vs. the intended di
 - Datasets: CRUD + versioned dataset rows (`backend/app/routers/datasets.py`).
 - Review queue: `review_item` model and API (`backend/app/models.py`, `backend/app/routers/reviews.py`).
 - Experiments: experiments, versions, runs, results (`backend/app/routers/experiments.py`).
+- Experiment result rows can generate share permalinks (`frontend/src/design/pages/ExperimentDetail.tsx`).
 - AQL: query endpoint exists (`backend/app/routers/aql.py`) and Dashboard includes monitor charts (`backend/app/routers/charts.py`, `frontend/src/design/pages/Dashboard.tsx`).
 
 ### Collaboration primitives (API-level)
 - Attachments, assignments, mentions, share links, views, environments routers exist (`backend/app/routers/*`).
+- Logs and traces generate share permalinks, resolved via the `/share-links` route (`frontend/src/design/pages/LogTable.tsx`, `frontend/src/design/pages/TraceDetail.tsx`, `frontend/src/App.tsx`).
 
 ### MCP server
-- MCP router exists in backend and local setup docs are present (`backend/app/routers/mcp.py`, `docs/mcp.md`, `docs/mcp-ide-setup.md`).
+- MCP router exists in backend and local setup docs are present, including smoke test steps (`backend/app/routers/mcp.py`, `docs/mcp.md`, `docs/mcp-ide-setup.md`).
 
 ---
 
@@ -62,7 +64,7 @@ This file summarizes what is implemented in the current repo vs. the intended di
 
 These are the biggest deltas between the additive wedge plan and the current codebase:
 
-- OwlWidget context only includes session/run IDs (via route params) and lacks session/run summaries or graph context.
+- OwlWidget context is sent as route params but still lacks session/run summaries or graph context.
 - Deep tool/RAG instrumentation: no formal tool-call schema validation or retrieval node/event type in the ingest pipeline.
 - Trajectory-aware evaluation: no session-level eval record and scorers for tool correctness/path efficiency (separate from experiment scoring).
 - Closed-loop automation: no rules engine, triggers/actions, or failure inbox produced by rules.
@@ -102,7 +104,7 @@ Goal: make Athena the best place to debug and improve agent runs by shipping (1)
    - `GET /sessions/{id}/timeline` (ordered events; deterministic pagination)
 3) UI:
    - Add “Agent Runs” list page and a “Run” detail view (link to existing Trace detail while graph UI is pending).
-   - Upgrade OwlWidget context to include `session_id` / `run_id` when present on session/run pages.
+   - Add session/run summaries to OwlWidget context (route params already included).
 4) Acceptance:
    - run groups (sessions) group multiple runs; run links to a trace/spans tree
    - timeline ordering rules documented and stable across pagination

@@ -62,6 +62,8 @@ const App: React.FC = () => {
   const [filters, setFilters] = useState<{ status?: string, search?: string }>({});
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   // Navigation Handler
   const navigate = (path: string, params?: Record<string, string | null | undefined>) => {
@@ -192,6 +194,126 @@ const App: React.FC = () => {
       });
   }, [routeParams, currentProject, selectedSession]);
 
+  useEffect(() => {
+    const logId = routeParams.get('log_id');
+    if (!logId || !currentProject) return;
+    if (selectedLog?.id === logId) return;
+    api.getLog(logId)
+      .then((log) => {
+        setSelectedLog(log);
+      })
+      .catch(err => console.error('Failed to fetch log:', err));
+  }, [routeParams, currentProject, selectedLog]);
+
+  useEffect(() => {
+    if (!currentPath.startsWith('/share-links')) {
+      setShareError(null);
+      setShareLoading(false);
+      return;
+    }
+
+    const parts = currentPath.split('/').filter(Boolean);
+    const tokenFromPath = parts[1] || null;
+    const tokenFromQuery = routeParams.get('token');
+    const token = tokenFromPath || tokenFromQuery;
+    if (!token) {
+      setShareError('Missing share token.');
+      return;
+    }
+    setShareLoading(true);
+    setShareError(null);
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) {
+        setShareError('Timed out resolving share link.');
+        setShareLoading(false);
+      }
+    }, 8000);
+
+    const resolveShareLink = async () => {
+      try {
+        const link = await api.getShareLink(token);
+        if (cancelled) return;
+
+        if (link.project_id && projects.length > 0) {
+          const match = projects.find((p) => p.id === link.project_id);
+          if (match && currentProject?.id !== match.id) {
+            setCurrentProject(match);
+          }
+        }
+
+        if (link.object_type === 'trace') {
+          navigate('/logs', { trace_id: link.object_id });
+          return;
+        }
+        if (link.object_type === 'log') {
+          navigate('/logs', { log_id: link.object_id });
+          return;
+        }
+        if (link.object_type === 'dataset') {
+          navigate('/datasets', { dataset_id: link.object_id });
+          return;
+        }
+        if (link.object_type === 'experiment') {
+          navigate('/experiments', { experiment_id: link.object_id });
+          return;
+        }
+        if (link.object_type === 'experiment_run') {
+          navigate('/experiments', {
+            experiment_run_id: link.object_id,
+            experiment_result_id: routeParams.get('experiment_result_id') || undefined,
+          });
+          return;
+        }
+
+        setShareError('Unsupported share link type.');
+      } catch (err: any) {
+        if (!cancelled) {
+          setShareError(err?.message || 'Failed to resolve share link.');
+        }
+      } finally {
+        if (!cancelled) setShareLoading(false);
+      }
+    };
+
+    resolveShareLink();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentPath, routeParams, projects, currentProject]);
+
+  useEffect(() => {
+    const runId = routeParams.get('experiment_run_id');
+    const experimentId = routeParams.get('experiment_id');
+    if (!runId || experimentId) return;
+
+    let cancelled = false;
+    const resultId = routeParams.get('experiment_result_id') || undefined;
+
+    const resolveExperimentRun = async () => {
+      try {
+        const run = await api.getExperimentRun(runId);
+        const version = await api.getExperimentVersion(run.experiment_version_id);
+        if (cancelled) return;
+        navigate('/experiments', {
+          experiment_id: version.experiment_id,
+          experiment_run_id: run.id,
+          experiment_version_id: run.experiment_version_id,
+          experiment_result_id: resultId,
+        });
+      } catch (err) {
+        console.error('Failed to resolve experiment run:', err);
+      }
+    };
+
+    resolveExperimentRun();
+    return () => {
+      cancelled = true;
+    };
+  }, [routeParams]);
+
   // Derived View State
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
   const showDetail = !!selectedTraceId;
@@ -205,6 +327,24 @@ const App: React.FC = () => {
 
     if (currentPath === '/') {
       return <Dashboard projectId={currentProject?.id || ''} />;
+    }
+    if (currentPath.startsWith('/share-links')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-app text-text-main">
+          <Card className="max-w-md w-full mx-4 p-6 text-center shadow-lg animate-soft-in">
+            <div className="text-xs uppercase tracking-widest text-text-muted font-bold mb-2">
+              Share Link
+            </div>
+            {shareLoading ? (
+              <p className="text-text-muted">Resolving share link...</p>
+            ) : shareError ? (
+              <p className="text-rose-500 text-sm">{shareError}</p>
+            ) : (
+              <p className="text-text-muted">Resolving share link...</p>
+            )}
+          </Card>
+        </div>
+      );
     }
     if (currentPath === '/labs' || currentPath === '/playgrounds') {
       return <Labs projectId={currentProject?.id || ''} />;
@@ -300,7 +440,15 @@ const App: React.FC = () => {
     }
     if (currentPath === '/experiments') {
       if (selectedExperiment) {
-        return <ExperimentDetail experiment={selectedExperiment} onBack={() => navigate('/experiments')} />;
+        return (
+          <ExperimentDetail
+            experiment={selectedExperiment}
+            initialRunId={routeParams.get('experiment_run_id')}
+            initialResultId={routeParams.get('experiment_result_id')}
+            initialVersionId={routeParams.get('experiment_version_id')}
+            onBack={() => navigate('/experiments')}
+          />
+        );
       }
       return (
         <ExperimentList

@@ -186,7 +186,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
     const [collabError, setCollabError] = useState<string | null>(null);
     const [collabMessage, setCollabMessage] = useState<string | null>(null);
     const [collabBusy, setCollabBusy] = useState(false);
-    const [shareToken, setShareToken] = useState<string | null>(null);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
 
     useEffect(() => {
         api.getDatasets(trace.project_id).then(setDatasets).catch(console.error);
@@ -395,7 +395,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
         setShareExpiry('');
         setCollabError(null);
         setCollabMessage(null);
-        setShareToken(null);
+        setShareUrl(null);
     };
 
     const closeCollab = () => {
@@ -403,7 +403,12 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
         setCollabError(null);
         setCollabMessage(null);
         setCollabBusy(false);
-        setShareToken(null);
+        setShareUrl(null);
+    };
+
+    const buildShareUrl = (token: string) => {
+        const base = `${window.location.origin}${window.location.pathname}`;
+        return `${base}#/share-links/${token}`;
     };
 
     const handleCollabSubmit = async () => {
@@ -448,7 +453,7 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
                     object_id: trace.id,
                     expires_at: expiresAt,
                 });
-                setShareToken(created.token);
+                setShareUrl(buildShareUrl(created.token));
                 setCollabMessage('Share link created.');
             }
         } catch (e: any) {
@@ -458,10 +463,10 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
         }
     };
 
-    const copyShareToken = async () => {
-        if (!shareToken || !navigator.clipboard) return;
-        await navigator.clipboard.writeText(shareToken);
-        setCollabMessage('Share token copied.');
+    const copyShareUrl = async () => {
+        if (!shareUrl || !navigator.clipboard) return;
+        await navigator.clipboard.writeText(shareUrl);
+        setCollabMessage('Share link copied.');
     };
 
     useEffect(() => {
@@ -1086,10 +1091,10 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
                                     className="mt-1"
                                 />
                             </div>
-                            {shareToken && (
+                            {shareUrl && (
                                 <div className="flex items-center justify-between rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-main">
-                                    <span className="font-mono">{shareToken}</span>
-                                    <Button size="sm" variant="ghost" onClick={copyShareToken}>
+                                    <span className="font-mono truncate max-w-[220px]">{shareUrl}</span>
+                                    <Button size="sm" variant="ghost" onClick={copyShareUrl}>
                                         Copy
                                     </Button>
                                 </div>

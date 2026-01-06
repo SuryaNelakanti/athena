@@ -125,6 +125,17 @@ async def list_versions(
     return await service.list_versions(experiment_id)
 
 
+@router.get("/versions/{version_id}", response_model=ExperimentVersionModel)
+async def get_version(
+    version_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    version = await session.get(ExperimentVersionModel, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return version
+
+
 @router.post("/{experiment_id}/versions", response_model=ExperimentVersionModel)
 async def create_version(
     experiment_id: str,

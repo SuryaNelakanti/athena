@@ -14,6 +14,38 @@ from app.services.trace_service import TraceService
 router = APIRouter(tags=["traces"])
 
 
+def _normalize_span_metrics(raw: Optional[Dict[str, Any]]) -> SpanMetrics:
+    data = dict(raw or {})
+    if data.get("latency_ms") is None:
+        data["latency_ms"] = 0.0
+    return SpanMetrics(**data)
+
+
+def _normalize_span_attributes(raw: Optional[Dict[str, Any]]) -> SpanAttributes:
+    if isinstance(raw, dict):
+        return SpanAttributes(**raw)
+    return SpanAttributes(**{})
+
+
+def _to_span_pydantic(sm: SpanModel) -> Span:
+    return Span(
+        id=sm.id,
+        trace_id=sm.trace_id,
+        parent_id=sm.parent_id,
+        name=sm.name,
+        type=sm.type,
+        start_time=sm.start_time,
+        end_time=sm.end_time,
+        status=sm.status,
+        input=sm.input or {},
+        output=sm.output or {},
+        metrics=_normalize_span_metrics(sm.metrics),
+        attributes=_normalize_span_attributes(sm.attributes),
+        tags=sm.tags or [],
+        error_message=sm.error_message,
+    )
+
+
 @router.get("/projects/{project_id}/traces", response_model=List[Trace])
 async def get_project_traces(
     project_id: str,
@@ -63,25 +95,7 @@ async def get_project_traces(
     for tm in trace_models:
         spans = spans_by_trace.get(tm.id, [])
 
-        def to_span_pydantic(sm: SpanModel) -> Span:
-            return Span(
-                id=sm.id,
-                trace_id=sm.trace_id,
-                parent_id=sm.parent_id,
-                name=sm.name,
-                type=sm.type,
-                start_time=sm.start_time,
-                end_time=sm.end_time,
-                status=sm.status,
-                input=sm.input,
-                output=sm.output,
-                metrics=SpanMetrics(**sm.metrics),
-                attributes=SpanAttributes(**sm.attributes),
-                tags=sm.tags or [],
-                error_message=sm.error_message,
-            )
-
-        converted_spans = [to_span_pydantic(s) for s in spans]
+        converted_spans = [_to_span_pydantic(s) for s in spans]
         root_span = next((s for s in converted_spans if not s.parent_id), None)
 
         if root_span:
@@ -126,25 +140,7 @@ async def get_trace(
     if not spans:
         raise HTTPException(status_code=404, detail="Trace has no spans")
 
-    def to_span_pydantic(sm: SpanModel) -> Span:
-        return Span(
-            id=sm.id,
-            trace_id=sm.trace_id,
-            parent_id=sm.parent_id,
-            name=sm.name,
-            type=sm.type,
-            start_time=sm.start_time,
-            end_time=sm.end_time,
-            status=sm.status,
-            input=sm.input,
-            output=sm.output,
-            metrics=SpanMetrics(**sm.metrics),
-            attributes=SpanAttributes(**sm.attributes),
-            tags=sm.tags or [],
-            error_message=sm.error_message,
-        )
-
-    converted_spans = [to_span_pydantic(s) for s in spans]
+    converted_spans = [_to_span_pydantic(s) for s in spans]
     root_span = next((s for s in converted_spans if not s.parent_id), None)
     if not root_span:
         raise HTTPException(status_code=404, detail="Trace root span not found")

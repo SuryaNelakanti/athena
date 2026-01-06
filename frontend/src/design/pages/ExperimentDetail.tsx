@@ -4,13 +4,16 @@ import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, Mode
 import {
   ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon,
   BeakerIcon, ChevronDownIcon, ChevronRightIcon,
-  CheckCircleIcon, XCircleIcon, ClockIcon
+  CheckCircleIcon, XCircleIcon, ClockIcon, LinkIcon
 } from '@heroicons/react/24/outline';
 import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../ui';
 import { PageHeader } from '../layout/PageHeader';
 
 interface ExperimentDetailProps {
   experiment: Experiment;
+  initialRunId?: string | null;
+  initialResultId?: string | null;
+  initialVersionId?: string | null;
   onBack: () => void;
 }
 
@@ -31,7 +34,13 @@ function getDefaultScorerDescription(name: string): string {
   return descriptions[name] || 'Evaluates the AI output.';
 }
 
-const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack }) => {
+const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
+  experiment,
+  initialRunId,
+  initialResultId,
+  initialVersionId,
+  onBack
+}) => {
   const [exp, setExp] = useState<Experiment>(experiment);
   const [models, setModels] = useState<ModelRegistry[]>([]);
   const [scorers, setScorers] = useState<Function[]>([]);
@@ -43,6 +52,9 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [results, setResults] = useState<ExperimentRunResult[]>([]);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+  const [appliedInitialVersionId, setAppliedInitialVersionId] = useState<string | null>(null);
+  const [appliedInitialRunId, setAppliedInitialRunId] = useState<string | null>(null);
+  const [appliedInitialResultId, setAppliedInitialResultId] = useState<string | null>(null);
   const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
   const [compareCandidateId, setCompareCandidateId] = useState<string | null>(null);
   const [compareResult, setCompareResult] = useState<any | null>(null);
@@ -53,6 +65,12 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
   const [compareCandidateVersionId, setCompareCandidateVersionId] = useState<string | null>(null);
   const [baselineRuns, setBaselineRuns] = useState<ExperimentRun[]>([]);
   const [candidateRuns, setCandidateRuns] = useState<ExperimentRun[]>([]);
+
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +131,14 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     refreshAll();
   }, [exp.id]);
 
+  useEffect(() => {
+    if (!initialVersionId || versions.length === 0) return;
+    if (appliedInitialVersionId === initialVersionId) return;
+    if (!versions.some((v) => v.id === initialVersionId)) return;
+    setSelectedVersionId(initialVersionId);
+    setAppliedInitialVersionId(initialVersionId);
+  }, [initialVersionId, versions, appliedInitialVersionId]);
+
   const refreshRuns = async (versionId: string) => {
     const data = await api.getVersionRuns(exp.id, versionId);
     setRuns(data);
@@ -130,6 +156,14 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
       .catch((e: any) => setError(e?.message || 'Failed to load runs'))
       .finally(() => setLoading(false));
   }, [selectedVersionId]);
+
+  useEffect(() => {
+    if (!initialRunId || runs.length === 0) return;
+    if (appliedInitialRunId === initialRunId) return;
+    if (!runs.some((run) => run.id === initialRunId)) return;
+    setSelectedRunId(initialRunId);
+    setAppliedInitialRunId(initialRunId);
+  }, [initialRunId, runs, appliedInitialRunId]);
 
   useEffect(() => {
     setCompareResult(null);
@@ -192,6 +226,14 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
       .catch((e: any) => setError(e?.message || 'Failed to load results'))
       .finally(() => setLoading(false));
   }, [selectedRunId]);
+
+  useEffect(() => {
+    if (!initialResultId || results.length === 0) return;
+    if (appliedInitialResultId === initialResultId) return;
+    if (!results.some((result) => result.id === initialResultId)) return;
+    setExpandedResultId(initialResultId);
+    setAppliedInitialResultId(initialResultId);
+  }, [initialResultId, results, appliedInitialResultId]);
 
   // Polling for running experiments
   useEffect(() => {
@@ -294,6 +336,39 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
     } finally {
       setCompareLoading(false);
     }
+  };
+
+  const buildShareUrl = (token: string, resultId: string) => {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}#/share-links/${token}?experiment_result_id=${encodeURIComponent(resultId)}`;
+  };
+
+  const openShareModal = async (resultId: string) => {
+    if (!selectedRunId) return;
+    setShareModalOpen(true);
+    setShareLoading(true);
+    setShareError(null);
+    setShareUrl(null);
+    setShareCopied(false);
+    try {
+      const created = await api.createShareLink({
+        project_id: exp.project_id,
+        object_type: 'experiment_run',
+        object_id: selectedRunId,
+      });
+      const url = buildShareUrl(created.token, resultId);
+      setShareUrl(url);
+    } catch (e: any) {
+      setShareError(e?.message || 'Failed to create share link');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!shareUrl || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
   };
 
   // Helper to extract text from input/expected
@@ -770,6 +845,19 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
                       {/* Expanded Comparison View */}
                       {isExpanded && (
                         <div className="px-5 pb-5 pt-2 border-t border-border-base/50">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">
+                              Result Details
+                            </div>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openShareModal(res.id)}
+                            >
+                              <LinkIcon className="w-4 h-4" />
+                              Share result
+                            </Button>
+                          </div>
                           {/* All Scores */}
                           <div className="flex gap-3 mb-4">
                             <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(exactMatch)}`}>
@@ -838,6 +926,39 @@ const ExperimentDetail: React.FC<ExperimentDetailProps> = ({ experiment, onBack 
           </div>
         </div>
       </div>
+
+      <Modal
+        open={shareModalOpen}
+        title="Share Result"
+        description="Create a permalink to this experiment result."
+        onClose={() => setShareModalOpen(false)}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShareModalOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={copyShareUrl}
+              disabled={!shareUrl || shareLoading}
+            >
+              {shareCopied ? 'Copied' : 'Copy link'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {shareLoading && <p className="text-text-muted text-sm">Creating share link...</p>}
+          {shareError && <p className="text-rose-500 text-sm">{shareError}</p>}
+          {shareUrl && (
+            <div>
+              <label className="block text-[11px] font-medium text-text-muted mb-2">Permalink</label>
+              <Input value={shareUrl} readOnly />
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Create Version Modal */}
       <Modal

@@ -71,3 +71,14 @@ Example MCP server entry:
 
 If your client supports HTTP MCP directly, you can skip the bridge and configure
 the base URL/token in its UI.
+
+## Smoke test
+Use these quick checks after connecting an IDE client.
+1) Call `search_docs` with a query like "AQL" and confirm results are returned.
+2) Call `list_recent_objects` with your `project_id` and confirm objects list.
+3) Call `infer_schema` with a dataset id or a small AQL query.
+4) Call `aql_query` with a simple query (example below) and confirm rows.
+5) Call `generate_permalink` for a known trace/log id to verify share link creation.
+
+Example AQL:
+`from project_logs(project_id="<PROJECT_ID>") select timestamp, total_tokens limit 5`

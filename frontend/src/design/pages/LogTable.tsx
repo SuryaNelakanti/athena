@@ -190,9 +190,9 @@ const LogTable: React.FC<LogTableProps> = ({
   const [collabNote, setCollabNote] = useState('');
   const [shareExpiry, setShareExpiry] = useState('');
   const [collabError, setCollabError] = useState<string | null>(null);
-  const [collabMessage, setCollabMessage] = useState<string | null>(null);
+  const [collabMessage, setCollabMessage] = useState<string | null>(null);      
   const [collabBusy, setCollabBusy] = useState(false);
-  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   const [newFilter, setNewFilter] = useState({
     field: FILTER_FIELDS[0],
@@ -232,6 +232,24 @@ const LogTable: React.FC<LogTableProps> = ({
     if (!projectId) return;
     loadLogs();
   }, [projectId, filters]);
+
+  useEffect(() => {
+    if (!projectId || !selectedLogId) return;
+    if (logs.some((log) => log.id === selectedLogId)) return;
+    let cancelled = false;
+    api.getLog(selectedLogId)
+      .then((log) => {
+        if (cancelled) return;
+        setLogs((prev) => (prev.some((item) => item.id === log.id) ? prev : [log, ...prev]));
+        if (log.trace_id && onOpenTrace) {
+          onOpenTrace(log.trace_id);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, selectedLogId, logs]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -542,7 +560,7 @@ const LogTable: React.FC<LogTableProps> = ({
     setCollabMention('');
     setCollabNote('');
     setShareExpiry('');
-    setShareToken(null);
+    setShareUrl(null);
     setCollabError(null);
     setCollabMessage(null);
   };
@@ -552,7 +570,12 @@ const LogTable: React.FC<LogTableProps> = ({
     setCollabError(null);
     setCollabMessage(null);
     setCollabBusy(false);
-    setShareToken(null);
+    setShareUrl(null);
+  };
+
+  const buildShareUrl = (token: string) => {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}#/share-links/${token}`;
   };
 
   const handleCollabSubmit = async () => {
@@ -597,7 +620,7 @@ const LogTable: React.FC<LogTableProps> = ({
           object_id: collabAction.objectId,
           expires_at: expiresAt,
         });
-        setShareToken(created.token);
+        setShareUrl(buildShareUrl(created.token));
         setCollabMessage('Share link created.');
       }
     } catch (e: any) {
@@ -615,10 +638,10 @@ const LogTable: React.FC<LogTableProps> = ({
     });
   };
 
-  const copyShareToken = async () => {
-    if (!shareToken || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(shareToken);
-    setCollabMessage('Share token copied.');
+  const copyShareUrl = async () => {
+    if (!shareUrl || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCollabMessage('Share link copied.');
   };
 
   const formatTime = (ms: number) => {
@@ -1140,10 +1163,10 @@ const LogTable: React.FC<LogTableProps> = ({
                   className="mt-1"
                 />
               </div>
-              {shareToken && (
+              {shareUrl && (
                 <div className="flex items-center justify-between rounded-md border border-border-base bg-app px-3 py-2 text-xs text-text-main">
-                  <span className="font-mono">{shareToken}</span>
-                  <Button size="sm" variant="ghost" onClick={copyShareToken}>
+                  <span className="font-mono truncate max-w-[220px]">{shareUrl}</span>
+                  <Button size="sm" variant="ghost" onClick={copyShareUrl}>
                     Copy
                   </Button>
                 </div>
