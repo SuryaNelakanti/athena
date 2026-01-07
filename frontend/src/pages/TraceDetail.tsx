@@ -540,17 +540,17 @@ const TraceDetail: React.FC<TraceDetailProps> = ({ trace, onClose, onOpenTrace }
 
                             <div className="flex bg-panel rounded-lg p-1 border border-border-base mr-2">
                                 <Tooltip content="Assign">
-                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('assignment')}>
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('assignment')} aria-label="Assign">
                                         <UserPlusIcon className="w-4 h-4" />
                                     </IconButton>
                                 </Tooltip>
                                 <Tooltip content="Mention">
-                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('mention')}>
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('mention')} aria-label="Mention">
                                         <AtSymbolIcon className="w-4 h-4" />
                                     </IconButton>
                                 </Tooltip>
                                 <Tooltip content="Share">
-                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('share')}>
+                                    <IconButton variant="ghost" size="sm" onClick={() => openCollab('share')} aria-label="Share">
                                         <LinkIcon className="w-4 h-4" />
                                     </IconButton>
                                 </Tooltip>
