@@ -16,6 +16,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
     stream: Optional[bool] = False
+    stream_options: Optional[Dict[str, Any]] = None
     stop: Optional[Union[str, List[str]]] = None
     max_tokens: Optional[int] = None
     presence_penalty: Optional[float] = 0.0
@@ -58,6 +59,7 @@ class ChatCompletionResponse(BaseModel):
     # Trace Context (returned to client for correlation)
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+    log_id: Optional[str] = None
     
     # Reasoning Normalization: Separate channel for model reasoning/thinking
     athena_reasoning: Optional[str] = None
@@ -91,9 +93,12 @@ class ChatCompletionChunk(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
     choices: List[ChatCompletionChunkChoice]
+    # OpenAI-compatible providers may report usage on the final stream chunk.
+    usage: Optional[Usage] = None
     # Athena Extensions
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+    log_id: Optional[str] = None
     
 class ModelCard(BaseModel):
     id: str

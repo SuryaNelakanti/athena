@@ -153,6 +153,7 @@ class ProxyService:
             parent_span_id,
         )
         span_id = str(uuid.uuid4())
+        log_id = f"log_{uuid.uuid4().hex[:16]}"
         start_time = int(time.time() * 1000)
         
         # If no trace exists yet (root request), create it? 
@@ -284,7 +285,7 @@ class ProxyService:
                      trace.status = "success"
 
                  log = LogModel(
-                     id=f"log_{uuid.uuid4().hex[:16]}",
+                     id=log_id,
                      project_id=project_id,
                      trace_id=trace_id,
                      span_id=span_id,
@@ -304,6 +305,7 @@ class ProxyService:
                          "cache_hit": True,
                          "cache_encrypted": bool(cache_key_bytes),
                          "has_reasoning": bool(response.athena_reasoning),
+                         "response_id": response.id,
                      },
                      log_metadata={},
                      created_at=end_time,
@@ -325,6 +327,7 @@ class ProxyService:
 
                  response.trace_id = trace_id
                  response.span_id = span_id
+                 response.log_id = log_id
                  return response
 
              response = await envoy.chat_completion(request)
@@ -370,7 +373,7 @@ class ProxyService:
              
              # Create canonical log row for this proxy call
              log = LogModel(
-                 id=f"log_{uuid.uuid4().hex[:16]}",
+                 id=log_id,
                  project_id=project_id,
                  trace_id=trace_id,
                  span_id=span_id,
@@ -386,7 +389,11 @@ class ProxyService:
                  cost=cost,
                  model=request.model,
                  provider=provider_name,
-                 attributes={"has_reasoning": bool(response.athena_reasoning)},
+                 attributes={
+                     "cache_hit": False,
+                     "has_reasoning": bool(response.athena_reasoning),
+                     "response_id": response.id,
+                 },
                  log_metadata={},
                  created_at=end_time,
              )
@@ -404,11 +411,14 @@ class ProxyService:
                  await job_service.create_job(kind="log_score", ref_id=log.id, payload={"source": "proxy"})
              except Exception:
                  pass
-             
-                 if not bypass_cache:
-                     cached_payload = response.model_dump(exclude_none=True)
-                     cached_payload.pop("trace_id", None)
-                     cached_payload.pop("span_id", None)
+
+             # Cache persistence is independent of best-effort online scoring.
+             if not bypass_cache:
+                 cached_payload = response.model_dump(exclude_none=True)
+                 cached_payload.pop("trace_id", None)
+                 cached_payload.pop("span_id", None)
+                 cached_payload.pop("log_id", None)
+                 try:
                      await cache.set(
                          model=request.model,
                          messages=normalized_messages,
@@ -416,10 +426,15 @@ class ProxyService:
                          encryption_key=cache_key_bytes,
                          **cache_kwargs,
                      )
+                 except Exception:
+                     # Observability and caching must never turn a successful
+                     # provider response into a failed inference request.
+                     pass
 
              # Return response with trace context for client correlation
              response.trace_id = trace_id
              response.span_id = span_id
+             response.log_id = log_id
              return response
 
              
@@ -436,7 +451,7 @@ class ProxyService:
             
             # Create error log row
             log = LogModel(
-                id=f"log_{uuid.uuid4().hex[:16]}",
+                id=log_id,
                 project_id=project_id,
                 trace_id=trace_id,
                 span_id=span_id,
@@ -468,7 +483,7 @@ class ProxyService:
         request: ChatCompletionRequest,
         project_id: str = "default",
         parent_span_id: Optional[str] = None,
-    ) -> tuple[AsyncGenerator[str, None], str, str]:
+    ) -> tuple[AsyncGenerator[str, None], str, str, str]:
         # Persist a trace/span for streaming runs and aggregate final output.
         provider_name = self._resolve_provider(request)
         envoy = get_envoy(provider_name, self._provider_config(provider_name))
@@ -478,6 +493,7 @@ class ProxyService:
             parent_span_id,
         )
         span_id = str(uuid.uuid4())
+        log_id = f"log_{uuid.uuid4().hex[:16]}"
         start_time = int(time.time() * 1000)
 
         trace = existing_trace
@@ -535,6 +551,7 @@ class ProxyService:
             aggregated_content = ""
             aggregated_reasoning = ""
             stream_response_id: Optional[str] = None
+            stream_usage = None
 
             try:
                 async for chunk in envoy.stream_chat_completion(request):
@@ -548,8 +565,12 @@ class ProxyService:
                             if choice.delta and choice.delta.reasoning_content:
                                 aggregated_reasoning += choice.delta.reasoning_content
 
+                    if chunk.usage is not None:
+                        stream_usage = chunk.usage
+
                     chunk.trace_id = trace_id
                     chunk.span_id = span_id
+                    chunk.log_id = log_id
                     yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 
                 end_time = int(time.time() * 1000)
@@ -557,7 +578,18 @@ class ProxyService:
 
                 span.end_time = end_time
                 span.status = "success"
-                span.metrics = {"latency_ms": latency_ms}
+                cost = self._estimate_cost(stream_usage)
+                if stream_usage and cost is not None:
+                    stream_usage.cost = cost
+                span.metrics = {
+                    "latency_ms": latency_ms,
+                    **({
+                        "prompt_tokens": stream_usage.prompt_tokens,
+                        "completion_tokens": stream_usage.completion_tokens,
+                        "total_tokens": stream_usage.total_tokens,
+                    } if stream_usage else {}),
+                    **({"cost": cost} if cost is not None else {}),
+                }
 
                 # Store an aggregated "final" output snapshot for UI/debugging.
                 span.output = {
@@ -572,21 +604,27 @@ class ProxyService:
                             "finish_reason": "stop",
                         }
                     ],
-                    "usage": None,
+                    "usage": stream_usage.model_dump(exclude_none=True) if stream_usage else None,
                     "provider": provider_name,
                     **({"athena_reasoning": aggregated_reasoning} if aggregated_reasoning else {}),
                 }
 
                 if aggregated_reasoning:
-                    span.attributes = {**(span.attributes or {}), "reasoning_enabled": True}
+                    span.attributes = {
+                        **(span.attributes or {}),
+                        "reasoning_enabled": True,
+                        "reasoning_content": aggregated_reasoning,
+                    }
 
                 if not existing_trace:
                     trace.total_latency = latency_ms
+                    trace.total_tokens = stream_usage.total_tokens if stream_usage else 0
+                    trace.total_cost = cost or 0.0
                     trace.status = "success"
 
                 # Create canonical log row for streaming call
                 log = LogModel(
-                    id=f"log_{uuid.uuid4().hex[:16]}",
+                    id=log_id,
                     project_id=project_id,
                     trace_id=trace_id,
                     span_id=span_id,
@@ -596,9 +634,17 @@ class ProxyService:
                     message=f"LLM stream call to {request.model}",
                     timestamp=start_time,
                     latency_ms=latency_ms,
+                    prompt_tokens=stream_usage.prompt_tokens if stream_usage else None,
+                    completion_tokens=stream_usage.completion_tokens if stream_usage else None,
+                    total_tokens=stream_usage.total_tokens if stream_usage else None,
+                    cost=cost,
                     model=request.model,
                     provider=provider_name,
-                    attributes={"streaming": True},
+                    attributes={
+                        "streaming": True,
+                        "has_reasoning": bool(aggregated_reasoning),
+                        "response_id": stream_response_id,
+                    },
                     log_metadata={},
                     created_at=end_time,
                 )
@@ -633,7 +679,7 @@ class ProxyService:
 
                 # Create error log row for streaming
                 log = LogModel(
-                    id=f"log_{uuid.uuid4().hex[:16]}",
+                    id=log_id,
                     project_id=project_id,
                     trace_id=trace_id,
                     span_id=span_id,
@@ -659,7 +705,7 @@ class ProxyService:
                     await self.session.commit()
                 raise e
 
-        return event_stream(), trace_id, span_id
+        return event_stream(), trace_id, span_id, log_id
 
     async def list_models(self) -> List[ModelCard]:
         """
