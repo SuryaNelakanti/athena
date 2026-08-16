@@ -39,7 +39,7 @@ async def chat_completions(
         if request.stream:
             # For streaming, headers are sent with the SSE response
             # The trace context will be in the first chunk or aggregated output
-            stream, trace_id, span_id = await service.stream_chat_completion(
+            stream, trace_id, span_id, log_id = await service.stream_chat_completion(
                 request,
                 project_id,
                 parent_span_id=request.parent_span_id,
@@ -50,6 +50,7 @@ async def chat_completions(
                 headers["X-Athena-Trace-ID"] = trace_id
             if span_id:
                 headers["X-Athena-Span-ID"] = span_id
+            headers["X-Athena-Log-ID"] = log_id
 
             return StreamingResponse(
                 stream,
@@ -71,6 +72,8 @@ async def chat_completions(
                 headers["X-Athena-Trace-ID"] = response.trace_id
             if response.span_id:
                 headers["X-Athena-Span-ID"] = response.span_id
+            if response.log_id:
+                headers["X-Athena-Log-ID"] = response.log_id
             
             return JSONResponse(
                 content=response.model_dump(exclude_none=True),
@@ -111,4 +114,3 @@ async def toggle_cache(enabled: bool = True):
     else:
         cache.disable()
     return {"status": "success", "enabled": cache.enabled}
-

@@ -88,6 +88,9 @@ class OpenAIEnvoy(TitanEnvoy):
             "top_p": request.top_p,
             "n": request.n,
             "stream": True,
+            # Request a final usage chunk by default so proxy logs have the same
+            # token/cost fidelity as non-streaming calls. Callers can override it.
+            "stream_options": request.stream_options or {"include_usage": True},
             "stop": request.stop,
             "max_tokens": request.max_tokens,
             "presence_penalty": request.presence_penalty,
@@ -123,6 +126,15 @@ class OpenAIEnvoy(TitanEnvoy):
                 model=chunk.model,
                 created=chunk.created,
                 choices=choices,
+                usage=(
+                    Usage(
+                        prompt_tokens=chunk.usage.prompt_tokens,
+                        completion_tokens=chunk.usage.completion_tokens,
+                        total_tokens=chunk.usage.total_tokens,
+                    )
+                    if chunk.usage is not None
+                    else None
+                ),
             )
     
     async def list_models(self) -> List[str]:

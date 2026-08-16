@@ -91,6 +91,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Athena-Trace-ID", "X-Athena-Span-ID", "X-Athena-Log-ID"],
 )
 
 # Include Routers
@@ -127,4 +128,3 @@ app.include_router(sessions_router.router)
 @app.get("/")
 async def read_root():
     return {"message": "Athena API is running with SQLite persistence (Async)"}
-

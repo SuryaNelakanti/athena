@@ -63,6 +63,11 @@ This file summarizes what is implemented in the current repo vs. the intended di
 
 ---
 
+### Proxy-to-Logs production telemetry
+- Proxy responses now expose stable log correlation alongside trace/span context in JSON, SSE chunks, and browser-readable `X-Athena-*` headers.
+- Streaming OpenAI calls request and normalize the provider's final usage chunk, then persist token and estimated-cost metrics on the log, span, and trace.
+- Stream reasoning is retained separately from visible content, and successful non-streaming responses are cached independently of best-effort scoring job creation.
+
 ## What is missing (agent-native wedge gaps)
 
 These are the biggest deltas between the additive wedge plan and the current codebase:

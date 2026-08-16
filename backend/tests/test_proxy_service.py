@@ -6,7 +6,16 @@ Uses mocking to avoid real DB and API calls.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.services.proxy_service import ProxyService
-from app.schemas.proxy import ChatCompletionRequest, ChatMessage, ChatCompletionResponse, Usage, ChatCompletionChoice
+from app.schemas.proxy import (
+    ChatCompletionChunk,
+    ChatCompletionChunkChoice,
+    ChatCompletionChunkDelta,
+    ChatCompletionRequest,
+    ChatMessage,
+    ChatCompletionResponse,
+    Usage,
+    ChatCompletionChoice,
+)
 
 
 class TestProxyServiceProviderResolution:
@@ -110,6 +119,77 @@ class TestProxyServiceChatCompletion:
             
             # Verify response returned
             assert response.id == "test-resp"
+            assert response.log_id
+
+    @pytest.mark.asyncio
+    async def test_successful_completion_is_cached_when_scoring_succeeds(self, mock_session, mock_response):
+        service = ProxyService(mock_session)
+        request = ChatCompletionRequest(
+            model="test-cache-fix",
+            messages=[ChatMessage(role="user", content="Cache me")],
+            provider="mock",
+        )
+
+        with (
+            patch('app.services.proxy_service.get_envoy') as mock_get_envoy,
+            patch('app.services.proxy_service.get_cache') as mock_get_cache,
+            patch('app.services.proxy_service.JobService') as mock_job_service,
+        ):
+            mock_envoy = AsyncMock()
+            mock_envoy.chat_completion = AsyncMock(return_value=mock_response)
+            mock_get_envoy.return_value = mock_envoy
+            cache = AsyncMock()
+            cache.get.return_value = None
+            cache.normalize_encryption_key.return_value = None
+            mock_get_cache.return_value = cache
+            mock_job_service.return_value.create_job = AsyncMock()
+
+            await service.chat_completion(request, project_id="test-project")
+
+            cache.set.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_returns_log_correlation_and_usage_metrics(self, mock_session):
+        service = ProxyService(mock_session)
+        request = ChatCompletionRequest(
+            model="test-stream",
+            messages=[ChatMessage(role="user", content="Hi")],
+            provider="mock",
+            stream=True,
+        )
+
+        async def chunks(_request):
+            yield ChatCompletionChunk(
+                id="stream-response",
+                model="test-stream",
+                choices=[ChatCompletionChunkChoice(
+                    index=0,
+                    delta=ChatCompletionChunkDelta(content="Hello"),
+                )],
+            )
+            yield ChatCompletionChunk(
+                id="stream-response",
+                model="test-stream",
+                choices=[],
+                usage=Usage(prompt_tokens=3, completion_tokens=2, total_tokens=5),
+            )
+
+        with patch('app.services.proxy_service.get_envoy') as mock_get_envoy:
+            mock_envoy = MagicMock()
+            mock_envoy.stream_chat_completion = chunks
+            mock_get_envoy.return_value = mock_envoy
+
+            stream, trace_id, span_id, log_id = await service.stream_chat_completion(
+                request, project_id="test-project"
+            )
+            events = [event async for event in stream]
+
+            assert events[-1] == "data: [DONE]\n\n"
+            assert trace_id and span_id and log_id.startswith("log_")
+            assert f'"log_id":"{log_id}"' in events[0]
+            added_logs = [call.args[0] for call in mock_session.add.call_args_list
+                          if call.args and call.args[0].__class__.__name__ == "LogModel"]
+            assert added_logs[-1].total_tokens == 5
 
     @pytest.mark.asyncio
     async def test_chat_completion_handles_error(self, mock_session):
@@ -127,7 +207,7 @@ class TestProxyServiceChatCompletion:
             mock_get_envoy.return_value = mock_envoy
             
             with pytest.raises(Exception, match="Provider error"):
-                await service.chat_completion(request)
+                await service.chat_completion(request, bypass_cache=True)
             
             # Should still commit (to save error trace)
             mock_session.commit.assert_called()
