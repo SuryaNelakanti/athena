@@ -159,3 +159,12 @@ Start with Phase A3:
 - Surface reasoning/content separation in run node detail panels.
 
 That builds on the session/run UI to deepen agent realism and scoring.
+
+---
+
+## Code-quality guardrails
+
+- Anti-slop is vendored at `tools/oxlint/anti-slop/` so its rules remain reviewable and project-owned.
+- Root `npm run lint` checks the frontend and TypeScript SDK with all anti-slop rules enabled as errors.
+- Oxlint and its plugin runtime are pinned to matching versions. The lint command also pins Node 22.18 because loading local TypeScript lint plugins requires Node 22.18 or newer.
+- The first migration pass removed a redundant conditional object-spread fallback. Existing anti-slop findings are intentionally visible rather than suppressed or downgraded; follow-up cleanup should replace broad dictionaries and assertions with domain contracts and boundary parsers.

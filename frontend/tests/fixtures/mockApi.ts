@@ -485,7 +485,7 @@ export const mockSeedStoryApi = async (page: Page) => {
       const versionId = url.searchParams.get('version_id');
       const experiment = experiments.find((e) => e.id === experimentId);
       if (!experiment || !versionId) return respondJson(route, { detail: 'Experiment not found' }, 404);
-      experiment.summary = { ...(experiment.summary || {}), main_version_id: versionId };
+      experiment.summary = { ...experiment.summary, main_version_id: versionId };
       return respondJson(route, experiment);
     }
 
