@@ -1,9 +1,10 @@
+import os
 from typing import AsyncGenerator
 from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite+aiosqlite:///athena.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///athena.db")
 
 engine = create_async_engine(DATABASE_URL, echo=True, connect_args={"check_same_thread": False})
 

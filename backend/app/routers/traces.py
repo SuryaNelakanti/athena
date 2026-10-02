@@ -46,6 +46,32 @@ def _to_span_pydantic(sm: SpanModel) -> Span:
     )
 
 
+def _to_trace_pydantic(
+    trace_model: TraceModel,
+    span_models: list[SpanModel],
+) -> Optional[Trace]:
+    converted_spans = [_to_span_pydantic(span) for span in span_models]
+    root_span = next((span for span in converted_spans if not span.parent_id), None)
+    if not root_span:
+        return None
+    return Trace(
+        id=trace_model.id,
+        root_span=root_span,
+        spans=converted_spans,
+        project_id=trace_model.project_id,
+        parent_trace_id=trace_model.parent_trace_id,
+        trace_group_id=trace_model.trace_group_id,
+        input_span_id=trace_model.input_span_id,
+        output_span_id=trace_model.output_span_id,
+        timestamp=trace_model.timestamp,
+        total_latency=trace_model.total_latency,
+        total_cost=trace_model.total_cost,
+        total_tokens=trace_model.total_tokens,
+        status=trace_model.status,
+        tags=trace_model.tags or [],
+    )
+
+
 @router.get("/projects/{project_id}/traces", response_model=List[Trace])
 async def get_project_traces(
     project_id: str,
@@ -93,30 +119,9 @@ async def get_project_traces(
 
     api_traces = []
     for tm in trace_models:
-        spans = spans_by_trace.get(tm.id, [])
-
-        converted_spans = [_to_span_pydantic(s) for s in spans]
-        root_span = next((s for s in converted_spans if not s.parent_id), None)
-
-        if root_span:
-            api_traces.append(
-                Trace(
-                    id=tm.id,
-                    root_span=root_span,
-                    spans=converted_spans,
-                    project_id=tm.project_id,
-                    parent_trace_id=tm.parent_trace_id,
-                    trace_group_id=tm.trace_group_id,
-                    input_span_id=tm.input_span_id,
-                    output_span_id=tm.output_span_id,
-                    timestamp=tm.timestamp,
-                    total_latency=tm.total_latency,
-                    total_cost=tm.total_cost,
-                    total_tokens=tm.total_tokens,
-                    status=tm.status,
-                    tags=tm.tags or [],
-                )
-            )
+        api_trace = _to_trace_pydantic(tm, spans_by_trace.get(tm.id, []))
+        if api_trace:
+            api_traces.append(api_trace)
 
     return api_traces
 
@@ -140,27 +145,10 @@ async def get_trace(
     if not spans:
         raise HTTPException(status_code=404, detail="Trace has no spans")
 
-    converted_spans = [_to_span_pydantic(s) for s in spans]
-    root_span = next((s for s in converted_spans if not s.parent_id), None)
-    if not root_span:
+    trace = _to_trace_pydantic(trace_model, spans)
+    if not trace:
         raise HTTPException(status_code=404, detail="Trace root span not found")
-
-    return Trace(
-        id=trace_model.id,
-        root_span=root_span,
-        spans=converted_spans,
-        project_id=trace_model.project_id,
-        parent_trace_id=trace_model.parent_trace_id,
-        trace_group_id=trace_model.trace_group_id,
-        input_span_id=trace_model.input_span_id,
-        output_span_id=trace_model.output_span_id,
-        timestamp=trace_model.timestamp,
-        total_latency=trace_model.total_latency,
-        total_cost=trace_model.total_cost,
-        total_tokens=trace_model.total_tokens,
-        status=trace_model.status,
-        tags=trace_model.tags or [],
-    )
+    return trace
 
 
 @router.post("/traces", response_model=Dict[str, str])

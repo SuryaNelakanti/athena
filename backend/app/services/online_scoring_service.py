@@ -2,25 +2,18 @@ from __future__ import annotations
 
 from typing import Any, Optional
 import time
-import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.database import async_sessionmaker
-from app.models import LogModel, SpanModel, TraceModel, ReviewItemModel
+from app.models import LogModel, SpanModel
+from app.services.online_scoring_review import OnlineScoringReviewService
 from app.services.scorer_service import ScorerService
 
 
 DEFAULT_SCORERS = [{"type": "anti_pattern_check"}]
 DEFAULT_REVIEW_THRESHOLD = 0.7
-
-
-def _truncate(text: str, max_len: int = 240) -> str:
-    text = text.strip()
-    if len(text) <= max_len:
-        return text
-    return text[: max_len - 3].rstrip() + "..."
 
 
 def _extract_input_text(value: Any) -> str:
@@ -100,6 +93,7 @@ def _pick_primary_score(scores: dict, scorers_cfg: list[dict]) -> Optional[float
 class OnlineScoringService:
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.review_service = OnlineScoringReviewService(session)
 
     async def score_log(self, log_id: str) -> Optional[dict]:
         log = await self.session.get(LogModel, log_id)
@@ -166,58 +160,17 @@ class OnlineScoringService:
         log.log_metadata = metadata
         self.session.add(log)
 
-        if create_review and primary_score is not None and primary_score < threshold:
-            review_stmt = select(ReviewItemModel).where(
-                ReviewItemModel.source_type == "log",
-                ReviewItemModel.source_id == log.id,
-            )
-            review_res = await self.session.execute(review_stmt)
-            review = review_res.scalar_one_or_none()
-
-            trace_status = None
-            if log.trace_id:
-                trace = await self.session.get(TraceModel, log.trace_id)
-                trace_status = trace.status if trace else None
-
-            input_preview = _truncate(input_text)
-            output_preview = _truncate(output_text)
-            model = log.model
-            provider = log.provider
-            if isinstance(span.attributes, dict):
-                model = model or span.attributes.get("model")
-                provider = provider or span.attributes.get("provider")
-
-            review_meta = {
-                "trace_id": log.trace_id,
-                "span_id": log.span_id,
-                "trace_status": trace_status,
-                "input_preview": input_preview,
-                "output_preview": output_preview,
-                "model": model,
-                "provider": provider,
-                "scores": scores,
-            }
-
-            if review:
-                review.score = primary_score
-                review.meta = review_meta
-                review.updated_at = now_ms
-            else:
-                review = ReviewItemModel(
-                    id=f"rev_{uuid.uuid4().hex[:10]}",
-                    org_id=None,
-                    project_id=log.project_id,
-                    source_type="log",
-                    source_id=log.id,
-                    status="open",
-                    priority=0,
-                    labels=["online_score"],
-                    score=primary_score,
-                    meta=review_meta,
-                    created_at=now_ms,
-                    updated_at=now_ms,
-                )
-            self.session.add(review)
+        await self.review_service.upsert_for_score(
+            log=log,
+            span=span,
+            input_text=input_text,
+            output_text=output_text,
+            scores=scores,
+            primary_score=primary_score,
+            threshold=threshold,
+            enabled=create_review,
+            updated_at=now_ms,
+        )
 
         await self.session.commit()
         await self.session.refresh(log)

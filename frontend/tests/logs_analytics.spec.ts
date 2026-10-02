@@ -4,11 +4,11 @@ import { mockSeedStoryApi } from './fixtures/mockApi';
 test.describe('Logs Analytics', () => {
     test.beforeEach(async ({ page }) => {
         await mockSeedStoryApi(page);
-        await page.goto('/#/', { waitUntil: 'networkidle' });
+        await page.goto('/', { waitUntil: 'networkidle' });
     });
 
     test('should apply complex filters', async ({ page }) => {
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Open Filter menu
         await page.click('button:has-text("Filter")');
@@ -29,7 +29,7 @@ test.describe('Logs Analytics', () => {
     });
 
     test('should save and apply views', async ({ page }) => {
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Open Views menu
         await page.click('button:has-text("Views")');
@@ -52,7 +52,7 @@ test.describe('Logs Analytics', () => {
     });
 
     test('should drill down into a trace', async ({ page }) => {
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Click on a log row that has a trace
         await page.click('tr >> text=trace_id_'); // Select a row with a trace ID

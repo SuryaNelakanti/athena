@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "dev": "concurrently \"npm run dev --prefix frontend\" \"cd backend && python -m uvicorn app.main:app --reload\"",
+        "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+        "dev:backend": "cd backend && python -m uvicorn app.main:app --reload",
+        "dev:frontend": "npm run dev --prefix frontend",
         "start": "npm run dev",
         "lint": "oxlint --config oxlint.config.mjs frontend/src frontend/tests sdk/typescript/src sdk/typescript/tests"
     },

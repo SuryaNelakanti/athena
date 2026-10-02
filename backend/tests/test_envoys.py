@@ -97,6 +97,14 @@ class TestEnvoyFactory:
         assert isinstance(envoy, TitanEnvoy)
         assert type(envoy).__name__ == "GeminiEnvoy"
 
+    def test_get_groq_envoy_type(self):
+        import os
+        if not os.getenv("GROQ_API_KEY"):
+            pytest.skip("GROQ_API_KEY not set")
+        envoy = get_envoy("groq")
+        assert isinstance(envoy, TitanEnvoy)
+        assert type(envoy).__name__ == "GroqEnvoy"
+
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError, match="Unknown provider"):
             get_envoy("unknown_provider")

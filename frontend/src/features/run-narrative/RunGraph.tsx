@@ -14,6 +14,7 @@ interface RunGraphProps {
   graph: RunGraphType;
   selectedNodeId?: string | null;
   onSelectNode: (nodeId: string) => void;
+  flaggedNodeIds?: string[];
 }
 
 const COLUMN_WIDTH = 220;
@@ -76,13 +77,14 @@ const formatDuration = (value?: number) => {
   return `${(value / 1000).toFixed(2)}s`;
 };
 
-const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode }) => {
+const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode, flaggedNodeIds }) => {
   const nodesById = useMemo(() => {
     const entries = new Map<string, RunGraphNode>();
     graph.nodes.forEach((node) => entries.set(node.id, node));
     return entries;
   }, [graph.nodes]);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const flaggedNodes = useMemo(() => new Set(flaggedNodeIds ?? []), [flaggedNodeIds]);
 
   const maxDepth = useMemo(() => {
     if (typeof graph.layout?.max_depth === 'number') return graph.layout.max_depth;
@@ -233,6 +235,7 @@ const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode
             const isRoot = node.id === graph.root_id;
             const config = getKindConfig(node.kind);
             const isError = node.status === 'error';
+            const isFlagged = flaggedNodes.has(node.id);
 
             return (
               <button
@@ -254,7 +257,9 @@ const RunGraph: React.FC<RunGraphProps> = ({ graph, selectedNodeId, onSelectNode
                     ? 'border-primary bg-primary/10 shadow-lg ring-2 ring-primary/20'
                     : isError
                       ? 'border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50'
-                      : `${config.borderClass} ${config.bgClass} hover:border-opacity-50`
+                      : isFlagged
+                        ? 'border-amber-500/40 bg-amber-500/10 hover:border-amber-500/60 ring-1 ring-amber-400/40'
+                        : `${config.borderClass} ${config.bgClass} hover:border-opacity-50`
                   }
                   ${isRoot ? 'ring-1 ring-primary/30' : ''}
                 `}

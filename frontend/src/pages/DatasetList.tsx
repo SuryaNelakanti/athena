@@ -1,37 +1,49 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { Dataset } from '../types';
 import { CircleStackIcon, PlusIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import { Button, Input, Modal, SectionHeader, Textarea, Badge, Select } from '../components/ui';
+import { Button, Input, Modal, Textarea, Badge, Select } from '../components/ui';
 import { PageHeader } from '../layouts/PageHeader';
+import { useProject } from '../contexts/ProjectContext';
 
-interface DatasetListProps {
-    projectId: string;
-    onSelectDataset: (dataset: Dataset) => void;
-}
-
-const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset }) => {
+const DatasetList: React.FC = () => {
+    const navigate = useNavigate();
+    const { currentProject } = useProject();
+    const projectId = currentProject?.id || '';
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newDataset, setNewDataset] = useState({ name: '', description: '', kind: 'eval' });
     const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
-        loadDatasets();
-    }, [projectId]);
-
-    const loadDatasets = async () => {
-        setLoading(true);
-        try {
-            const data = await api.getDatasets(projectId);
-            setDatasets(data);
-        } catch (e) {
-            console.error("Failed to load datasets", e);
-        } finally {
+        let isCurrent = true;
+        if (!projectId) {
+            setDatasets([]);
             setLoading(false);
+            setLoadError(null);
+            return () => { isCurrent = false; };
         }
-    };
+
+        setLoading(true);
+        setLoadError(null);
+        const loadDatasets = async () => {
+            try {
+                const data = await api.getDatasets(projectId);
+                if (isCurrent) setDatasets(data);
+            } catch (e: unknown) {
+                if (isCurrent) setLoadError(getErrorMessage(e, 'Failed to load datasets'));
+            } finally {
+                if (isCurrent) setLoading(false);
+            }
+        };
+        void loadDatasets();
+        return () => { isCurrent = false; };
+    }, [projectId, reloadKey]);
 
     const handleCreateDataset = async () => {
         if (!newDataset.name.trim()) return;
@@ -45,9 +57,9 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
             });
             setNewDataset({ name: '', description: '', kind: 'eval' });
             setShowCreateModal(false);
-            loadDatasets();
-        } catch (e: any) {
-            setError(e.message || "Failed to create dataset");
+            setReloadKey((current) => current + 1);
+        } catch (e: unknown) {
+            setError(getErrorMessage(e, 'Failed to create dataset'));
         }
     };
 
@@ -65,7 +77,6 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header */}
             {/* Header */}
             <PageHeader
                 title="Datasets"
@@ -136,6 +147,13 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                     <div className="flex items-center justify-center py-20 text-text-muted text-sm">
                         Loading datasets...
                     </div>
+                ) : loadError ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <p className="text-sm text-rose-500 mb-3">{loadError}</p>
+                        <Button variant="secondary" size="sm" onClick={() => setReloadKey((current) => current + 1)}>
+                            Retry
+                        </Button>
+                    </div>
                 ) : datasets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <div className="icon-chip icon-chip--indigo icon-chip-lg mb-4">
@@ -151,10 +169,10 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
                 ) : (
                     <div className="divide-y divide-border-hairline">
                         {datasets.map(ds => (
-                            <div
+                            <button
                                 key={ds.id}
-                                onClick={() => onSelectDataset(ds)}
-                                className="px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group"
+                                onClick={() => navigate({ to: '/datasets/$datasetId', params: { datasetId: ds.id } })}
+                                className="w-full px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group text-left"
                             >
                                 {/* Icon */}
                                 <div className="icon-chip icon-chip--indigo flex-shrink-0">
@@ -197,7 +215,7 @@ const DatasetList: React.FC<DatasetListProps> = ({ projectId, onSelectDataset })
 
                                 {/* Arrow */}
                                 <ChevronRightIcon className="w-4 h-4 text-border-base group-hover:text-text-muted transition-colors flex-shrink-0" />
-                            </div>
+                            </button>
                         ))}
                     </div>
                 )}

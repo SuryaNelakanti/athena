@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional, Dict, Any
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import get_session
 from app.models import AuditLogModel
@@ -24,8 +24,8 @@ class AuditLogResponse(BaseModel):
     action: str
     entity_type: str
     entity_id: str
-    changes: Dict[str, Any] = {}
-    audit_metadata: Dict[str, Any] = {}
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    audit_metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: int
 
     class Config:

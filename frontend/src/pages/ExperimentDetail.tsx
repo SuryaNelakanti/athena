@@ -1,1106 +1,307 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
-import { Experiment, ExperimentRun, ExperimentRunResult, ExperimentVersion, ModelRegistry, Function, DatasetRow } from '../types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useProject } from '../contexts/ProjectContext';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import type {
+  ExperimentVersion,
+  Function,
+  ScorerConfig,
+} from '../types';
 import {
-  ChevronLeftIcon, PlusIcon, PlayIcon, StopIcon, StarIcon,
-  BeakerIcon, ChevronDownIcon, ChevronRightIcon,
-  CheckCircleIcon, XCircleIcon, ClockIcon, LinkIcon
+    PlusIcon,
+    PlayIcon,
+    LinkIcon,
 } from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../components/ui';
+import { Badge, Button, Card, Tabs } from '../components/ui';
 import { PageHeader } from '../layouts/PageHeader';
+import { ExperimentOverviewSidebar } from '../features/experiments/ExperimentOverviewSidebar';
+import { ExperimentComparisonWorkspace } from '../features/experiments/ExperimentComparisonWorkspace';
+import {
+  ExperimentResultsPanel,
+  type ExperimentResultFilter,
+} from '../features/experiments/ExperimentResultsPanel';
+import { ExperimentVersionForm } from '../features/experiments/ExperimentVersionForm';
+import { ExperimentShareModal } from '../features/experiments/ExperimentShareModal';
+import { useExperimentDetailData } from '../features/experiments/useExperimentDetailData';
+import { useExperimentRunActions } from '../features/experiments/useExperimentRunActions';
+import { useExperimentShare } from '../features/experiments/useExperimentShare';
+import { useExperimentVersionDraft } from '../features/experiments/useExperimentVersionDraft';
 
-interface ExperimentDetailProps {
-  experiment: Experiment;
-  initialRunId?: string | null;
-  initialResultId?: string | null;
-  initialVersionId?: string | null;
-  onBack: () => void;
-}
+const RESULT_TABS = [
+  { id: 'results', label: 'Results' },
+  { id: 'compare', label: 'Compare' },
+  { id: 'trends', label: 'Trends' },
+];
+const EMPTY_VERSION_CONFIG: Record<string, unknown> = {};
 
-function formatDateTime(ms?: number | null) {
-  if (!ms) return '-';
-  return new Date(ms).toLocaleString();
-}
-
-// Default descriptions for scorers when not provided by backend
-function getDefaultScorerDescription(name: string): string {
-  const descriptions: Record<string, string> = {
-    'exact_match': 'Checks if the AI output exactly matches the expected answer (case-insensitive, normalized whitespace).',
-    'contains': 'Checks if the expected answer appears somewhere within the AI output.',
-    'regex_match': 'Matches the AI output against a regular expression pattern.',
-    'llm_judge': 'Uses an LLM to evaluate the quality and correctness of the output on a scale of 1-5.',
-    'anti_pattern_check': 'Checks if the output resembles any known bad patterns or anti-examples.',
-  };
-  return descriptions[name] || 'Evaluates the AI output.';
-}
-
-const ExperimentDetail: React.FC<ExperimentDetailProps> = ({
-  experiment,
-  initialRunId,
-  initialResultId,
-  initialVersionId,
-  onBack
-}) => {
-  const [exp, setExp] = useState<Experiment>(experiment);
-  const [models, setModels] = useState<ModelRegistry[]>([]);
-  const [scorers, setScorers] = useState<Function[]>([]);
-  const [versions, setVersions] = useState<ExperimentVersion[]>([]);
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-  const [datasetRows, setDatasetRows] = useState<DatasetRow[]>([]);
-
-  const [runs, setRuns] = useState<ExperimentRun[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [results, setResults] = useState<ExperimentRunResult[]>([]);
-  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
-  const [appliedInitialVersionId, setAppliedInitialVersionId] = useState<string | null>(null);
-  const [appliedInitialRunId, setAppliedInitialRunId] = useState<string | null>(null);
-  const [appliedInitialResultId, setAppliedInitialResultId] = useState<string | null>(null);
-  const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
-  const [compareCandidateId, setCompareCandidateId] = useState<string | null>(null);
-  const [compareResult, setCompareResult] = useState<any | null>(null);
-  const [compareLoading, setCompareLoading] = useState(false);
-
-  // Cross-version comparison state
-  const [compareBaselineVersionId, setCompareBaselineVersionId] = useState<string | null>(null);
-  const [compareCandidateVersionId, setCompareCandidateVersionId] = useState<string | null>(null);
-  const [baselineRuns, setBaselineRuns] = useState<ExperimentRun[]>([]);
-  const [candidateRuns, setCandidateRuns] = useState<ExperimentRun[]>([]);
-
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareLoading, setShareLoading] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareType, setShareType] = useState<'experiment' | 'result'>('result');
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const ExperimentDetail: React.FC = () => {
+  const { currentProject } = useProject();
+  const projectId = currentProject?.id || '';
+  const { experimentId } = useParams({ from: '/experiments/$experimentId' });
+  const navigate = useNavigate({ from: '/experiments/$experimentId' });
+  const search = useSearch({ from: '/experiments/$experimentId' });
 
   const [showCreateVersion, setShowCreateVersion] = useState(false);
-  const [newVersion, setNewVersion] = useState({
-    parent_version_id: '',
-    model_registry_id: '',
-    temperature: 1.0,
-    max_tokens: '',
-    top_p: '',
-    frequency_penalty: '',
-    presence_penalty: '',
-    system_prompt: '',
-    notes: '',
-    scorers: ['exact_match'] as string[],
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+  const [resultsFilter, setResultsFilter] = useState<ExperimentResultFilter>('all');
+  const [resultsSearch, setResultsSearch] = useState('');
+
+  const versionParam = search.version;
+  const runParam = search.run;
+  const resultParam = search.result;
+  const tabParam = search.tab || 'results';
+
+  const setParam = useCallback((key: 'version' | 'run' | 'result' | 'tab' | 'compare', value: string | null, replace: boolean = false) => {
+    navigate({
+      search: (previous) => ({ ...previous, [key]: value || undefined }),
+      replace,
+    });
+  }, [navigate]);
+
+  const {
+    dataset,
+    datasetRows,
+    error,
+    experiment,
+    loading,
+    mainVersionId,
+    models,
+    results,
+    runs,
+    scorers,
+    selectedRun,
+    selectedVersion,
+    setError,
+    setRuns,
+    setVersions,
+    versions,
+  } = useExperimentDetailData({
+    experimentId,
+    projectId,
+    versionId: versionParam,
+    runId: runParam,
+    setSearchParam: setParam,
+  });
+  const share = useExperimentShare({ experiment, selectedRun });
+  const setRunId = useCallback((nextRunId: string) => {
+    setParam('run', nextRunId);
+  }, [setParam]);
+  const { runSelectedVersion, cancelRun } = useExperimentRunActions({
+    experimentId,
+    selectedVersion,
+    setRuns,
+    setRunId,
+    onErrorChange: setError,
   });
 
-  const mainVersionId = (exp.summary as any)?.main_version_id as string | undefined;
-
-  useEffect(() => setExp(experiment), [experiment]);
-
-  const refreshAll = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [modelsData, versionsData, scorersData] = await Promise.all([
-        api.getModelRegistry(true),
-        api.getExperimentVersions(exp.id),
-        api.getScorers(),
-      ]);
-      setModels(modelsData);
-      setVersions(versionsData);
-      setScorers(scorersData.filter((s: Function) => s.type === 'scorer' && s.enabled));
-
-      // Load dataset rows for context
-      if (exp.dataset_id) {
-        const rows = await api.getDatasetRows(exp.dataset_id, { row_kind: 'eval' });
-        setDatasetRows(rows);
-      }
-
-      const initialVersionId = mainVersionId || versionsData[0]?.id || null;
-      setSelectedVersionId((prev) => prev || initialVersionId);
-
-      setNewVersion((prev) => ({
-        ...prev,
-        model_registry_id: prev.model_registry_id || modelsData[0]?.id || '',
-        parent_version_id: prev.parent_version_id || initialVersionId || '',
-      }));
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load experiment data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    refreshAll();
-  }, [exp.id]);
+    if (!resultParam) return;
+    setExpandedResultId(resultParam);
+  }, [resultParam]);
 
-  useEffect(() => {
-    if (!initialVersionId || versions.length === 0) return;
-    if (appliedInitialVersionId === initialVersionId) return;
-    if (!versions.some((v) => v.id === initialVersionId)) return;
-    setSelectedVersionId(initialVersionId);
-    setAppliedInitialVersionId(initialVersionId);
-  }, [initialVersionId, versions, appliedInitialVersionId]);
+  const versionConfig = selectedVersion?.config ?? EMPTY_VERSION_CONFIG;
 
-  const refreshRuns = async (versionId: string) => {
-    const data = await api.getVersionRuns(exp.id, versionId);
-    setRuns(data);
-    if (!selectedRunId && data.length > 0) setSelectedRunId(data[0].id);
-  };
-
-  useEffect(() => {
-    if (!selectedVersionId) {
-      setRuns([]);
-      setSelectedRunId(null);
-      return;
-    }
-    setLoading(true);
-    refreshRuns(selectedVersionId)
-      .catch((e: any) => setError(e?.message || 'Failed to load runs'))
-      .finally(() => setLoading(false));
-  }, [selectedVersionId]);
-
-  useEffect(() => {
-    if (!initialRunId || runs.length === 0) return;
-    if (appliedInitialRunId === initialRunId) return;
-    if (!runs.some((run) => run.id === initialRunId)) return;
-    setSelectedRunId(initialRunId);
-    setAppliedInitialRunId(initialRunId);
-  }, [initialRunId, runs, appliedInitialRunId]);
-
-  useEffect(() => {
-    setCompareResult(null);
-  }, [selectedVersionId]);
-
-  const selectedRun = useMemo(() => runs.find((r) => r.id === selectedRunId) || null, [runs, selectedRunId]);
-  const selectedVersion = useMemo(() => versions.find((v) => v.id === selectedVersionId) || null, [versions, selectedVersionId]);
-  const selectedModel = useMemo(() => {
-    const regId = (selectedVersion?.config as any)?.model?.registry_id;
-    return models.find((m) => m.id === regId) || null;
-  }, [selectedVersion, models]);
-
-  useEffect(() => {
-    if (runs.length === 0) return;
-    // Default the comparison selection to the first two runs of the *current* view if not set
-    // But only if we haven't explicitly set versions yet.
-    if (!compareBaselineVersionId) setCompareBaselineVersionId(selectedVersionId);
-    if (!compareCandidateVersionId) setCompareCandidateVersionId(selectedVersionId);
-
-    const candidateId = selectedRunId || runs[0].id;
-    if (!compareCandidateId) setCompareCandidateId(candidateId);
-    if (!compareBaselineId) {
-      const other = runs.find((r) => r.id !== candidateId);
-      setCompareBaselineId(other ? other.id : candidateId);
-    }
-  }, [runs, selectedRunId, compareBaselineId, compareCandidateId, selectedVersionId, compareBaselineVersionId, compareCandidateVersionId]);
-
-  // Fetch baseline runs when baseline version changes
-  useEffect(() => {
-    if (!compareBaselineVersionId) return;
-    if (compareBaselineVersionId === selectedVersionId) {
-      setBaselineRuns(runs);
-    } else {
-      api.getVersionRuns(exp.id, compareBaselineVersionId)
-        .then(setBaselineRuns)
-        .catch(console.error);
-    }
-  }, [compareBaselineVersionId, selectedVersionId, runs, exp.id]);
-
-  // Fetch candidate runs when candidate version changes
-  useEffect(() => {
-    if (!compareCandidateVersionId) return;
-    if (compareCandidateVersionId === selectedVersionId) {
-      setCandidateRuns(runs);
-    } else {
-      api.getVersionRuns(exp.id, compareCandidateVersionId)
-        .then(setCandidateRuns)
-        .catch(console.error);
-    }
-  }, [compareCandidateVersionId, selectedVersionId, runs, exp.id]);
-
-  useEffect(() => {
-    if (!selectedRunId) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    api.getRunResults(selectedRunId)
-      .then(setResults)
-      .catch((e: any) => setError(e?.message || 'Failed to load results'))
-      .finally(() => setLoading(false));
-  }, [selectedRunId]);
-
-  useEffect(() => {
-    if (!initialResultId || results.length === 0) return;
-    if (appliedInitialResultId === initialResultId) return;
-    if (!results.some((result) => result.id === initialResultId)) return;
-    setExpandedResultId(initialResultId);
-    setAppliedInitialResultId(initialResultId);
-  }, [initialResultId, results, appliedInitialResultId]);
-
-  // Polling for running experiments
-  useEffect(() => {
-    if (!selectedRunId || !selectedRun) return;
-    if (!(selectedRun.status === 'queued' || selectedRun.status === 'running')) return;
-
-    const interval = window.setInterval(async () => {
-      try {
-        const updated = await api.getRun(selectedRunId);
-        setRuns((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-        if (updated.status === 'completed' || updated.status === 'error' || updated.status === 'canceled') {
-          const latestResults = await api.getRunResults(selectedRunId);
-          setResults(latestResults);
-          window.clearInterval(interval);
+  const configuredScorerConfigs = useMemo(() => {
+    const raw = Array.isArray(versionConfig.scorers) ? versionConfig.scorers : [];
+    return raw.flatMap((entry): ScorerConfig[] => {
+        if (!entry) return [];
+        if (typeof entry === 'string') {
+          return entry.trim()
+            ? [{ type: entry, weight: 1.0, threshold: 0.8, is_primary: false }]
+            : [];
         }
-      } catch {
-        // ignore poll errors
-      }
-    }, 1200);
-
-    return () => window.clearInterval(interval);
-  }, [selectedRunId, selectedRun]);
-
-  const createVersion = async () => {
-    setError(null);
-    if (!newVersion.model_registry_id) return;
-    setLoading(true);
-    try {
-      const created = await api.createExperimentVersion(exp.id, {
-        parent_version_id: newVersion.parent_version_id || undefined,
-        model_registry_id: newVersion.model_registry_id,
-        temperature: Number(newVersion.temperature) || 1.0,
-        max_tokens: newVersion.max_tokens ? Number(newVersion.max_tokens) : undefined,
-        top_p: newVersion.top_p ? Number(newVersion.top_p) : undefined,
-        frequency_penalty: newVersion.frequency_penalty ? Number(newVersion.frequency_penalty) : undefined,
-        presence_penalty: newVersion.presence_penalty ? Number(newVersion.presence_penalty) : undefined,
-        system_prompt: newVersion.system_prompt || '',
-        notes: newVersion.notes || '',
-        scorers: newVersion.scorers.length > 0 ? newVersion.scorers : ['exact_match'],
+        return typeof entry.type === 'string' && entry.type.trim() ? [entry] : [];
       });
-      const refreshedVersions = await api.getExperimentVersions(exp.id);
-      setVersions(refreshedVersions);
-      setSelectedVersionId(created.id);
-      setShowCreateVersion(false);
-      if (!mainVersionId) {
-        const updatedExp = await api.getExperiment(exp.id);
-        setExp(updatedExp);
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create version');
-    } finally {
-      setLoading(false);
-    }
+  }, [versionConfig]);
+
+  const scorerIndex = useMemo(() => {
+    const map = new Map<string, Function>();
+    scorers.forEach((s) => map.set(s.name, s));
+    return map;
+  }, [scorers]);
+
+  const handleVersionCreated = useCallback((created: ExperimentVersion) => {
+    setVersions((current) => [created, ...current]);
+    setShowCreateVersion(false);
+    setParam('version', created.id);
+  }, [setParam, setVersions]);
+
+  const {
+    draft: newVersion,
+    updateDraft: updateNewVersion,
+    toggleScorer: toggleNewScorer,
+    setPrimaryScorer,
+    updateScorerConfig,
+    createVersion: handleCreateVersion,
+  } = useExperimentVersionDraft({
+    experimentId,
+    models,
+    selectedVersion,
+    versions,
+    defaultScorers: configuredScorerConfigs,
+    onVersionCreated: handleVersionCreated,
+    onErrorChange: setError,
+  });
+
+  const runsTrendData = useMemo(() => {
+    return runs.map((run) => ({
+      id: run.id,
+      created_at: run.created_at,
+      avg_score: typeof run.summary?.avg_score === 'number' ? run.summary.avg_score : null,
+      weighted_avg_score: typeof run.summary?.weighted_avg_score === 'number' ? run.summary.weighted_avg_score : null,
+    }));
+  }, [runs]);
+
+  const toggleResult = (resultId: string) => {
+    setExpandedResultId((prev) => {
+      const next = prev === resultId ? null : resultId;
+      setParam('result', next);
+      return next;
+    });
   };
 
-  const setMain = async (versionId: string) => {
-    setError(null);
-    try {
-      const updated = await api.setExperimentMainVersion(exp.id, versionId);
-      setExp(updated);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to set main version');
-    }
-  };
+  if (!experimentId) {
+    return <div className="flex items-center justify-center h-full text-text-muted">Experiment not found.</div>;
+  }
 
-  const runVersion = async () => {
-    if (!selectedVersionId) return;
-    setError(null);
-    setLoading(true);
-    try {
-      const run = await api.createVersionRun(exp.id, selectedVersionId);
-      await refreshRuns(selectedVersionId);
-      setSelectedRunId(run.id);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to start run');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-text-muted">Loading experiment...</div>;
+  }
 
-  const cancelRun = async (runId: string) => {
-    setError(null);
-    try {
-      const updated = await api.cancelRun(runId);
-      setRuns((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-    } catch (e: any) {
-      setError(e?.message || 'Failed to cancel run');
-    }
-  };
-
-  const runCompare = async () => {
-    if (!compareBaselineId || !compareCandidateId) return;
-    setCompareLoading(true);
-    setError(null);
-    try {
-      const data = await api.compareExperimentRuns(exp.id, compareBaselineId, compareCandidateId);
-      setCompareResult(data);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to compare runs');
-    } finally {
-      setCompareLoading(false);
-    }
-  };
-
-  const buildShareUrl = (token: string, resultId: string) => {
-    const base = `${window.location.origin}${window.location.pathname}`;
-    return `${base}#/share-links/${token}?experiment_result_id=${encodeURIComponent(resultId)}`;
-  };
-
-  const openShareModal = async (resultId?: string) => {
-    if (resultId && !selectedRunId) return;
-
-    setShareModalOpen(true);
-    setShareLoading(true);
-    setShareError(null);
-    setShareUrl(null);
-    setShareCopied(false);
-    setShareType(resultId ? 'result' : 'experiment');
-
-    try {
-      const objectType = resultId ? 'experiment_run' : 'experiment';
-      const objectId = resultId ? selectedRunId! : exp.id;
-
-      const created = await api.createShareLink({
-        project_id: exp.project_id,
-        object_type: objectType,
-        object_id: objectId,
-      });
-
-      let url = '';
-      if (resultId) {
-        url = buildShareUrl(created.token, resultId);
-      } else {
-        const base = `${window.location.origin}${window.location.pathname}`;
-        url = `${base}#/share-links/${created.token}`;
-      }
-      setShareUrl(url);
-    } catch (e: any) {
-      setShareError(e?.message || 'Failed to create share link');
-    } finally {
-      setShareLoading(false);
-    }
-  };
-
-  const copyShareUrl = async () => {
-    if (!shareUrl || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(shareUrl);
-    setShareCopied(true);
-  };
-
-  // Helper to extract text from input/expected
-  const extractText = (obj: any): string => {
-    if (typeof obj === 'string') return obj;
-    if (!obj || typeof obj !== 'object') return '';
-    for (const key of ['prompt', 'input', 'text', 'query', 'question', 'content']) {
-      if (typeof obj[key] === 'string') return obj[key];
-    }
-    if (Array.isArray(obj.messages)) {
-      const userMsg = obj.messages.find((m: any) => m.role === 'user');
-      if (userMsg?.content) return userMsg.content;
-    }
-    return JSON.stringify(obj);
-  };
-
-  const extractExpected = (obj: any): string => {
-    if (typeof obj === 'string') return obj;
-    if (!obj || typeof obj !== 'object') return '';
-    for (const key of ['answer', 'expected', 'text', 'content', 'response']) {
-      if (typeof obj[key] === 'string') return obj[key];
-    }
-    return JSON.stringify(obj);
-  };
-
-  const extractOutput = (obj: any): string => {
-    if (typeof obj === 'string') return obj;
-    if (!obj || typeof obj !== 'object') return '';
-    for (const key of ['output_text', 'text', 'content', 'answer', 'response']) {
-      if (typeof obj[key] === 'string') return obj[key];
-    }
-    return JSON.stringify(obj);
-  };
-
-  const truncateText = (value: string, maxLength: number = 160) => {
-    if (!value) return '';
-    if (value.length <= maxLength) return value;
-    return `${value.slice(0, maxLength).trimEnd()}...`;
-  };
-
-  // Get dataset row for a result
-  const getRowForResult = (result: ExperimentRunResult): DatasetRow | null => {
-    return datasetRows.find(r => r.id === result.dataset_row_id) || null;
-  };
-
-  // Calculate score color
-  const getScoreColor = (score: number | undefined): string => {
-    if (score === undefined) return 'text-text-muted';
-    if (score >= 0.8) return 'text-emerald-500';
-    if (score >= 0.5) return 'text-amber-500';
-    return 'text-rose-500';
-  };
-
-  const getScoreBg = (score: number | undefined): string => {
-    if (score === undefined) return 'bg-text-muted/10';
-    if (score >= 0.8) return 'bg-emerald-500/10 border-emerald-500/20';
-    if (score >= 0.5) return 'bg-amber-500/10 border-amber-500/20';
-    return 'bg-rose-500/10 border-rose-500/20';
-  };
-
-  const pickScore = (scores: Record<string, any> | undefined): number | undefined => {
-    if (!scores) return undefined;
-    const preferred = ['exact_match', 'llm_judge', 'contains'];
-    for (const key of preferred) {
-      const value = scores[key];
-      if (typeof value === 'number') return value;
-    }
-    const firstNumeric = Object.values(scores).find((v) => typeof v === 'number');
-    return typeof firstNumeric === 'number' ? firstNumeric : undefined;
-  };
-
-  const formatDelta = (value: number | undefined) => {
-    if (value === undefined) return '-';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(3)}`;
-  };
+  if (!experiment) {
+    return <div className="flex items-center justify-center h-full text-text-muted">Experiment not found.</div>;
+  }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      {/* Header */}
-      <div className="border-b border-border-hairline shrink-0">
-        <PageHeader
-          title={exp.name}
-          subtitle={`${versions.length} versions | ${datasetRows.length} test cases`}
-          breadcrumbs={
-            <button onClick={onBack} className="flex items-center gap-1 hover:text-text-main transition-colors text-xs text-text-muted">
-              <ChevronLeftIcon className="w-3 h-3" /> Back
-            </button>
-          }
-          actions={
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => openShareModal()}
-                variant="secondary"
-                size="sm"
-              >
-                <LinkIcon className="w-4 h-4" /> Share
-              </Button>
-              <Button
-                onClick={() => setShowCreateVersion(true)}
-                variant="secondary"
-                size="sm"
-              >
-                <PlusIcon className="w-4 h-4" /> New Version
-              </Button>
-              <Button
-                onClick={runVersion}
-                disabled={!selectedVersionId}
-                variant="primary"
-                size="sm"
-              >
-                <PlayIcon className="w-4 h-4" /> Run Experiment
-              </Button>
-            </div>
-          }
-          className="pb-0 border-b-0"
-        />
-
-        {/* Explanation Banner */}
-        < div className="px-8 pb-4" >
-          <Card className="bg-amber-500/5 border-amber-500/20">
-            <h4 className="text-sm font-bold text-text-main mb-1">What is an Experiment?</h4>
-            <p className="text-xs text-text-muted leading-relaxed">
-              An experiment tests your AI by running it against a <strong className="text-text-main">dataset</strong>.
-              For each test case, the AI receives the <strong className="text-primary">Input</strong>, generates an <strong className="text-amber-500">Actual Output</strong>,
-              which is then compared against the <strong className="text-emerald-500">Expected Output</strong> using scorers.
-              Create different versions to try different models, prompts, or parameters.
-            </p>
-          </Card>
-        </div >
-      </div >
-
-      {error && <div className="px-8 py-3 bg-rose-500/10 border-b border-rose-500/20 text-xs text-rose-500 font-bold">{error}</div>}
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Versions */}
-        <div className="w-64 border-r border-border-hairline overflow-y-auto shrink-0">
-          <div className="p-4 border-b border-border-hairline">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Versions</h3>
+      <PageHeader
+        title={experiment.name}
+        subtitle={dataset ? `${dataset.name} - v${selectedVersion?.dataset_version_pinned ?? dataset.version}` : 'Dataset pinned'}
+        onBack={() => navigate({ to: '/experiments' })}
+        badge={dataset ? (
+          <div className="flex items-center gap-2 text-xs text-text-muted font-medium">
+            <Badge variant="primary">Dataset v{selectedVersion?.dataset_version_pinned ?? dataset.version}</Badge>
+            {dataset.version > (selectedVersion?.dataset_version_pinned ?? dataset.version) && (
+              <Badge variant="warning">Latest v{dataset.version}</Badge>
+            )}
           </div>
-          <div className="p-2 space-y-1">
-            {versions.map((v) => {
-              const model = models.find((m) => m.id === (v.config as any)?.model?.registry_id);
-              const isMain = v.id === mainVersionId;
-              const isSelected = v.id === selectedVersionId;
-
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => setSelectedVersionId(v.id)}
-                  className={`w-full text-left p-3 rounded-md transition-all ${isSelected ? 'bg-primary/10 border border-primary/20' : 'hover:bg-panel-hover border border-transparent'
-                    }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-text-main'}`}>
-                      v{v.version_number}
-                    </span>
-                    {isMain && (
-                      <span className="flex items-center gap-1 text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded-full font-bold">
-                        <StarIcon className="w-3 h-3" /> Main
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-text-muted truncate mt-1">
-                    {model ? `${model.provider}:${model.model_id}` : '-'}
-                  </div>
-                  <div className="text-[10px] text-text-muted opacity-60 truncate mt-0.5">
-                    {(v.config as any)?.notes || 'No notes'}
-                  </div>
-                </button>
-              );
-            })}
+        ) : undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => share.openShare()}>
+              <LinkIcon className="w-4 h-4" /> Share
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowCreateVersion(true)}>
+              <PlusIcon className="w-4 h-4" /> New Version
+            </Button>
+            <Button variant="primary" size="sm" onClick={runSelectedVersion} disabled={!selectedVersion}>
+              <PlayIcon className="w-4 h-4" /> Run Version
+            </Button>
           </div>
-        </div>
+        }
+      />
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Selected Version Info */}
-          {selectedVersion && (
-            <Card className="mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-text-main">v{selectedVersion.version_number}</span>
-                  <span className="text-xs text-text-muted">{selectedModel?.display_name || selectedModel?.model_id}</span>
-                </div>
-                {selectedVersionId !== mainVersionId && (
-                  <Button
-                    onClick={() => setMain(selectedVersionId!)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-primary"
-                  >
-                    Set as Main
-                  </Button>
+      {error && (
+        <div className="px-6 py-3 text-sm text-rose-500 font-medium">{error}</div>
+      )}
+
+      <div className="flex-1 overflow-hidden px-6 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-full">
+          <ExperimentOverviewSidebar
+            versions={versions}
+            selectedVersion={selectedVersion}
+            mainVersionId={mainVersionId}
+            configuredScorers={configuredScorerConfigs}
+            scorerIndex={scorerIndex}
+            runs={runs}
+            selectedRun={selectedRun}
+            onSelectVersion={(versionId) => setParam('version', versionId)}
+            onSelectRun={(runId) => setParam('run', runId)}
+            onCancelRun={cancelRun}
+          />
+
+          <div className="flex flex-col gap-4 overflow-y-auto">
+            <Tabs
+              options={RESULT_TABS}
+              value={tabParam}
+              onChange={(tab) => setParam('tab', tab)}
+            />
+
+            {tabParam === 'results' && (
+              <ExperimentResultsPanel
+                results={results}
+                datasetRows={datasetRows}
+                selectedRun={selectedRun}
+                configuredScorers={configuredScorerConfigs}
+                scorerIndex={scorerIndex}
+                filter={resultsFilter}
+                search={resultsSearch}
+                expandedResultId={expandedResultId}
+                onFilterChange={setResultsFilter}
+                onSearchChange={setResultsSearch}
+                onToggleResult={toggleResult}
+                onOpenTrace={(traceId) => navigate({ to: '/logs', search: { trace_id: traceId } })}
+                onOpenShare={share.openShare}
+              />
+            )}
+            <ExperimentComparisonWorkspace
+              visible={tabParam === 'compare'}
+              experimentId={experimentId}
+              initialVersionId={selectedVersion?.id ?? null}
+              versions={versions}
+              scorers={configuredScorerConfigs}
+              scorerIndex={scorerIndex}
+              onErrorChange={setError}
+            />
+
+            {tabParam === 'trends' && (
+              <Card className="p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted font-semibold mb-3">Run trend</div>
+                {runsTrendData.length === 0 ? (
+                  <div className="text-sm text-text-muted">No runs yet.</div>
+                ) : (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={runsTrendData}>
+                        <XAxis dataKey="created_at" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+                        <YAxis domain={[0, 1]} />
+                        <Tooltip labelFormatter={(value) => new Date(value as number).toLocaleString()} />
+                        <Line type="monotone" dataKey="avg_score" stroke="#6366f1" name="Primary avg" strokeWidth={2} />
+                        <Line type="monotone" dataKey="weighted_avg_score" stroke="#10b981" name="Weighted avg" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-xs">
-                <div>
-                  <span className="text-text-muted">Temperature:</span>
-                  <span className="ml-1 text-text-main font-medium">{(selectedVersion.config as any)?.model?.temperature || 1.0}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted">Scorers:</span>
-                  <span className="ml-1 text-text-main font-medium">
-                    {((selectedVersion.config as any)?.scorers || []).map((s: any) => s.type).join(', ') || 'exact_match'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-text-muted">System Prompt:</span>
-                  <span className="ml-1 text-text-main font-medium truncate">
-                    {((selectedVersion.config as any)?.task?.system_prompt || '').substring(0, 50) || 'None'}...
-                  </span>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Runs */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-text-main">Runs</h3>
-              {selectedRun && (selectedRun.status === 'running' || selectedRun.status === 'queued') && (
-                <div className="flex items-center gap-2 text-xs text-amber-500">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  Running... {selectedRun.summary?.rows_done || 0}/{selectedRun.summary?.rows_total || 0}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {runs.map((r) => {
-                const avgScore = Number(r.summary?.avg_score || 0);
-                const isSelected = r.id === selectedRunId;
-
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => setSelectedRunId(r.id)}
-                    className={`flex-shrink-0 p-3 rounded-md border transition-all ${isSelected
-                      ? 'bg-primary/10 border-primary/20'
-                      : 'bg-panel border-border-base hover:border-border-hover'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {r.status === 'completed' && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
-                      {r.status === 'error' && <XCircleIcon className="w-4 h-4 text-rose-500" />}
-                      {r.status === 'running' && <ClockIcon className="w-4 h-4 text-amber-500 animate-spin" />}
-                      {r.status === 'queued' && <ClockIcon className="w-4 h-4 text-text-muted" />}
-                      {r.status === 'canceled' && <StopIcon className="w-4 h-4 text-text-muted" />}
-                      <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-text-main'}`}>
-                        {new Date(r.created_at).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <div className="text-lg font-black text-text-main tabular-nums">
-                      {(avgScore * 100).toFixed(0)}%
-                    </div>
-                    <div className="text-[10px] text-text-muted mt-0.5">
-                      {r.summary?.rows_done || 0} results
-                    </div>
-                  </button>
-                );
-              })}
-              {runs.length === 0 && (
-                <div className="text-sm text-text-muted italic py-4">No runs yet. Click "Run Experiment" to start.</div>
-              )}
-            </div>
-          </div>
-
-          {/* Compare */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-text-main">Compare</h3>
-              <Button
-                onClick={runCompare}
-                disabled={!compareBaselineId || !compareCandidateId}
-                variant="secondary"
-                size="sm"
-              >
-                Compare Runs
-              </Button>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Baseline Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-text-muted" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Baseline</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-medium text-text-muted mb-1">Version</label>
-                    <Select
-                      value={compareBaselineVersionId || ''}
-                      onChange={(e) => {
-                        setCompareBaselineVersionId(e.target.value);
-                        setCompareBaselineId(null); // Reset run selection
-                      }}
-                    >
-                      {versions.map((v) => (
-                        <option key={v.id} value={v.id}>v{v.version_number}</option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-text-muted mb-1">Run</label>
-                    <Select
-                      value={compareBaselineId || ''}
-                      onChange={(e) => setCompareBaselineId(e.target.value)}
-                    >
-                      <option value="">Select run...</option>
-                      {baselineRuns.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {new Date(r.created_at).toLocaleString()} ({(Number(r.summary?.avg_score || 0) * 100).toFixed(0)}%)
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Candidate Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Candidate</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-medium text-text-muted mb-1">Version</label>
-                    <Select
-                      value={compareCandidateVersionId || ''}
-                      onChange={(e) => {
-                        setCompareCandidateVersionId(e.target.value);
-                        setCompareCandidateId(null); // Reset run selection
-                      }}
-                    >
-                      {versions.map((v) => (
-                        <option key={v.id} value={v.id}>v{v.version_number}</option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-text-muted mb-1">Run</label>
-                    <Select
-                      value={compareCandidateId || ''}
-                      onChange={(e) => setCompareCandidateId(e.target.value)}
-                    >
-                      <option value="">Select run...</option>
-                      {candidateRuns.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {new Date(r.created_at).toLocaleString()} ({(Number(r.summary?.avg_score || 0) * 100).toFixed(0)}%)
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {compareLoading && (
-              <div className="mt-4 text-xs text-text-muted italic">Computing comparison...</div>
-            )}
-
-            {compareResult && (
-              <div className="mt-4 space-y-4">
-                <div className="grid md:grid-cols-4 gap-3">
-                  {['avg_score', 'cost_total', 'latency_ms_total', 'tokens_total'].map((key) => (
-                    <div key={key} className="bg-panel border border-border-base rounded-md p-3">
-                      <div className="text-[10px] uppercase tracking-wider text-text-muted">{key}</div>
-                      <div className="text-sm font-bold text-text-main">
-                        {formatDelta(compareResult.delta_summary?.[key])}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-panel border border-border-base rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-text-muted border-b border-border-base">
-                    <div className="col-span-5">Input</div>
-                    <div className="col-span-2 text-right">Baseline</div>
-                    <div className="col-span-2 text-right">Candidate</div>
-                    <div className="col-span-2 text-right">Delta</div>
-                    <div className="col-span-1 text-right">Row</div>
-                  </div>
-                  <div className="max-h-72 overflow-y-auto">
-                    {(compareResult.rows || []).map((row: any, idx: number) => {
-                      const baseScore = pickScore(row.baseline?.scores);
-                      const candScore = pickScore(row.candidate?.scores);
-                      const deltaScore = (typeof baseScore === 'number' && typeof candScore === 'number')
-                        ? candScore - baseScore
-                        : undefined;
-
-                      return (
-                        <div key={`${row.dataset_row_id}-${idx}`} className="grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b border-border-base/60">
-                          <div className="col-span-5 text-text-main">
-                            {row.input ? truncateText(extractText(row.input), 140) : 'Unknown input'}
-                          </div>
-                          <div className="col-span-2 text-right text-text-muted tabular-nums">
-                            {baseScore !== undefined ? (baseScore * 100).toFixed(0) + '%' : '-'}
-                          </div>
-                          <div className="col-span-2 text-right text-text-muted tabular-nums">
-                            {candScore !== undefined ? (candScore * 100).toFixed(0) + '%' : '-'}
-                          </div>
-                          <div className="col-span-2 text-right text-text-main tabular-nums">
-                            {deltaScore !== undefined ? formatDelta(deltaScore) : '-'}
-                          </div>
-                          <div className="col-span-1 text-right text-text-muted tabular-nums">
-                            {idx + 1}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Results */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-text-main">Results</h3>
-              {results.length > 0 && (
-                <span className="text-xs text-text-muted">
-                  {results.filter(r => (r.scores?.exact_match || 0) >= 0.8).length}/{results.length} passing
-                </span>
-              )}
-            </div>
-
-            {results.length === 0 ? (
-              <Card className="p-10 text-center">
-                <BeakerIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
-                <p className="text-text-muted italic">
-                  {selectedRunId ? 'No results yet.' : 'Select a run to view results.'}
-                </p>
               </Card>
-            ) : (
-              <div className="space-y-3">
-                {results.map((res, idx) => {
-                  const row = getRowForResult(res);
-                  const inputText = row ? extractText(row.input) : 'Unknown input';
-                  const expectedText = row ? extractExpected(row.expected) : 'Unknown expected';
-                  const actualText = extractOutput(res.output);
-                  const actualPreview = truncateText(actualText, 140);
-                  const isExpanded = expandedResultId === res.id;
-                  const exactMatch = res.scores?.exact_match;
-                  const containsScore = res.scores?.contains;
-                  const llmJudge = res.scores?.llm_judge;
-
-                  return (
-                    <div
-                      key={res.id}
-                      className={`bg-panel border rounded-lg overflow-hidden transition-all ${getScoreBg(exactMatch)}`}
-                    >
-                      {/* Result Header */}
-                      <button
-                        onClick={() => setExpandedResultId(isExpanded ? null : res.id)}
-                        className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-black/5 transition-colors"
-                      >
-                        <div className="flex-shrink-0 w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-text-main line-clamp-1 font-medium">{inputText}</p>
-                          <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
-                            <span className="text-amber-500 font-medium">Output:</span> {actualPreview || 'No output'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {/* Scores */}
-                          <div className={`text-lg font-black tabular-nums ${getScoreColor(exactMatch)}`}>
-                            {exactMatch !== undefined ? `${(exactMatch * 100).toFixed(0)}%` : '-'}
-                          </div>
-                          <div className="text-xs text-text-muted tabular-nums">
-                            {res.latency_ms?.toFixed(0)}ms
-                          </div>
-                          {isExpanded ? (
-                            <ChevronDownIcon className="w-5 h-5 text-text-muted" />
-                          ) : (
-                            <ChevronRightIcon className="w-5 h-5 text-text-muted" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Expanded Comparison View */}
-                      {isExpanded && (
-                        <div className="px-5 pb-5 pt-2 border-t border-border-base/50">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="text-[10px] uppercase tracking-widest text-text-muted font-bold">
-                              Result Details
-                            </div>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => openShareModal(res.id)}
-                            >
-                              <LinkIcon className="w-4 h-4" />
-                              Share result
-                            </Button>
-                          </div>
-                          {/* All Scores */}
-                          <div className="flex gap-3 mb-4">
-                            <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(exactMatch)}`}>
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Exact Match</span>
-                              <span className={`ml-2 font-bold ${getScoreColor(exactMatch)}`}>
-                                {exactMatch !== undefined ? (exactMatch * 100).toFixed(0) : '-'}%
-                              </span>
-                            </div>
-                            {containsScore !== undefined && (
-                              <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(containsScore)}`}>
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Contains</span>
-                                <span className={`ml-2 font-bold ${getScoreColor(containsScore)}`}>
-                                  {(containsScore * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                            )}
-                            {llmJudge !== undefined && (
-                              <div className={`px-3 py-1.5 rounded-lg border ${getScoreBg(llmJudge)}`}>
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">LLM Judge</span>
-                                <span className={`ml-2 font-bold ${getScoreColor(llmJudge)}`}>
-                                  {(llmJudge * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Input / Expected / Actual Comparison */}
-                          <div className="grid md:grid-cols-3 gap-4">
-                            {/* Input */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Input</span>
-                              </div>
-                              <div className="bg-app rounded-md border border-border-base p-3 h-32 overflow-y-auto">
-                                <p className="text-xs text-text-main whitespace-pre-wrap">{inputText}</p>
-                              </div>
-                            </div>
-
-                            {/* Expected */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Expected</span>
-                              </div>
-                              <div className="bg-emerald-500/5 rounded-md border border-emerald-500/20 p-3 h-32 overflow-y-auto">
-                                <p className="text-xs text-text-main whitespace-pre-wrap">{expectedText}</p>
-                              </div>
-                            </div>
-
-                            {/* Actual */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Actual Output</span>
-                              </div>
-                              <div className="bg-amber-500/5 rounded-md border border-amber-500/20 p-3 h-32 overflow-y-auto">
-                                <p className="text-xs text-text-main whitespace-pre-wrap">{actualText || 'No output'}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             )}
           </div>
         </div>
       </div>
 
-      <Modal
-        open={shareModalOpen}
-        title={shareType === 'experiment' ? 'Share Experiment' : 'Share Result'}
-        description={shareType === 'experiment' ? 'Share this experiment and its versions.' : 'Create a permalink to this experiment result.'}
-        onClose={() => setShareModalOpen(false)}
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShareModalOpen(false)}>
-              Close
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={copyShareUrl}
-              disabled={!shareUrl || shareLoading}
-            >
-              {shareCopied ? 'Copied' : 'Copy link'}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-3">
-          {shareLoading && <p className="text-text-muted text-sm">Creating share link...</p>}
-          {shareError && <p className="text-rose-500 text-sm">{shareError}</p>}
-          {shareUrl && (
-            <div>
-              <label className="block text-[11px] font-medium text-text-muted mb-2">Permalink</label>
-              <Input value={shareUrl} readOnly />
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      {/* Create Version Modal */}
-      <Modal
+      <ExperimentVersionForm
         open={showCreateVersion}
-        title="New Experiment Version"
-        description="Test a different model, prompt, or parameters."
+        models={models}
+        scorers={scorers}
+        draft={newVersion}
+        onDraftChange={updateNewVersion}
+        onToggleScorer={toggleNewScorer}
+        onSetPrimaryScorer={setPrimaryScorer}
+        onUpdateScorerConfig={updateScorerConfig}
         onClose={() => setShowCreateVersion(false)}
-        className="max-w-lg max-h-[90vh] overflow-y-auto"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowCreateVersion(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={createVersion}>
-              Create Version
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-medium text-text-muted mb-2">Model</label>
-            <Select
-              value={newVersion.model_registry_id}
-              onChange={(e) => setNewVersion((p) => ({ ...p, model_registry_id: e.target.value }))}
-            >
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>{m.display_name || `${m.provider}:${m.model_id}`}</option>
-              ))}
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-medium text-text-muted mb-2">Temperature</label>
-              <Input
-                type="number"
-                step="0.1"
-                min="0"
-                max="2"
-                value={newVersion.temperature}
-                onChange={(e) => setNewVersion((p) => ({ ...p, temperature: Number(e.target.value) }))}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-text-muted mb-2">Max Tokens</label>
-              <Input
-                type="number"
-                value={newVersion.max_tokens}
-                onChange={(e) => setNewVersion((p) => ({ ...p, max_tokens: e.target.value }))}
-                placeholder="(optional)"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-text-muted mb-2">System Prompt</label>
-            <Textarea
-              value={newVersion.system_prompt}
-              onChange={(e) => setNewVersion((p) => ({ ...p, system_prompt: e.target.value }))}
-              className="h-24 resize-none"
-              placeholder="Instructions for the AI..."
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-text-muted mb-2">Scorers</label>
-            <p className="text-xs text-text-muted mb-3">Select how to evaluate the AI's output against the expected answer:</p>
-            <div className="space-y-2">
-              {scorers.map((scorer) => (
-                <label key={scorer.id} className="flex items-start gap-3 p-3 rounded-md border border-border-base hover:border-border-hover hover:bg-app/30 cursor-pointer transition-all">
-                  <input
-                    type="checkbox"
-                    checked={newVersion.scorers.includes(scorer.name)}
-                    onChange={(e) => {
-                      setNewVersion((p) => ({
-                        ...p,
-                        scorers: e.target.checked
-                          ? [...p.scorers, scorer.name]
-                          : p.scorers.filter((s) => s !== scorer.name)
-                      }));
-                    }}
-                    className="w-4 h-4 mt-0.5 rounded border-border-base text-primary flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text-main">{scorer.display_name || scorer.name}</span>
-                      {scorer.runtime === 'llm_judge' && (
-                        <Badge variant="primary">Uses LLM</Badge>
-                      )}
-                      {scorer.runtime === 'builtin' && (
-                        <Badge variant="success">Fast</Badge>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
-                      {scorer.description || getDefaultScorerDescription(scorer.name)}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {scorers.length === 0 && (
-              <div className="text-xs text-text-muted italic p-4 border border-dashed border-border-base rounded-md text-center">
-                No scorers available. Run seed-builtins to add default scorers.
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-text-muted mb-2">Notes</label>
-            <Input
-              value={newVersion.notes}
-              onChange={(e) => setNewVersion((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="What are you testing?"
-            />
-          </div>
-        </div>
-      </Modal>
-    </div >
+        onCreate={handleCreateVersion}
+      />
+      <ExperimentShareModal
+        open={share.modalOpen}
+        shareType={share.shareType}
+        shareUrl={share.url}
+        loading={share.loading}
+        error={share.error}
+        copied={share.copied}
+        onClose={share.closeShare}
+        onCopy={share.copyShare}
+      />
+    </div>
   );
 };
 
 export default ExperimentDetail;
-

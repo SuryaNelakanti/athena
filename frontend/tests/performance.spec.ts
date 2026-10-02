@@ -25,7 +25,7 @@ test.describe('Performance & Resilience', () => {
             });
         });
 
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Check that not all 1000 rows are in the DOM
         // This validates existence of virtualization (e.g. react-window or similar)
@@ -39,7 +39,7 @@ test.describe('Performance & Resilience', () => {
     });
 
     test('should validate AQL syntax gracefully', async ({ page }) => {
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Find AQL input
         const aqlInput = page.locator('input[placeholder*="filter"]'); // Adjust selector

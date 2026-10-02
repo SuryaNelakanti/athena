@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('dashboard supports AQL chart preview and save', async ({ page }) => {
-  await page.goto('/#/');
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
   await page.getByRole('button', { name: /Add Chart/i }).click();
@@ -41,27 +41,27 @@ test('dashboard supports AQL chart preview and save', async ({ page }) => {
 });
 
 test('logs to trace collaboration, share links, review, and promote', async ({ page }) => {
-  await page.goto('/#/logs');
+  await page.goto('/logs');
   await expect(page.getByText(seedLogs[1].message)).toBeVisible();
 
   await page.getByText(seedLogs[1].message).click();
   await expect(page.getByRole('heading', { name: seedTraces[1].root_span.name }).first()).toBeVisible();
 
-  await page.getByTitle('Assign').click();
+  await page.getByRole('button', { name: 'Assign' }).click();
   const assignModal = modalByTitle(page, 'Create assignment');
   await assignModal.getByPlaceholder('name@company.com').fill('owner@acme.ai');
   await assignModal.getByRole('button', { name: 'Create' }).click();
   await expect(assignModal.getByText('Assignment created.')).toBeVisible();
   await assignModal.getByRole('button', { name: 'Cancel' }).click();
 
-  await page.getByTitle('Mention').click();
+  await page.getByRole('button', { name: 'Mention' }).click();
   const mentionModal = modalByTitle(page, 'Create mention');
   await mentionModal.getByPlaceholder('name@company.com').fill('qa@acme.ai');
   await mentionModal.getByRole('button', { name: 'Create' }).click();
   await expect(mentionModal.getByText('Mention created.')).toBeVisible();
   await mentionModal.getByRole('button', { name: 'Cancel' }).click();
 
-  await page.getByTitle('Share').click();
+  await page.getByRole('button', { name: 'Share' }).click();
   const shareModal = modalByTitle(page, 'Create share link');
   await shareModal.getByRole('button', { name: 'Create' }).click();
   await expect(shareModal.getByText('Share link created.')).toBeVisible();
@@ -85,8 +85,13 @@ test('logs to trace collaboration, share links, review, and promote', async ({ p
 });
 
 test('review queue promotes to dataset and dataset rows update', async ({ page }) => {
-  await page.goto('/#/review');
-  await expect(page.getByText(seedReviews[0].meta.input_preview).first()).toBeVisible();
+  const inputPreview = seedReviews[0].meta.input_preview;
+  if (typeof inputPreview !== 'string') {
+    throw new Error('Review fixture is missing a string input preview.');
+  }
+
+  await page.goto('/review');
+  await expect(page.getByText(inputPreview).first()).toBeVisible();
 
   const statusCard = page.getByText('Update review state').locator('..').locator('..');
   await statusCard.getByRole('combobox').selectOption('in_review');
@@ -98,9 +103,9 @@ test('review queue promotes to dataset and dataset rows update', async ({ page }
   await promoteCard.getByRole('button', { name: 'Promote' }).click();
   await expect(page.getByText(`Promoted to dataset ${seedDatasets[0].id}`)).toBeVisible();
 
-  await page.goto('/#/datasets');
+  await page.goto('/datasets');
   await page.getByText(seedDatasets[0].name).click();
-  await expect(page.getByText(seedReviews[0].meta.input_preview).first()).toBeVisible();
+  await expect(page.getByText(inputPreview).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Add Eval Row' }).click();
   await page.getByPlaceholder('What question or prompt should be given to the AI?').fill('New refund prompt');
@@ -110,33 +115,29 @@ test('review queue promotes to dataset and dataset rows update', async ({ page }
 });
 
 test('experiments run, compare, and share results', async ({ page }) => {
-  await page.goto('/#/experiments');
+  await page.goto('/experiments');
   await page.getByText(seedExperiments[0].name).click();
   await expect(page.getByRole('heading', { name: seedExperiments[0].name })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Run Experiment' }).click();
-  await expect(page.getByRole('heading', { name: 'Results' })).toBeVisible();
+  await page.getByRole('button', { name: 'Run Version' }).click();
+  await expect(page.getByText('Rows')).toBeVisible();
+  await page.getByText('Customer charged twice for seat add-on').first().click();
   await expect(page.getByText('Auto output').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Compare Runs' }).click();
-  await expect(page.getByText('avg_score')).toBeVisible();
+  await page.getByRole('button', { name: 'Compare' }).first().click();
+  await expect(page.getByText('Baseline')).toBeVisible();
 
-  await page
-    .getByRole('button', { name: /Customer charged twice for seat add-on/ })
-    .first()
-    .click();
-  await page.getByRole('button', { name: 'Share result' }).click();
-  const shareModal = modalByTitle(page, 'Share Result');
-  const resultShareUrl = await shareModal.locator('input').inputValue();
-  await shareModal.getByRole('button', { name: 'Close' }).filter({ hasText: 'Close' }).click();
+  await page.getByRole('button', { name: 'Share' }).first().click();
+  const shareModal = modalByTitle(page, 'Share Experiment');
+  const shareUrl = await shareModal.locator('input').inputValue();
+  await shareModal.getByLabel('Close').click();
 
-  await page.goto(resultShareUrl);
+  await page.goto(shareUrl);
   await expect(page.getByRole('heading', { name: seedExperiments[0].name })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Results' })).toBeVisible();
 });
 
 test('collaboration lists assignments, mentions, and share links', async ({ page }) => {
-  await page.goto('/#/collaboration');
+  await page.goto('/collaboration');
   await expect(page.getByRole('heading', { name: 'Collaboration' })).toBeVisible();
   await expect(page.getByText('ops@octoworks.ai')).toBeVisible();
 

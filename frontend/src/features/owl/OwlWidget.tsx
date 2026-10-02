@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { api, API_BASE_URL } from '../../lib/api';
-import { Badge, Button, Input, Select, Textarea } from '../../components/ui';
-import { ChatBubbleLeftRightIcon, XMarkIcon, ChevronDownIcon, ChevronRightIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import React, { useMemo, useState } from 'react';
+import { Button, Textarea } from '../../components/ui';
+import { ChatBubbleLeftRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { OwlPlaybookPanel } from './OwlPlaybookPanel';
+import { useOwlExperiments } from './useOwlExperiments';
+import { useOwlAssistant } from './useOwlAssistant';
 
 interface OwlWidgetProps {
   projectId: string;
@@ -9,30 +11,6 @@ interface OwlWidgetProps {
   currentPath: string;
   routeParams?: Record<string, string>;
 }
-
-type OwlActionId = 'aql' | 'prompt' | 'scorer' | 'dataset' | 'experiment' | 'docs';
-
-type OwlMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: number;
-};
-
-const OWL_ACTIONS: Array<{
-  id: OwlActionId;
-  title: string;
-  description: string;
-}> = [
-    { id: 'aql', title: 'AQL Author', description: 'Describe the question and get a ready-to-run AQL query.' },
-    { id: 'prompt', title: 'Prompt Optimizer', description: 'Refine prompts for tone, safety, and clarity.' },
-    { id: 'scorer', title: 'Scorer Draft', description: 'Create a criteria-based scorer checklist.' },
-    { id: 'dataset', title: 'Dataset Ideas', description: 'Generate dataset rows for new evaluation coverage.' },
-    { id: 'experiment', title: 'Experiment Summary', description: 'Summarize the latest experiment run and next steps.' },
-    { id: 'docs', title: 'Docs Search', description: 'Find exact snippets in Athena docs.' },
-  ];
-
-const makeId = (prefix: string) => `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 
 const pageLabelForPath = (path: string) => {
   if (path === '/') return 'Dashboard';
@@ -55,23 +33,14 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
   routeParams = {},
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<OwlMessage[]>([]);
-  const [activeAction, setActiveAction] = useState<OwlActionId>('aql');
-  const [actionInputs, setActionInputs] = useState<Record<string, string>>({});
-  const [chatInput, setChatInput] = useState('');
-  const [experiments, setExperiments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [playbookExpanded, setPlaybookExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!projectId) return;
-    api.getExperiments(projectId).then(setExperiments).catch(() => setExperiments([]));
-  }, [projectId]);
-
-  const experimentOptions = useMemo(() => {
-    return experiments.map((exp: any) => ({ value: exp.id, label: exp.name || exp.id }));
-  }, [experiments]);
+  const {
+    experiments,
+    loading: experimentsLoading,
+    error: experimentsError,
+    options: experimentOptions,
+    reload: reloadExperiments,
+  } = useOwlExperiments(projectId);
 
   const routeParamEntries = useMemo(
     () => Object.entries(routeParams).filter(([, value]) => value),
@@ -96,143 +65,19 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
     return parts.filter(Boolean).join(' | ');
   }, [pageLabel, routeParamEntries]);
 
-  const appendMessages = (entries: OwlMessage[]) => {
-    setMessages((prev) => [...prev, ...entries]);
-  };
-
-  // Send message to backend - system prompts are handled server-side
-  const sendOwlMessage = async (action: string, userMessage: string) => {
-    setLoading(true);
-    setActionError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/owl/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Athena-Project-Id': projectId,
-        },
-        body: JSON.stringify({
-          user_message: userMessage,
-          action: action,
-          context: pageContext,
-          // Could add conversation_history here for multi-turn
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Owl request failed');
-      }
-      const data = await response.json();
-      const content = data.content || 'No response returned.';
-      appendMessages([
-        { id: makeId('msg'), role: 'user', content: userMessage, createdAt: Date.now() },
-        { id: makeId('msg'), role: 'assistant', content, createdAt: Date.now() },
-      ]);
-    } catch (error: any) {
-      setActionError(error?.message || 'Owl request failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Build user message for each action type (prompts are now backend-managed)
-  const buildUserMessage = (action: OwlActionId): string | null => {
-    switch (action) {
-      case 'aql': {
-        const question = actionInputs.question?.trim();
-        if (!question) return null;
-        return `Question: ${question}\nProject: ${projectName || projectId}`;
-      }
-      case 'prompt': {
-        const prompt = actionInputs.prompt?.trim();
-        if (!prompt) return null;
-        const goal = actionInputs.goal?.trim() || 'Improve clarity and policy compliance';
-        return `Goal: ${goal}\nOriginal prompt:\n${prompt}`;
-      }
-      case 'scorer': {
-        const criteria = actionInputs.criteria?.trim();
-        if (!criteria) return null;
-        return `Criteria to cover:\n${criteria}`;
-      }
-      case 'dataset': {
-        const domain = actionInputs.domain?.trim();
-        if (!domain) return null;
-        return `Domain: ${domain}`;
-      }
-      default:
-        return null;
-    }
-  };
-
-  const handleRunAction = async () => {
-    setActionError(null);
-    if (!projectId) return;
-
-    // Docs search is handled differently (direct API call, not LLM)
-    if (activeAction === 'docs') {
-      const query = actionInputs.docs_query?.trim();
-      if (!query) {
-        setActionError('Enter a docs search query.');
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await api.searchDocs({ query, limit: 8 });
-        const lines = result.results.map((item: any) => `- ${item.path}:${item.line} ${item.snippet}`);
-        const content = lines.length ? lines.join('\n') : 'No matching docs found.';
-        appendMessages([
-          { id: makeId('msg'), role: 'user', content: `Search docs: ${query}`, createdAt: Date.now() },
-          { id: makeId('msg'), role: 'assistant', content, createdAt: Date.now() },
-        ]);
-      } catch (error: any) {
-        setActionError(error?.message || 'Docs search failed');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // Experiment summary needs to fetch data first
-    if (activeAction === 'experiment') {
-      const experimentId = actionInputs.experiment_id?.trim();
-      if (!experimentId) {
-        setActionError('Select an experiment.');
-        return;
-      }
-      setLoading(true);
-      try {
-        const experiment = experiments.find((exp: any) => exp.id === experimentId);
-        const versions = await api.getExperimentVersions(experimentId);
-        const latestVersion = [...versions].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
-        if (!latestVersion) throw new Error('No experiment versions found.');
-        const runs = await api.getVersionRuns(experimentId, latestVersion.id);
-        const latestRun = [...runs].sort((a, b) => (b.created_at || 0) - (a.created_at || 0))[0];
-        if (!latestRun) throw new Error('No experiment runs found.');
-
-        const userMessage = `Experiment: ${experiment?.name || experimentId}\nRun summary:\n${JSON.stringify(latestRun.summary || {}, null, 2)}`;
-        await sendOwlMessage('experiment', userMessage);
-      } catch (error: any) {
-        setActionError(error?.message || 'Experiment summary failed');
-        setLoading(false);
-      }
-      return;
-    }
-
-    // Standard playbook actions
-    const userMessage = buildUserMessage(activeAction);
-    if (!userMessage) {
-      setActionError('Please fill in the required fields.');
-      return;
-    }
-    await sendOwlMessage(activeAction, userMessage);
-  };
-
-  const handleSendChat = async () => {
-    const message = chatInput.trim();
-    if (!message) return;
-    setChatInput('');
-    await sendOwlMessage('chat', message);
-  };
+  const {
+    activeAction,
+    actionInputs,
+    chatInput,
+    messages,
+    loading,
+    actionError,
+    setChatInput,
+    changeAction,
+    updateActionInput,
+    runAction,
+    sendChat,
+  } = useOwlAssistant({ projectId, projectName, pageContext, experiments });
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
@@ -260,120 +105,21 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
             </Button>
           </div>
 
-          {/* Collapsible Playbook Section */}
-          <div className="border-b border-border-base">
-            <button
-              onClick={() => setPlaybookExpanded(!playbookExpanded)}
-              className="w-full flex items-center justify-between px-4 py-2 hover:bg-panel-hover transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <BookOpenIcon className="w-3.5 h-3.5 text-text-muted" />
-                <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Playbooks</span>
-                <Badge variant="neutral" className="text-[9px]">{activeAction}</Badge>
-              </div>
-              {playbookExpanded ? (
-                <ChevronDownIcon className="w-3.5 h-3.5 text-text-muted" />
-              ) : (
-                <ChevronRightIcon className="w-3.5 h-3.5 text-text-muted" />
-              )}
-            </button>
-
-            {playbookExpanded && (
-              <div className="px-4 pb-3 space-y-2 animate-soft-in">
-                <Select
-                  value={activeAction}
-                  onChange={(e) => {
-                    setActiveAction(e.target.value as OwlActionId);
-                    setActionError(null);
-                  }}
-                  className="text-xs"
-                >
-                  {OWL_ACTIONS.map((action) => (
-                    <option key={action.id} value={action.id}>
-                      {action.title}
-                    </option>
-                  ))}
-                </Select>
-                <div className="text-[10px] text-text-muted">
-                  {OWL_ACTIONS.find((action) => action.id === activeAction)?.description}
-                </div>
-
-                {activeAction === 'aql' && (
-                  <Textarea
-                    value={actionInputs.question || ''}
-                    onChange={(e) => setActionInputs((prev) => ({ ...prev, question: e.target.value }))}
-                    placeholder="What do you want to learn from logs?"
-                    className="text-xs h-16 resize-none"
-                  />
-                )}
-                {activeAction === 'prompt' && (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={actionInputs.prompt || ''}
-                      onChange={(e) => setActionInputs((prev) => ({ ...prev, prompt: e.target.value }))}
-                      placeholder="Paste the prompt to improve"
-                      className="text-xs h-16 resize-none"
-                    />
-                    <Input
-                      value={actionInputs.goal || ''}
-                      onChange={(e) => setActionInputs((prev) => ({ ...prev, goal: e.target.value }))}
-                      placeholder="Goal (optional)"
-                      className="text-xs"
-                    />
-                  </div>
-                )}
-                {activeAction === 'scorer' && (
-                  <Textarea
-                    value={actionInputs.criteria || ''}
-                    onChange={(e) => setActionInputs((prev) => ({ ...prev, criteria: e.target.value }))}
-                    placeholder="List the criteria the scorer should enforce"
-                    className="text-xs h-16 resize-none"
-                  />
-                )}
-                {activeAction === 'dataset' && (
-                  <Textarea
-                    value={actionInputs.domain || ''}
-                    onChange={(e) => setActionInputs((prev) => ({ ...prev, domain: e.target.value }))}
-                    placeholder="Describe the dataset focus (scenario, product area, policy)"
-                    className="text-xs h-16 resize-none"
-                  />
-                )}
-                {activeAction === 'experiment' && (
-                  <Select
-                    value={actionInputs.experiment_id || ''}
-                    onChange={(e) => setActionInputs((prev) => ({ ...prev, experiment_id: e.target.value }))}
-                    className="text-xs"
-                  >
-                    <option value="">Select experiment</option>
-                    {experimentOptions.map((exp) => (
-                      <option key={exp.value} value={exp.value}>
-                        {exp.label}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-                {activeAction === 'docs' && (
-                  <Input
-                    value={actionInputs.docs_query || ''}
-                    onChange={(e) => setActionInputs((prev) => ({ ...prev, docs_query: e.target.value }))}
-                    placeholder="Search docs for..."
-                    className="text-xs"
-                  />
-                )}
-
-                {actionError && (
-                  <div className="text-[10px] text-rose-500 font-medium bg-rose-500/10 rounded-md px-2 py-1">
-                    {actionError}
-                  </div>
-                )}
-
-                <Button variant="primary" size="sm" onClick={handleRunAction} disabled={loading} className="w-full">
-                  {loading ? 'Working...' : 'Run playbook'}
-                </Button>
-              </div>
-            )}
-          </div>
-
+          <OwlPlaybookPanel
+            activeAction={activeAction}
+            actionInputs={actionInputs}
+            experimentOptions={experimentOptions}
+            experimentsLoading={experimentsLoading}
+            experimentsError={experimentsError}
+            actionError={actionError}
+            loading={loading}
+            isExpanded={playbookExpanded}
+            onActionChange={changeAction}
+            onInputChange={updateActionInput}
+            onToggle={() => setPlaybookExpanded((expanded) => !expanded)}
+            onRetryExperiments={reloadExperiments}
+            onRun={runAction}
+          />
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {messages.length === 0 && (
@@ -410,7 +156,7 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendChat();
+                  sendChat();
                 }
               }}
             />
@@ -418,7 +164,7 @@ const OwlWidget: React.FC<OwlWidgetProps> = ({
               <div className="text-[9px] text-text-muted truncate max-w-[180px]">
                 {contextSummary || 'Athena'}
               </div>
-              <Button variant="primary" size="sm" onClick={handleSendChat} disabled={loading}>
+              <Button variant="primary" size="sm" onClick={sendChat} disabled={loading}>
                 Send
               </Button>
             </div>

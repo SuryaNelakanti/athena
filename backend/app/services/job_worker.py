@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 import asyncio
+import logging
 import time
 import traceback
 
@@ -10,6 +11,8 @@ from app.models import JobModel, ExperimentRunModel
 from app.services.experiment_v2_service import ExperimentV2Service
 from app.services.job_service import JobService
 from app.services.online_scoring_service import OnlineScoringService
+
+logger = logging.getLogger(__name__)
 
 
 class JobWorker:
@@ -29,7 +32,12 @@ class JobWorker:
                 await OnlineScoringService.execute_log_scoring(job.ref_id)
             else:
                 error = f"Unsupported job kind: {job.kind}"
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Background job %s failed (%s)",
+                job_id,
+                type(exc).__name__,
+            )
             error = traceback.format_exc()
 
         async with async_sessionmaker() as session:
@@ -66,8 +74,12 @@ class JobWorker:
             if job_id:
                 try:
                     await JobWorker.process_job(job_id, claim=False)
-                except Exception:
-                    pass
+                except Exception as error:
+                    logger.warning(
+                        "Background worker failed while processing job %s (%s)",
+                        job_id,
+                        type(error).__name__,
+                    )
                 continue
 
             try:

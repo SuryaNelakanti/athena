@@ -1,0 +1,48 @@
+# Athena AI - Robots.txt
+# Search vs Training Bot Policy
+
+# Allow search indexing crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# AI Search bots (for appearing in AI answers/citations)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# Training bots - ALLOW (opt in to foundation model training)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+# Default - allow all other crawlers
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://athena.dev/sitemap.xml

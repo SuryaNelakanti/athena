@@ -10,6 +10,7 @@ Guardrails check outputs before they're returned to users, providing:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from sqlalchemy import or_
 from sqlmodel import select
 
 from app.models import GuardrailModel, DatasetModel, DatasetRowModel
+from app.services.anti_pattern_matching import match_normalized_text, normalize_text
 
 
 @dataclass
@@ -36,6 +38,12 @@ class GuardrailResult:
         }
 
 
+@dataclass(frozen=True)
+class GuardrailMatch:
+    triggered: bool
+    reason: Optional[str] = None
+
+
 class GuardrailService:
     """Service for checking outputs against guardrails."""
     
@@ -45,7 +53,7 @@ class GuardrailService:
     
     def _normalize_text(self, value: str) -> str:
         """Normalize text for comparison."""
-        return " ".join(value.strip().lower().split())
+        return normalize_text(value)
     
     async def check_output(self, output_text: str) -> GuardrailResult:
         """
@@ -53,45 +61,45 @@ class GuardrailService:
         
         Returns GuardrailResult indicating whether the output should be blocked, warned, or allowed.
         """
-        # Fetch enabled guardrails ordered by priority
-        stmt = select(GuardrailModel).where(
-            GuardrailModel.project_id == self.project_id,
-            GuardrailModel.enabled == True
-        ).order_by(GuardrailModel.priority.desc())
-        
-        result = await self.session.execute(stmt)
-        guardrails = result.scalars().all()
-        
+        guardrails = await self._load_enabled_guardrails()
         if not guardrails:
-            return GuardrailResult(
-                passed=True,
-                action="allow",
-                triggered_guardrails=[],
-                warnings=[]
-            )
-        
-        triggered = []
-        warnings = []
+            return self._result_for_triggers([], [], should_block=False)
+
+        triggered: list[Dict[str, Any]] = []
+        warnings: list[str] = []
         should_block = False
-        
         normalized_output = self._normalize_text(output_text)
-        
         for guardrail in guardrails:
             match = await self._check_guardrail(guardrail, output_text, normalized_output)
-            
-            if match["triggered"]:
+            if match.triggered:
                 triggered.append({
                     "guardrail_id": guardrail.id,
                     "name": guardrail.name,
                     "action": guardrail.action,
-                    "reason": match["reason"]
+                    "reason": match.reason
                 })
                 
                 if guardrail.action == "block":
                     should_block = True
                 elif guardrail.action == "warn":
-                    warnings.append(f"{guardrail.name}: {match['reason']}")
-        
+                    warnings.append(f"{guardrail.name}: {match.reason}")
+
+        return self._result_for_triggers(triggered, warnings, should_block)
+
+    async def _load_enabled_guardrails(self) -> list[GuardrailModel]:
+        statement = select(GuardrailModel).where(
+            GuardrailModel.project_id == self.project_id,
+            GuardrailModel.enabled.is_(True)
+        ).order_by(GuardrailModel.priority.desc())
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    def _result_for_triggers(
+        self,
+        triggered: List[Dict[str, Any]],
+        warnings: List[str],
+        should_block: bool,
+    ) -> GuardrailResult:
         if should_block:
             return GuardrailResult(
                 passed=False,
@@ -128,7 +136,7 @@ class GuardrailService:
         guardrail: GuardrailModel, 
         output_text: str,
         normalized_output: str
-    ) -> Dict[str, Any]:
+    ) -> GuardrailMatch:
         """Check if a single guardrail is triggered."""
         condition_type = guardrail.condition_type
         config = guardrail.condition_config or {}
@@ -140,13 +148,13 @@ class GuardrailService:
         elif condition_type == "regex":
             return self._check_regex(config, output_text)
         
-        return {"triggered": False, "reason": None}
+        return GuardrailMatch(triggered=False)
     
     async def _check_anti_pattern(
         self, 
         config: Dict, 
         normalized_output: str
-    ) -> Dict[str, Any]:
+    ) -> GuardrailMatch:
         """Check if output matches any specified anti-patterns."""
         pattern_ids = config.get("pattern_ids", [])
         threshold = config.get("threshold", 0.7)
@@ -158,7 +166,7 @@ class GuardrailService:
             datasets = dataset_result.scalars().all()
             
             if not datasets:
-                return {"triggered": False, "reason": None}
+                return GuardrailMatch(triggered=False)
             
             dataset_ids = [d.id for d in datasets]
             row_stmt = select(DatasetRowModel).where(
@@ -192,49 +200,52 @@ class GuardrailService:
                 continue
             
             pattern_normalized = self._normalize_text(pattern_text)
-            
-            # Substring check
-            if pattern_normalized in normalized_output or normalized_output in pattern_normalized:
-                return {
-                    "triggered": True,
-                    "reason": f"Output matches anti-pattern (substring match)"
-                }
-            
-            # Word overlap
-            output_words = set(normalized_output.split())
-            pattern_words = set(pattern_normalized.split())
-            
-            if output_words and pattern_words:
-                overlap = len(output_words & pattern_words) / max(len(output_words), len(pattern_words))
-                if overlap >= threshold:
-                    return {
-                        "triggered": True,
-                        "reason": f"Output resembles anti-pattern ({overlap:.0%} similarity)"
-                    }
+            if not pattern_normalized:
+                return GuardrailMatch(
+                    triggered=True,
+                    reason="Output matches anti-pattern (substring match)",
+                )
+            match = match_normalized_text(normalized_output, pattern_normalized, threshold)
+            if not match:
+                continue
+
+            if match.method == "substring":
+                return GuardrailMatch(
+                    triggered=True,
+                    reason="Output matches anti-pattern (substring match)",
+                )
+            return GuardrailMatch(
+                triggered=True,
+                reason=f"Output resembles anti-pattern ({match.similarity:.0%} similarity)",
+            )
         
-        return {"triggered": False, "reason": None}
-    
-    def _check_keyword(self, config: Dict, normalized_output: str) -> Dict[str, Any]:
+        return GuardrailMatch(triggered=False)
+
+    def _check_keyword(self, config: Dict, normalized_output: str) -> GuardrailMatch:
         """Check if output contains blocked keywords."""
         keywords = config.get("keywords", [])
         
         for keyword in keywords:
             if self._normalize_text(keyword) in normalized_output:
-                return {"triggered": True, "reason": f"Contains blocked keyword: '{keyword}'"}
+                return GuardrailMatch(
+                    triggered=True,
+                    reason=f"Contains blocked keyword: '{keyword}'",
+                )
         
-        return {"triggered": False, "reason": None}
-    
-    def _check_regex(self, config: Dict, output_text: str) -> Dict[str, Any]:
+        return GuardrailMatch(triggered=False)
+
+    def _check_regex(self, config: Dict, output_text: str) -> GuardrailMatch:
         """Check if output matches blocked regex pattern."""
-        import re
-        
         patterns = config.get("patterns", [])
         
         for pattern in patterns:
             try:
                 if re.search(pattern, output_text, re.IGNORECASE):
-                    return {"triggered": True, "reason": f"Matches blocked pattern: '{pattern}'"}
+                    return GuardrailMatch(
+                        triggered=True,
+                        reason=f"Matches blocked pattern: '{pattern}'",
+                    )
             except re.error:
                 continue
         
-        return {"triggered": False, "reason": None}
+        return GuardrailMatch(triggered=False)

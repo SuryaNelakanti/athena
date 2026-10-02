@@ -1,5 +1,5 @@
 # Athena
-Athena is an AI proxy + observability + evaluation platform with a closed-loop workflow (Logs → Dataset → Experiment) and an MCP server that lets IDE agents query and act on your AI telemetry and eval artifacts.
+Athena is an AI proxy + observability + evaluation platform with a closed-loop workflow (Logs -> Dataset -> Experiment) and an MCP server that lets IDE agents query and act on your AI telemetry and eval artifacts.
 
 
 
@@ -58,4 +58,10 @@ npm install
 npm run dev
 ```
 App runs on `http://localhost:3000`.
+## Local Port Overrides
 
+Athena backend reads `DATABASE_URL` and provider API keys from the environment. Athena frontend reads `VITE_API_BASE_URL`, `VITE_PORT`, and `VITE_HOST`.
+
+Convenience scripts:
+- `npm run dev:backend`
+- `npm run dev:frontend`

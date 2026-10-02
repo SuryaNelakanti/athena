@@ -1,26 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../lib/api';
-import { Dataset, DatasetRow, DatasetVersion } from '../types';
-import {
-    ChevronLeftIcon,
-    CircleStackIcon,
-    ChevronDownIcon,
-    ChevronRightIcon,
-    DocumentTextIcon,
-    CheckCircleIcon,
-    MagnifyingGlassIcon,
-    PlusIcon,
-    XMarkIcon,
-    ExclamationTriangleIcon,
-    LinkIcon
-} from '@heroicons/react/24/outline';
-import { Badge, Button, Card, IconButton, Input, Modal, Tabs, Textarea } from '../components/ui';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { useProject } from '../contexts/ProjectContext';
+import type { DatasetVersion } from '../types';
+import { MagnifyingGlassIcon, PlusIcon, LinkIcon, BeakerIcon } from '@heroicons/react/24/outline';
+import { PromptTestModal } from '../components/PromptTestModal';
+import { Badge, Button, Card, Input, Tabs } from '../components/ui';
 import { PageHeader } from '../layouts/PageHeader';
-
-interface DatasetDetailProps {
-    dataset: Dataset;
-    onBack: () => void;
-}
+import { extractExpected, extractText } from '../lib/structuredData';
+import { useDatasetDetailData } from '../features/datasets/useDatasetDetailData';
+import { useDatasetRowCreation } from '../features/datasets/useDatasetRowCreation';
+import { DatasetRowCreateModal } from '../features/datasets/DatasetRowCreateModal';
+import DatasetRowsPanel from '../features/datasets/DatasetRowsPanel';
+import DatasetHistoryPanel from '../features/datasets/DatasetHistoryPanel';
+import { getDatasetEvalLabel, getDatasetRowKind } from '../features/datasets/datasetRowUtils';
+import ShareLinkModal from '../features/collaboration/ShareLinkModal';
+import { useShareLink } from '../features/collaboration/useShareLink';
 
 const MAIN_TABS = [
     { id: 'eval', label: 'Eval' },
@@ -34,96 +28,45 @@ const FILTER_TABS = [
     { id: 'anti_pattern', label: 'Anti-Pattern' },
 ];
 
-const EXAMPLE_TABS = [
-    { id: 'gold', label: 'Gold Example' },
-    { id: 'anti_pattern', label: 'Anti-Pattern' },
-];
-
-const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
-    const [rows, setRows] = useState<DatasetRow[]>([]);
-    const [loading, setLoading] = useState(true);
+const DatasetDetail = () => {
+    const { currentProject } = useProject();
+    const projectId = currentProject?.id || '';
+    const { datasetId } = useParams({ from: '/datasets/$datasetId' });
+    const navigate = useNavigate();
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'gold' | 'anti_pattern'>('all');
     const [activeTab, setActiveTab] = useState<'eval' | 'resources' | 'history'>('eval');
-    const [history, setHistory] = useState<DatasetVersion[]>([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
-    const [rowHistory, setRowHistory] = useState<Record<string, DatasetRow[]>>({});
+    const {
+        dataset,
+        rows,
+        loading,
+        datasetLoading,
+        datasetError,
+        rowsError,
+        history,
+        historyLoading,
+        historyError,
+        rowHistory,
+        rowHistoryErrors,
+        loadRows,
+        loadHistory,
+        loadRowHistory,
+    } = useDatasetDetailData(datasetId, activeTab);
+    const rowCreation = useDatasetRowCreation(dataset, activeTab, loadRows);
+    const shareLink = useShareLink(dataset ? {
+        projectId: dataset.project_id,
+        objectType: 'dataset',
+        objectId: dataset.id,
+    } : null, { clipboardUnavailableMessage: 'Clipboard access is unavailable.' });
 
-    // Add Example Modal State
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [newExample, setNewExample] = useState({
-        input: '',
-        expected: '',
-        example_type: 'gold' as 'gold' | 'anti_pattern',
-    });
-    const [addError, setAddError] = useState<string | null>(null);
-
-    // Share State
-    const [shareModalOpen, setShareModalOpen] = useState(false);
-    const [shareUrl, setShareUrl] = useState<string | null>(null);
-    const [shareLoading, setShareLoading] = useState(false);
-    const [shareError, setShareError] = useState<string | null>(null);
-    const [shareCopied, setShareCopied] = useState(false);
-
-    const loadRows = async () => {
-        setLoading(true);
-        try {
-            const data = await api.getDatasetRows(dataset.id);
-            setRows(data);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadHistory = async () => {
-        setHistoryLoading(true);
-        try {
-            const data = await api.getDatasetHistory(dataset.id);
-            setHistory(data);
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
+    // Prompt Test State
+    const [showPromptTest, setShowPromptTest] = useState(false);
 
     useEffect(() => {
-        loadRows();
-    }, [dataset.id]);
-
-    useEffect(() => {
-        setRowHistory({});
         setExpandedHistoryId(null);
-    }, [dataset.id]);
-
-    useEffect(() => {
-        if (activeTab === 'history') {
-            loadHistory();
-        }
-    }, [dataset.id, activeTab]);
-
-    // Extract human-readable text from input/expected objects
-    const extractText = (obj: any): string => {
-        if (typeof obj === 'string') return obj;
-        if (!obj || typeof obj !== 'object') return '';
-        for (const key of ['prompt', 'input', 'text', 'query', 'question', 'content']) {
-            if (typeof obj[key] === 'string') return obj[key];
-        }
-        if (Array.isArray(obj.messages)) {
-            const userMsg = obj.messages.find((m: any) => m.role === 'user');
-            if (userMsg?.content) return userMsg.content;
-        }
-        return JSON.stringify(obj);
-    };
-
-    const extractExpected = (obj: any): string => {
-        if (typeof obj === 'string') return obj;
-        if (!obj || typeof obj !== 'object') return '';
-        for (const key of ['answer', 'expected', 'text', 'content', 'response']) {
-            if (typeof obj[key] === 'string') return obj[key];
-        }
-        return JSON.stringify(obj);
-    };
+    }, [datasetId]);
 
     const handleToggleHistory = async (entry: DatasetVersion) => {
         if (expandedHistoryId === entry.id) {
@@ -131,23 +74,16 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
             return;
         }
         setExpandedHistoryId(entry.id);
+        if (!dataset) return;
         if (entry.logical_id && !rowHistory[entry.logical_id]) {
-            try {
-                const rows = await api.getDatasetRowHistory(dataset.id, entry.logical_id);
-                setRowHistory((prev) => ({ ...prev, [entry.logical_id as string]: rows }));
-            } catch {
-                // ignore history load errors
-            }
+            await loadRowHistory(dataset.id, entry.logical_id);
         }
     };
 
-    const getRowKind = (row: DatasetRow) => row.row_kind || 'eval';
-    const getEvalLabel = (row: DatasetRow) => row.eval_label || row.example_type || 'gold';
-
     // Filter rows
     const filteredRows = rows.filter(row => {
-        const rowKind = getRowKind(row);
-        const evalLabel = getEvalLabel(row);
+        const rowKind = getDatasetRowKind(row);
+        const evalLabel = getDatasetEvalLabel(row);
 
         if (activeTab === 'eval' && rowKind !== 'eval') return false;
         if (activeTab === 'resources' && rowKind !== 'resource') return false;
@@ -160,81 +96,34 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
         return input.includes(searchQuery.toLowerCase()) || expected.includes(searchQuery.toLowerCase());
     });
 
-    const evalRows = rows.filter(r => getRowKind(r) === 'eval');
-    const goldCount = evalRows.filter(r => getEvalLabel(r) === 'gold').length;
-    const antiPatternCount = evalRows.filter(r => getEvalLabel(r) === 'anti_pattern').length;
-    const resourceCount = rows.filter(r => getRowKind(r) === 'resource').length;
+    const evalRows = rows.filter((row) => getDatasetRowKind(row) === 'eval');
+    const goldCount = evalRows.filter((row) => getDatasetEvalLabel(row) === 'gold').length;
+    const antiPatternCount = evalRows.filter((row) => getDatasetEvalLabel(row) === 'anti_pattern').length;
+    const resourceCount = rows.filter((row) => getDatasetRowKind(row) === 'resource').length;
     const isEvalTab = activeTab === 'eval';
     const isResourceTab = activeTab === 'resources';
 
-    const handleAddExample = async () => {
-        setAddError(null);
-        if (!newExample.input.trim()) {
-            setAddError('Input is required');
-            return;
-        }
-        const isEvalTab = activeTab === 'eval';
-        if (isEvalTab && !newExample.expected.trim()) {
-            setAddError('Expected output is required');
-            return;
-        }
+    if (!datasetId) {
+        return <div className="flex items-center justify-center h-full text-text-muted">Dataset not found.</div>;
+    }
 
-        try {
-            await api.addDatasetRow(dataset.id, {
-                input: isEvalTab ? { prompt: newExample.input } : { text: newExample.input },
-                expected: isEvalTab ? { answer: newExample.expected } : undefined,
-                row_kind: isEvalTab ? 'eval' : 'resource',
-                eval_label: isEvalTab ? newExample.example_type : undefined,
-                example_type: isEvalTab ? newExample.example_type : undefined,
-            });
-            await loadRows();
-            setShowAddModal(false);
-            setNewExample({ input: '', expected: '', example_type: 'gold' });
-        } catch (e: any) {
-            setAddError(e?.message || 'Failed to add example');
-        }
-    };
+    if (datasetLoading) {
+        return <div className="flex items-center justify-center h-full text-text-muted">Loading dataset...</div>;
+    }
 
-    const buildShareUrl = (token: string) => {
-        const base = `${window.location.origin}${window.location.pathname}`;
-        return `${base}#/share-links/${token}`;
-    };
-
-    const openShareModal = async () => {
-        setShareModalOpen(true);
-        setShareLoading(true);
-        setShareError(null);
-        setShareUrl(null);
-        setShareCopied(false);
-        try {
-            const created = await api.createShareLink({
-                project_id: dataset.project_id,
-                object_type: 'dataset',
-                object_id: dataset.id,
-            });
-            setShareUrl(buildShareUrl(created.token));
-        } catch (e: any) {
-            setShareError(e?.message || 'Failed to create share link');
-        } finally {
-            setShareLoading(false);
-        }
-    };
-
-    const copyShareUrl = async () => {
-        if (!shareUrl || !navigator.clipboard) return;
-        await navigator.clipboard.writeText(shareUrl);
-        setShareCopied(true);
-        setTimeout(() => setShareCopied(false), 2000);
-    };
+    if (!dataset) {
+        return <div className="flex items-center justify-center h-full text-text-muted">{datasetError || 'Dataset not found.'}</div>;
+    }
 
     return (
-        <><div className="h-full flex flex-col">
+        <>
+          <div className="h-full flex flex-col">
 
             <div className="border-b border-border-hairline shrink-0">
                 <PageHeader
                     title={dataset.name}
                     subtitle={dataset.description}
-                    onBack={onBack}
+                    onBack={() => navigate({ to: '/datasets' })}
                     badge={<div className="flex items-center gap-2 text-xs text-text-muted font-medium mt-0.5">
                         <Badge variant="primary">v{dataset.version}</Badge>
                         {dataset.kind && (
@@ -260,14 +149,22 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
                     actions={activeTab !== 'history' && (
                         <div className="flex items-center gap-2">
                             <Button
-                                onClick={openShareModal}
+                                onClick={() => setShowPromptTest(true)}
+                                variant="secondary"
+                                size="sm"
+                                className="mr-2"
+                            >
+                                <BeakerIcon className="w-4 h-4" /> Test Prompt
+                            </Button>
+                            <Button
+                                onClick={() => void shareLink.open()}
                                 variant="secondary"
                                 size="sm"
                             >
                                 <LinkIcon className="w-4 h-4" /> Share
                             </Button>
                             <Button
-                                onClick={() => setShowAddModal(true)}
+                                onClick={() => rowCreation.setIsOpen(true)}
                                 variant="primary"
                                 size="sm"
                             >
@@ -318,313 +215,70 @@ const DatasetDetail: React.FC<DatasetDetailProps> = ({ dataset, onBack }) => {
             )}
             <div className="flex-1 overflow-y-auto p-6">
                 {activeTab !== 'history' ? (
-                    <>
-                        {loading ? (
-                            <div className="py-20 text-center text-text-muted italic">Loading rows...</div>
-                        ) : filteredRows.length === 0 ? (
-                            <div className="py-20 text-center">
-                                <CircleStackIcon className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
-                                <p className="text-text-muted italic mb-4">
-                                    {searchQuery ? 'No rows match your search.' : 'No rows in this dataset yet.'}
-                                </p>
-                                <Button
-                                    onClick={() => setShowAddModal(true)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-primary"
-                                >
-                                    <PlusIcon className="w-4 h-4" /> {isResourceTab ? 'Add Your First Resource' : 'Add Your First Row'}
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {filteredRows.map((row, idx) => {
-                                    const isExpanded = expandedRowId === row.id;
-                                    const inputText = extractText(row.input);
-                                    const expectedText = extractExpected(row.expected);
-                                    const rowKind = getRowKind(row);
-                                    const evalLabel = getEvalLabel(row);
-                                    const isAntiPattern = rowKind === 'eval' && evalLabel === 'anti_pattern';
-                                    const isResource = rowKind === 'resource';
-
-                                    return (
-                                        <div
-                                            key={row.id}
-                                            className={`bg-panel border rounded-lg overflow-hidden transition-all ${isAntiPattern ? 'border-rose-500/30' : 'border-border-base hover:border-border-hover'}`}
-                                        >
-                                            {/* Row Header */}
-                                            <button
-                                                onClick={() => setExpandedRowId(isExpanded ? null : row.id)}
-                                                className="w-full px-6 py-4 flex items-start gap-4 text-left hover:bg-panel-hover transition-colors"
-                                            >
-                                                <div className={`flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold ${isAntiPattern
-                                                    ? 'bg-rose-500/10 text-rose-500'
-                                                    : 'bg-primary/10 text-primary'}`}>
-                                                    {isAntiPattern ? <XMarkIcon className="w-4 h-4" /> : idx + 1}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        {isAntiPattern && (
-                                                            <Badge variant="danger">Anti-Pattern</Badge>
-                                                        )}
-                                                        {isResource && (
-                                                            <Badge variant="outline">Resource</Badge>
-                                                        )}
-                                                        {row.source_trace_id && (
-                                                            <Badge variant="warning">From Trace</Badge>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm text-text-main line-clamp-2 font-medium">{inputText}</p>
-                                                    <p className="text-xs text-text-muted mt-1 line-clamp-1">
-                                                        <span className={isAntiPattern ? 'text-rose-500 font-medium' : 'text-emerald-500 font-medium'}>
-                                                            {isResource ? 'Resource:' : isAntiPattern ? 'Avoid:' : 'Expected:'}
-                                                        </span> {isResource ? 'Reference content' : expectedText}
-                                                    </p>
-                                                </div>
-                                                <div className="flex-shrink-0">
-                                                    {isExpanded ? (
-                                                        <ChevronDownIcon className="w-5 h-5 text-text-muted" />
-                                                    ) : (
-                                                        <ChevronRightIcon className="w-5 h-5 text-text-muted" />
-                                                    )}
-                                                </div>
-                                            </button>
-
-                                            {/* Expanded Content */}
-                                            {isExpanded && (
-                                                <div className="px-6 pb-6 pt-2 border-t border-border-base/50">
-                                                    {isResource ? (
-                                                        <div className="grid md:grid-cols-1 gap-4">
-                                                            <div>
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    <DocumentTextIcon className="w-4 h-4 text-primary" />
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Resource Content</span>
-                                                                </div>
-                                                                <div className="bg-app rounded-md border border-border-base p-4">
-                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="grid md:grid-cols-2 gap-4">
-                                                            {/* Input */}
-                                                            <div>
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    <DocumentTextIcon className="w-4 h-4 text-primary" />
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Input (Prompt)</span>
-                                                                </div>
-                                                                <div className="bg-app rounded-md border border-border-base p-4">
-                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{inputText}</p>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Expected */}
-                                                            <div>
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    {isAntiPattern ? (
-                                                                        <>
-                                                                            <ExclamationTriangleIcon className="w-4 h-4 text-rose-500" />
-                                                                            <span className="text-xs font-bold uppercase tracking-wider text-rose-500">Anti-Pattern (Avoid This)</span>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
-                                                                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Expected Output</span>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                                <div className={`rounded-md p-4 ${isAntiPattern
-                                                                    ? 'bg-rose-500/5 border border-rose-500/20'
-                                                                    : 'bg-emerald-500/5 border border-emerald-500/20'}`}>
-                                                                    <p className="text-sm text-text-main whitespace-pre-wrap">{expectedText}</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </>
+                    <DatasetRowsPanel
+                        rows={filteredRows}
+                        loading={loading}
+                        error={rowsError}
+                        isResourceTab={isResourceTab}
+                        searchQuery={searchQuery}
+                        expandedRowId={expandedRowId}
+                        onRetry={() => void loadRows(dataset)}
+                        onAddRow={() => rowCreation.setIsOpen(true)}
+                        onToggleRow={(rowId) => setExpandedRowId(rowId)}
+                    />
                 ) : (
-                    <div>
-                        {historyLoading ? (
-                            <div className="py-20 text-center text-text-muted italic">Loading history...</div>
-                        ) : history.length === 0 ? (
-                            <div className="py-20 text-center text-text-muted italic">No history yet.</div>
-                        ) : (
-                            <div className="space-y-3">
-                                {history.map((entry) => {
-                                    const isExpanded = expandedHistoryId === entry.id;
-                                    const rowsForLogical = entry.logical_id ? rowHistory[entry.logical_id] : undefined;
-                                    const currentRow = rowsForLogical?.find((r) => r.id === entry.row_id) || rowsForLogical?.[rowsForLogical.length - 1];
-                                    const currentIndex = currentRow && rowsForLogical ? rowsForLogical.findIndex((r) => r.id === currentRow.id) : -1;
-                                    const previousRow = currentIndex > 0 && rowsForLogical ? rowsForLogical[currentIndex - 1] : null;
-
-                                    return (
-                                        <Card key={entry.id} padded={false} className="overflow-hidden">
-                                            <button
-                                                onClick={() => handleToggleHistory(entry)}
-                                                className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-panel-hover transition-colors"
-                                            >
-                                                <div>
-                                                    <div className="text-xs text-text-muted uppercase tracking-wider">Version {entry.version}</div>
-                                                    <div className="text-sm font-bold text-text-main">{entry.action}</div>
-                                                    <div className="text-[10px] text-text-muted mt-1">{new Date(entry.created_at).toLocaleString()}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {entry.action === 'flush' && (
-                                                        <span className="text-[10px] text-amber-500 font-bold">Flush</span>
-                                                    )}
-                                                    {isExpanded ? (
-                                                        <ChevronDownIcon className="w-5 h-5 text-text-muted" />
-                                                    ) : (
-                                                        <ChevronRightIcon className="w-5 h-5 text-text-muted" />
-                                                    )}
-                                                </div>
-                                            </button>
-                                            {isExpanded && entry.logical_id && (
-                                                <div className="px-5 pb-5 pt-2 border-t border-border-base/50">
-                                                    {!rowsForLogical ? (
-                                                        <div className="text-xs text-text-muted italic">Loading row history...</div>
-                                                    ) : (
-                                                        <div className="grid md:grid-cols-2 gap-4">
-                                                            {previousRow && (
-                                                                <div>
-                                                                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Previous</div>
-                                                                    <div className="bg-app border border-border-base rounded-md p-3 text-xs text-text-main whitespace-pre-wrap">
-                                                                        {`${extractText(previousRow.input)}\n\nExpected: ${extractExpected(previousRow.expected)}`}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {currentRow && (
-                                                                <div>
-                                                                    <div className="text-[10px] uppercase tracking-wider text-text-muted font-bold mb-2">Current</div>
-                                                                    <div className="bg-app border border-border-base rounded-md p-3 text-xs text-text-main whitespace-pre-wrap">
-                                                                        {`${extractText(currentRow.input)}\n\nExpected: ${extractExpected(currentRow.expected)}`}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </Card>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    <DatasetHistoryPanel
+                        history={history}
+                        loading={historyLoading}
+                        error={historyError}
+                        rowHistory={rowHistory}
+                        rowHistoryErrors={rowHistoryErrors}
+                        expandedHistoryId={expandedHistoryId}
+                        onToggleHistory={(entry) => void handleToggleHistory(entry)}
+                        onRetryHistory={() => void loadHistory(dataset)}
+                        onRetryRowHistory={(logicalId) => void loadRowHistory(dataset.id, logicalId)}
+                    />
                 )}
             </div>
         </div>
-            <Modal
-                open={showAddModal}
-                title={isResourceTab ? 'Add Resource' : 'Add Eval Row'}
-                description={isResourceTab ? 'Store reference material for context.' : 'Create an input-output pair for testing.'}
-                onClose={() => setShowAddModal(false)}
-                footer={<div className="flex items-center justify-end gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
-                        Cancel
-                    </Button>
-                    <Button
-                        variant={isEvalTab ? (newExample.example_type === 'gold' ? 'success' : 'danger') : 'primary'}
-                        size="sm"
-                        onClick={handleAddExample}
-                    >
-                        {isEvalTab
-                            ? (newExample.example_type === 'gold' ? 'Add Gold Example' : 'Add Anti-Pattern')
-                            : 'Add Resource'}
-                    </Button>
-                </div>}
-                className="max-w-xl"
-            >
-                <div className="space-y-4">
-                    {addError && (
-                        <div className="text-xs text-rose-500 font-semibold bg-rose-500/10 rounded-md p-3">{addError}</div>
-                    )}
 
-                    {isEvalTab && (
-                        <div>
-                            <label className="block text-[11px] font-medium text-text-muted mb-2">Example Type</label>
-                            <Tabs
-                                options={EXAMPLE_TABS}
-                                value={newExample.example_type}
-                                onChange={(value) => setNewExample(p => ({ ...p, example_type: value as 'gold' | 'anti_pattern' }))} />
-                            <p className="text-[11px] text-text-muted mt-2">
-                                {newExample.example_type === 'gold'
-                                    ? 'Gold entries show correct AI behavior.'
-                                    : 'Anti-patterns show outputs the AI should avoid.'}
-                            </p>
-                        </div>
-                    )}
+            {/* Prompt Test Modal */}
+            <PromptTestModal
+                open={showPromptTest}
+                onClose={() => setShowPromptTest(false)}
+                projectId={projectId}
+                datasetId={dataset?.id || ''}
+                onSuccess={(testId: string) => {
+                    navigate({ to: '/prompt-tests/$promptTestId', params: { promptTestId: testId } });
+                    setShowPromptTest(false);
+                }}
+            />
 
-                    <div>
-                        <label className="block text-[11px] font-medium text-text-muted mb-2">
-                            {isResourceTab ? 'Resource Content' : 'Input (Prompt / Question)'}
-                        </label>
-                        <Textarea
-                            value={newExample.input}
-                            onChange={(e) => setNewExample(p => ({ ...p, input: e.target.value }))}
-                            className="h-28 resize-none"
-                            placeholder={isResourceTab ? 'Paste the reference content or notes here.' : 'What question or prompt should be given to the AI?'} />
-                    </div>
+            <DatasetRowCreateModal
+                open={rowCreation.isOpen}
+                isEvalTab={isEvalTab}
+                isResourceTab={isResourceTab}
+                draft={rowCreation.draft}
+                error={rowCreation.error}
+                onDraftChange={rowCreation.updateDraft}
+                onClose={() => rowCreation.setIsOpen(false)}
+                onSubmit={() => void rowCreation.addRow()}
+            />
 
-                    {isEvalTab && (
-                        <div>
-                            <label className="block text-[11px] font-medium text-text-muted mb-2">
-                                {newExample.example_type === 'gold' ? 'Expected Output (Correct Answer)' : 'Anti-Pattern Output (What to Avoid)'}
-                            </label>
-                            <Textarea
-                                value={newExample.expected}
-                                onChange={(e) => setNewExample(p => ({ ...p, expected: e.target.value }))}
-                                className={`h-28 resize-none ${newExample.example_type === 'gold'
-                                    ? 'bg-emerald-500/5 border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500/50'
-                                    : 'bg-rose-500/5 border-rose-500/30 focus:ring-rose-500/20 focus:border-rose-500/50'}`}
-                                placeholder={newExample.example_type === 'gold'
-                                    ? "What's the correct response?"
-                                    : "What output should the AI avoid?"} />
-                        </div>
-                    )}
-                </div>
-            </Modal>
-
-            {/* Share Modal */}
-            <Modal
-                open={shareModalOpen}
+            <ShareLinkModal
+                open={shareLink.isOpen}
                 title="Share Dataset"
                 description="Create a public link to share this dataset with others."
-                onClose={() => setShareModalOpen(false)}
-                footer={<div className="flex justify-end">
-                    <Button variant="primary" onClick={() => setShareModalOpen(false)}>Done</Button>
-                </div>}
-            >
-                {shareLoading ? (
-                    <div className="py-8 text-center text-text-muted italic">Generating link...</div>
-                ) : shareError ? (
-                    <div className="text-rose-500 text-sm">{shareError}</div>
-                ) : (
-                    <div className="space-y-4">
-                        <div className="text-sm font-medium text-text-main">Share Link</div>
-                        <div className="flex gap-2">
-                            <Input value={shareUrl || ''} readOnly className="font-mono text-xs" />
-                            <Button onClick={copyShareUrl} variant={shareCopied ? 'success' : 'secondary'}>
-                                {shareCopied ? 'Copied' : 'Copy'}
-                            </Button>
-                        </div>
-                        <p className="text-xs text-text-muted">
-                            Anyone with this link can view this dataset.
-                        </p>
-                    </div>
-                )}
-            </Modal>
+                audienceDescription="Anyone with this link can view this dataset."
+                loading={shareLink.isLoading}
+                error={shareLink.error}
+                url={shareLink.url}
+                copied={shareLink.isCopied}
+                onClose={shareLink.close}
+                onCopy={() => void shareLink.copy()}
+            />
         </>
     );
-    // </div >
 };
 
 export default DatasetDetail;
-

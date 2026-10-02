@@ -6,7 +6,7 @@ test.describe('Experiments Feature', () => {
 
     test.beforeEach(async ({ page }) => {
         await mockSeedStoryApi(page);
-        await page.goto('/#/experiments', { waitUntil: 'domcontentloaded' });
+        await page.goto('/experiments', { waitUntil: 'domcontentloaded' });
     });
 
     test('should create a new experiment version', async ({ page }) => {
@@ -17,14 +17,14 @@ test.describe('Experiments Feature', () => {
         await page.click('button:has-text("New Version")');
 
         // Fill version details
-        await page.fill('textarea[placeholder*="Instructions for the AI"]', 'You are a helpful assistant v2');
+        await page.fill('textarea[placeholder="You are a helpful assistant..."]', 'You are a helpful assistant v2');
 
         // Save
-        await page.click('button:has-text("Create Version")');
+        await page.click('button:has-text("Create")');
 
         // Verify new version is active (look for version selector or header)
         // This depends on how the UI indicates the current version.
-        await expect(page.locator('text=v2')).toBeVisible();
+        await expect(page.locator('text=v3')).toBeVisible();
     });
 
     test('should run an experiment version', async ({ page }) => {
@@ -33,13 +33,13 @@ test.describe('Experiments Feature', () => {
 
         // Trigger run
         // Note: mockApi needs to handle the run creation and subsequent polling/status update
-        const runBtn = page.locator('button:has-text("Run Experiment")');
+        const runBtn = page.locator('button:has-text("Run Version")');
         await expect(runBtn).toBeEnabled({ timeout: 10000 });
         await runBtn.click();
 
         // Verify status changes to "Running" then "Completed"
         // Since we are mocking, we might see "Completed" immediately or after a mocked delay
-        await expect(page.locator('text=Completed').first()).toBeVisible();
+        await expect(page.locator('text=completed').first()).toBeVisible();
     });
 
     test('should compare experiment runs', async ({ page }) => {
@@ -52,11 +52,7 @@ test.describe('Experiments Feature', () => {
 
         // For now, let's verify we can switch versions and see diferent data
         // Select version 1
-        const versionSelect = page.locator('select').first(); // Adjust selector if it's a custom dropdown
-        // If it's a standard select:
-        // await versionSelect.selectOption({ label: 'v1' }); 
-
-        // Note: If comparison is a modal or a separate view
-        // await page.click('button:has-text("Compare")');
+        await page.getByRole('button', { name: 'Compare' }).first().click();
+        await expect(page.getByText('Baseline')).toBeVisible();
     });
 });

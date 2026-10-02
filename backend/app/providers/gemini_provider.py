@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import AsyncGenerator, Optional, List
 import google.generativeai as genai
@@ -6,13 +7,15 @@ from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, Cha
 from app.providers.base import TitanEnvoy
 import time
 
+logger = logging.getLogger(__name__)
+
 class GeminiEnvoy(TitanEnvoy):
     def __init__(self, config: Optional[ProviderConfig] = None):
         self.config = config
         api_key = config.api_key if config else os.getenv("GEMINI_API_KEY")
         self._has_api_key = bool(api_key)
         if not api_key:
-            print("Warning: GEMINI_API_KEY not found.")
+            logger.warning("GEMINI_API_KEY not found; Gemini requests may fail until configured")
         else:
             genai.configure(api_key=api_key)
 
@@ -143,8 +146,8 @@ class GeminiEnvoy(TitanEnvoy):
                     model_id = model.name.replace('models/', '') if model.name.startswith('models/') else model.name
                     models.append(model_id)
             return models
-        except Exception as e:
-            print(f"Error fetching Gemini models: {e}")
+        except Exception:
+            logger.exception("Failed to fetch Gemini models")
             # Fallback to known models if API fails
             return [
                 "gemini-2.0-flash",

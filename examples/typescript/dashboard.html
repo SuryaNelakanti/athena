@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Athena Dashboard | Metrics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #FFFBEB;
+            --ink: #0C0C0C;
+            --accent: #F59E0B;
+            --surface: #FFFFFF;
+            --border: #0C0C0C;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: var(--bg);
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            border-bottom: 2px solid var(--border);
+            background: var(--surface);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 16px solid var(--accent);
+        }
+
+        .accent {
+            color: var(--accent);
+        }
+
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: var(--accent);
+            color: var(--ink);
+            border: 2px solid var(--border);
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 var(--border);
+        }
+
+        .refresh-btn:hover {
+            transform: translate(1px, 1px);
+            box-shadow: 2px 2px 0 var(--border);
+        }
+
+        /* Main */
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Config bar */
+        .config-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .config-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .config-input {
+            padding: 0.5rem;
+            font-family: inherit;
+            font-size: 0.8rem;
+            border: 2px solid var(--border);
+            background: var(--surface);
+            width: 200px;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            border: 2px solid var(--border);
+            background: var(--surface);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-top: 0.5rem;
+            opacity: 0.7;
+        }
+
+        .metric-delta {
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .delta-up {
+            color: #10B981;
+        }
+
+        .delta-down {
+            color: #EF4444;
+        }
+
+        /* Charts */
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            border: 2px solid var(--border);
+            background: var(--surface);
+            padding: 1.5rem;
+        }
+
+        .chart-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            background: var(--accent);
+            color: var(--ink);
+        }
+
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .bar-label {
+            width: 80px;
+            font-size: 0.7rem;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 24px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.5s ease;
+        }
+
+        .bar-value {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        /* Logs table */
+        .logs-section {
+            border: 2px solid var(--border);
+            background: var(--surface);
+        }
+
+        .logs-header {
+            padding: 1rem;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logs-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .logs-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .logs-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .logs-table tr:hover {
+            background: var(--bg);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+
+        .status-error {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .footer {
+            padding: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .loading-dot {
+            display: inline-block;
+            animation: pulse 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon"></div>
+            Athena <span class="accent">Dashboard</span>
+        </div>
+        <button class="refresh-btn" onclick="fetchData()">↻ REFRESH</button>
+    </header>
+
+    <main class="main">
+        <div class="config-bar">
+            <div class="config-item">
+                <span class="config-label">API URL:</span>
+                <input type="text" class="config-input" id="baseUrl" value="http://localhost:8000">
+            </div>
+            <div class="config-item">
+                <span class="config-label">Project:</span>
+                <input type="text" class="config-input" id="projectId" value="proj_default" style="width: 120px;">
+            </div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="metrics-grid" id="metricsGrid">
+            <div class="metric-card">
+                <div class="metric-value" id="totalLogs">--</div>
+                <div class="metric-label">Total Logs</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="totalTokens">--</div>
+                <div class="metric-label">Total Tokens</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="totalCost">--</div>
+                <div class="metric-label">Est. Cost ($)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="avgLatency">--</div>
+                <div class="metric-label">Avg Latency (ms)</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <div class="chart-title">
+                    Tokens by Model
+                    <span class="chart-badge">USAGE</span>
+                </div>
+                <div class="bar-chart" id="modelChart">
+                    <div class="loading">Loading<span class="loading-dot">...</span></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">
+                    Requests by Status
+                    <span class="chart-badge">STATUS</span>
+                </div>
+                <div class="bar-chart" id="statusChart">
+                    <div class="loading">Loading<span class="loading-dot">...</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs table -->
+        <div class="logs-section">
+            <div class="logs-header">
+                <span class="logs-title">Recent Logs</span>
+                <span style="font-size: 0.75rem; opacity: 0.7;" id="logCount">-- entries</span>
+            </div>
+            <table class="logs-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Model</th>
+                        <th>Tokens</th>
+                        <th>Latency</th>
+                        <th>Status</th>
+                        <th>Trace ID</th>
+                    </tr>
+                </thead>
+                <tbody id="logsBody">
+                    <tr>
+                        <td colspan="6" class="loading">Loading<span class="loading-dot">...</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <footer class="footer">
+        Powered by Athena SDK • Cost & Token Dashboard
+    </footer>
+
+    <script>
+        async function fetchData() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const projectId = document.getElementById('projectId').value;
+
+            try {
+                // Fetch logs
+                const logsRes = await fetch(`${baseUrl}/projects/${projectId}/logs`);
+                if (!logsRes.ok) throw new Error(`HTTP ${logsRes.status}`);
+                const logs = await logsRes.json();
+
+                // Calculate metrics
+                const totalLogs = logs.length;
+                const totalTokens = logs.reduce((sum, l) => sum + (l.total_tokens || 0), 0);
+                const totalCost = logs.reduce((sum, l) => sum + (l.cost || 0), 0);
+                const avgLatency = totalLogs > 0
+                    ? logs.reduce((sum, l) => sum + (l.latency_ms || 0), 0) / totalLogs
+                    : 0;
+
+                // Update metrics
+                document.getElementById('totalLogs').textContent = totalLogs.toLocaleString();
+                document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
+                document.getElementById('totalCost').textContent = totalCost.toFixed(4);
+                document.getElementById('avgLatency').textContent = avgLatency.toFixed(0);
+
+                // Model chart
+                const modelCounts = {};
+                logs.forEach(l => {
+                    const model = l.model || 'unknown';
+                    modelCounts[model] = (modelCounts[model] || 0) + (l.total_tokens || 0);
+                });
+                renderBarChart('modelChart', modelCounts, 'tokens');
+
+                // Status chart
+                const statusCounts = { success: 0, error: 0 };
+                logs.forEach(l => {
+                    if (l.error || l.status === 'error') {
+                        statusCounts.error++;
+                    } else {
+                        statusCounts.success++;
+                    }
+                });
+                renderBarChart('statusChart', statusCounts, 'requests');
+
+                // Logs table
+                document.getElementById('logCount').textContent = `${totalLogs} entries`;
+                const tbody = document.getElementById('logsBody');
+                tbody.innerHTML = logs.slice(0, 20).map(log => `
+          <tr>
+            <td>${new Date(log.created_at).toLocaleString()}</td>
+            <td>${log.model || '--'}</td>
+            <td>${(log.total_tokens || 0).toLocaleString()}</td>
+            <td>${(log.latency_ms || 0).toFixed(0)}ms</td>
+            <td>
+              <span class="status-badge ${log.error ? 'status-error' : 'status-success'}">
+                ${log.error ? 'ERROR' : 'OK'}
+              </span>
+            </td>
+            <td style="font-size: 0.7rem; opacity: 0.7;">${(log.trace_id || '--').substring(0, 16)}...</td>
+          </tr>
+        `).join('') || '<tr><td colspan="6">No logs found</td></tr>';
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('logsBody').innerHTML = `
+          <tr><td colspan="6" style="color: #EF4444;">Error: ${error.message}. Make sure Athena is running.</td></tr>
+        `;
+            }
+        }
+
+        function renderBarChart(containerId, data, unit) {
+            const container = document.getElementById(containerId);
+            const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+            const maxValue = Math.max(...entries.map(e => e[1]), 1);
+
+            container.innerHTML = entries.map(([label, value]) => {
+                const pct = (value / maxValue) * 100;
+                return `
+          <div class="bar-row">
+            <span class="bar-label" title="${label}">${label}</span>
+            <div class="bar-container">
+              <div class="bar-fill" style="width: ${pct}%"></div>
+              <span class="bar-value">${value.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+            }).join('') || '<div style="opacity: 0.5; font-size: 0.8rem;">No data</div>';
+        }
+
+        // Initial fetch
+        fetchData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(fetchData, 30000);
+    </script>
+</body>
+
+</html>

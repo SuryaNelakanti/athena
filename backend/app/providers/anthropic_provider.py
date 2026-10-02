@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import AsyncGenerator, Optional, List
 import anthropic
@@ -6,13 +7,15 @@ from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, Cha
 from app.providers.base import TitanEnvoy
 import time
 
+logger = logging.getLogger(__name__)
+
 class AnthropicEnvoy(TitanEnvoy):
     def __init__(self, config: Optional[ProviderConfig] = None):
         api_key = config.api_key if config else os.getenv("ANTHROPIC_API_KEY")
         base_url = config.base_url if config and config.base_url else None
         
         if not api_key:
-             print("Warning: ANTHROPIC_API_KEY not found.")
+            logger.warning("ANTHROPIC_API_KEY not found; Anthropic requests may fail until configured")
         
         self.client = AsyncAnthropic(api_key=api_key, base_url=base_url)
 
@@ -162,8 +165,8 @@ class AnthropicEnvoy(TitanEnvoy):
             # Anthropic SDK has models.list() in newer versions
             models_page = await self.client.models.list()
             return [m.id for m in models_page.data]
-        except Exception as e:
-            print(f"Error fetching Anthropic models: {e}")
+        except Exception:
+            logger.exception("Failed to fetch Anthropic models")
             # Fallback to known models if API fails
             return [
                 "claude-sonnet-4-20250514",

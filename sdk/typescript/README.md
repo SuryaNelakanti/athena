@@ -34,7 +34,8 @@ await client.chatCompletion(
 ```
 
 Fail-open (optional)
-If the proxy is unreachable, the SDK can fall back to an OpenAI-compatible endpoint.
+If the proxy is unavailable or returns unusable JSON, the SDK can fall back to
+an OpenAI-compatible endpoint. Non-retryable HTTP errors remain terminal.
 ```ts
 const client = new AthenaClient({
   baseUrl: "http://localhost:8000",
@@ -52,3 +53,4 @@ Notes
 - `traceId` format is `trace_{uuid}`.
 - Retry/backoff settings use milliseconds in TypeScript.
 - `cacheKey` enables AES-256-GCM cache encryption (base64url or hex for 32-byte key).
+- Client failures raise `AthenaClientError`; HTTP failures expose their status through `.status`.

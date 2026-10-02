@@ -7,7 +7,7 @@ test.describe('Collaboration Features', () => {
     });
 
     test('should assign a log to a user', async ({ page }) => {
-        await page.goto('/#/logs');
+        await page.goto('/logs');
         await page.click('tr >> text=trace_id_'); // Click a row with trace
 
         // Wait for detail panel

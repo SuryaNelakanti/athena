@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import AsyncGenerator, Optional, List
 import openai
@@ -6,6 +7,8 @@ from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, Cha
 from app.providers.base import TitanEnvoy
 import time
 
+logger = logging.getLogger(__name__)
+
 class OpenAIEnvoy(TitanEnvoy):
     def __init__(self, config: Optional[ProviderConfig] = None):
         api_key = config.api_key if config else os.getenv("OPENAI_API_KEY")
@@ -13,7 +16,7 @@ class OpenAIEnvoy(TitanEnvoy):
         
         if not api_key:
             # For testing purposes allow missing key, but warn/fail on use
-             print("Warning: OPENAI_API_KEY not found.")
+            logger.warning("OPENAI_API_KEY not found; OpenAI requests may fail until configured")
         
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
@@ -141,6 +144,6 @@ class OpenAIEnvoy(TitanEnvoy):
         try:
             models_page = await self.client.models.list()
             return [m.id for m in models_page.data]
-        except Exception as e:
-            print(f"Error fetching OpenAI models: {e}")
+        except Exception:
+            logger.exception("Failed to fetch OpenAI models")
             return []

@@ -59,6 +59,21 @@ class TestProxyServiceProviderResolution:
         )
         assert service._resolve_provider(request) == "openai"
 
+    def test_resolve_groq_from_prefix(self, service):
+        request = ChatCompletionRequest(
+            model="groq/compound",
+            messages=[ChatMessage(role="user", content="Hi")]
+        )
+        assert service._resolve_provider(request) == "groq"
+
+    def test_resolve_groq_explicit_provider(self, service):
+        request = ChatCompletionRequest(
+            model="llama-3.3-70b-versatile",
+            messages=[ChatMessage(role="user", content="Hi")],
+            provider="groq"
+        )
+        assert service._resolve_provider(request) == "groq"
+
     def test_unknown_model_raises(self, service):
         request = ChatCompletionRequest(
             model="unknown-xyz-model",

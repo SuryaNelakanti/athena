@@ -1,17 +1,32 @@
 from __future__ import annotations
 
+from http.client import HTTPResponse
 import json
+import math
 import random
 import time
-from typing import Any, Optional, Iterator
-from urllib.request import Request, urlopen
+from typing import Any, Iterator, Literal, Optional
 from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .context import TraceContext, get_current_trace_context, new_trace_context
+from .errors import AthenaClientError
+from .response_decoding import decode_json_response, iter_sse
+
+_RETRYABLE_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
 
 
-class AthenaClientError(RuntimeError):
-    pass
+def _validate_retry_count(value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("max_retries must be a non-negative integer.")
+    return value
+
+
+def _validate_duration(name: str, value: float, allow_zero: bool = True) -> float:
+    if not math.isfinite(value) or value < 0 or (not allow_zero and value == 0):
+        minimum = "non-negative" if allow_zero else "greater than zero"
+        raise ValueError(f"{name} must be a finite number {minimum}.")
+    return value
 
 
 class AthenaClient:
@@ -33,11 +48,11 @@ class AthenaClient:
         self.base_url = base_url.rstrip("/")
         self.project_id = project_id
         self.api_key = api_key
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.retry_backoff = retry_backoff
-        self.retry_max_delay = retry_max_delay
-        self.retry_jitter = retry_jitter
+        self.timeout = _validate_duration("timeout", timeout, allow_zero=False)
+        self.max_retries = _validate_retry_count(max_retries)
+        self.retry_backoff = _validate_duration("retry_backoff", retry_backoff)
+        self.retry_max_delay = _validate_duration("retry_max_delay", retry_max_delay)
+        self.retry_jitter = _validate_duration("retry_jitter", retry_jitter)
         self.fail_open = fail_open
         self.fallback_base_url = (fallback_base_url or "https://api.openai.com/v1").rstrip("/")
         self.fallback_api_key = fallback_api_key
@@ -53,45 +68,30 @@ class AthenaClient:
         if request.get("stream"):
             raise AthenaClientError("Use stream_chat_completion for streaming requests.")
         resolved_request, context = self._apply_trace_context(request, trace_context)
-        headers = {
-            "Content-Type": "application/json",
-            "X-Athena-Project-ID": self.project_id,
-            "X-Athena-Trace-ID": context.trace_id,
-        }
-        if context.parent_span_id:
-            headers["X-Athena-Parent-Span-ID"] = context.parent_span_id
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        if bypass_cache:
-            headers["X-Athena-Cache-Control"] = "no-cache"
-        if cache_key:
-            headers["X-Athena-Cache-Key"] = cache_key
+        headers = self._request_headers(context, bypass_cache, cache_key)
 
         url = f"{self.base_url}/v1/chat/completions"
         payload = json.dumps(resolved_request).encode("utf-8")
 
-        req = Request(url, data=payload, headers=headers, method="POST")
-        for attempt in range(self.max_retries + 1):
-            try:
-                with urlopen(req, timeout=self.timeout) as response:
-                    raw = response.read().decode("utf-8")
-                    return json.loads(raw)
-            except HTTPError as e:
-                body = e.read().decode("utf-8") if e.fp else ""
-                if self._should_retry_status(e.code) and attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                if self._should_fail_open(e.code):
-                    return self._fail_open_request(resolved_request)
-                raise AthenaClientError(f"HTTP {e.code}: {body}") from e
-            except URLError as e:
-                if attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                if self._should_fail_open(None):
-                    return self._fail_open_request(resolved_request)
-                raise AthenaClientError(f"Request failed: {e}") from e
-        raise AthenaClientError("Request failed after retries")
+        try:
+            with self._open_with_retry(url, payload, headers) as response:
+                response_payload = response.read()
+        except HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace") if error.fp else ""
+            if self._should_fail_open(error.code):
+                return self._fail_open_request(resolved_request)
+            raise AthenaClientError(f"HTTP {error.code}: {body}", status=error.code) from error
+        except (URLError, TimeoutError) as error:
+            if self._should_fail_open(None):
+                return self._fail_open_request(resolved_request)
+            raise AthenaClientError(f"Request failed: {error}") from error
+
+        try:
+            return self._decode_json_response(response_payload, "Athena proxy")
+        except AthenaClientError:
+            if self._should_fail_open(None):
+                return self._fail_open_request(resolved_request)
+            raise
 
     def stream_chat_completion(
         self,
@@ -102,12 +102,32 @@ class AthenaClient:
     ) -> Iterator[dict[str, Any]]:
         resolved_request, context = self._apply_trace_context(request, trace_context)
         resolved_request["stream"] = True
+        headers = self._request_headers(context, bypass_cache, cache_key, stream=True)
+
+        url = f"{self.base_url}/v1/chat/completions"
+        payload = json.dumps(resolved_request).encode("utf-8")
+        yield from self._stream_with_retry(
+            url,
+            payload,
+            headers,
+            source="Athena proxy",
+            fallback_request=resolved_request,
+        )
+
+    def _request_headers(
+        self,
+        context: TraceContext,
+        bypass_cache: bool,
+        cache_key: Optional[str],
+        stream: bool = False,
+    ) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
-            "Accept": "text/event-stream",
             "X-Athena-Project-ID": self.project_id,
             "X-Athena-Trace-ID": context.trace_id,
         }
+        if stream:
+            headers["Accept"] = "text/event-stream"
         if context.parent_span_id:
             headers["X-Athena-Parent-Span-ID"] = context.parent_span_id
         if self.api_key:
@@ -116,53 +136,108 @@ class AthenaClient:
             headers["X-Athena-Cache-Control"] = "no-cache"
         if cache_key:
             headers["X-Athena-Cache-Key"] = cache_key
+        return headers
 
-        url = f"{self.base_url}/v1/chat/completions"
-        payload = json.dumps(resolved_request).encode("utf-8")
+    def _iter_sse(
+        self,
+        response: HTTPResponse,
+        *,
+        require_done_marker: bool = False,
+    ) -> Iterator[dict[str, Any]]:
+        yield from iter_sse(response, require_done_marker=require_done_marker)
 
+    def _decode_json_response(self, payload: bytes, source: str) -> dict[str, Any]:
+        return decode_json_response(payload, source)
+
+    def _open_with_retry(self, url: str, payload: bytes, headers: dict[str, str]) -> HTTPResponse:
+        for attempt in range(self.max_retries + 1):
+            request = Request(url, data=payload, headers=headers, method="POST")
+            try:
+                return urlopen(request, timeout=self.timeout)
+            except HTTPError as error:
+                if self._should_retry_status(error.code) and attempt < self.max_retries:
+                    error.close()
+                    self._sleep_backoff(attempt)
+                    continue
+                raise
+            except (URLError, TimeoutError):
+                if attempt >= self.max_retries:
+                    raise
+                self._sleep_backoff(attempt)
+        raise AthenaClientError("Request failed after retries")
+
+    def _stream_with_retry(
+        self,
+        url: str,
+        payload: bytes,
+        headers: dict[str, str],
+        source: Literal["Athena proxy", "Fail-open provider"],
+        fallback_request: Optional[dict[str, Any]] = None,
+    ) -> Iterator[dict[str, Any]]:
         for attempt in range(self.max_retries + 1):
             yielded = False
+            request = Request(url, data=payload, headers=headers, method="POST")
             try:
-                req = Request(url, data=payload, headers=headers, method="POST")
-                with urlopen(req, timeout=self.timeout) as response:
-                    for event in self._iter_sse(response):
+                with urlopen(request, timeout=self.timeout) as response:
+                    for event in self._iter_sse(
+                        response,
+                        require_done_marker=source == "Athena proxy",
+                    ):
                         yielded = True
                         yield event
                 return
-            except HTTPError as e:
-                body = e.read().decode("utf-8") if e.fp else ""
-                if yielded or not self._should_retry_status(e.code) or attempt >= self.max_retries:
-                    if not yielded and self._should_fail_open(e.code):
-                        yield from self._fail_open_stream(resolved_request)
-                        return
-                    raise AthenaClientError(f"HTTP {e.code}: {body}") from e
-                self._sleep_backoff(attempt)
-            except URLError as e:
+            except AthenaClientError:
+                if not yielded and attempt < self.max_retries:
+                    self._sleep_backoff(attempt)
+                    continue
+                if (
+                    not yielded
+                    and fallback_request is not None
+                    and self._should_fail_open(None)
+                ):
+                    yield from self._fail_open_stream(fallback_request)
+                    return
+                raise
+            except HTTPError as error:
+                body = error.read().decode("utf-8", errors="replace") if error.fp else ""
+                if (
+                    not yielded
+                    and self._should_retry_status(error.code)
+                    and attempt < self.max_retries
+                ):
+                    self._sleep_backoff(attempt)
+                    continue
+                if (
+                    not yielded
+                    and fallback_request is not None
+                    and self._should_fail_open(error.code)
+                ):
+                    yield from self._fail_open_stream(fallback_request)
+                    return
+                prefix = "Fail-open " if source == "Fail-open provider" else ""
+                message = f"{prefix}HTTP {error.code}: {body}"
+                raise AthenaClientError(message, status=error.code) from error
+            except (URLError, TimeoutError) as error:
                 if yielded or attempt >= self.max_retries:
-                    if not yielded and self._should_fail_open(None):
-                        yield from self._fail_open_stream(resolved_request)
+                    if (
+                        not yielded
+                        and fallback_request is not None
+                        and self._should_fail_open(None)
+                    ):
+                        yield from self._fail_open_stream(fallback_request)
                         return
-                    raise AthenaClientError(f"Request failed: {e}") from e
+                    prefix = (
+                        "Fail-open stream failed"
+                        if source == "Fail-open provider"
+                        else "Request failed"
+                    )
+                    raise AthenaClientError(f"{prefix}: {error}") from error
                 self._sleep_backoff(attempt)
-        raise AthenaClientError("Stream failed after retries")
-
-    def _iter_sse(self, response) -> Iterator[dict[str, Any]]:
-        for raw_line in response:
-            line = raw_line.decode("utf-8").strip()
-            if not line.startswith("data:"):
-                continue
-            data = line[5:].strip()
-            if not data:
-                continue
-            if data == "[DONE]":
-                return
-            try:
-                yield json.loads(data)
-            except json.JSONDecodeError:
-                yield {"raw": data}
+        prefix = "Fail-open stream failed" if source == "Fail-open provider" else "Stream failed"
+        raise AthenaClientError(f"{prefix} after retries")
 
     def _should_retry_status(self, status: int) -> bool:
-        return status in {408, 429, 500, 502, 503, 504}
+        return status in _RETRYABLE_HTTP_STATUSES
 
     def _sleep_backoff(self, attempt: int) -> None:
         delay = min(self.retry_backoff * (2 ** attempt), self.retry_max_delay)
@@ -176,7 +251,7 @@ class AthenaClient:
             return False
         if status is None:
             return True
-        return status in {408, 429, 500, 502, 503, 504}
+        return status in _RETRYABLE_HTTP_STATUSES
 
     def _fallback_request_headers(self, stream: bool = False) -> dict[str, str]:
         headers: dict[str, str] = {
@@ -202,48 +277,21 @@ class AthenaClient:
         url = f"{self.fallback_base_url}/chat/completions"
         headers = self._fallback_request_headers()
         payload = json.dumps(self._sanitize_fallback_request(request, stream=False)).encode("utf-8")
-        req = Request(url, data=payload, headers=headers, method="POST")
-        for attempt in range(self.max_retries + 1):
-            try:
-                with urlopen(req, timeout=self.timeout) as response:
-                    raw = response.read().decode("utf-8")
-                    return json.loads(raw)
-            except HTTPError as e:
-                body = e.read().decode("utf-8") if e.fp else ""
-                if self._should_retry_status(e.code) and attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                raise AthenaClientError(f"Fail-open HTTP {e.code}: {body}") from e
-            except URLError as e:
-                if attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                raise AthenaClientError(f"Fail-open request failed: {e}") from e
-        raise AthenaClientError("Fail-open request failed after retries")
+        try:
+            with self._open_with_retry(url, payload, headers) as response:
+                return self._decode_json_response(response.read(), "Fail-open provider")
+        except HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace") if error.fp else ""
+            message = f"Fail-open HTTP {error.code}: {body}"
+            raise AthenaClientError(message, status=error.code) from error
+        except (URLError, TimeoutError) as error:
+            raise AthenaClientError(f"Fail-open request failed: {error}") from error
 
     def _fail_open_stream(self, request: dict[str, Any]) -> Iterator[dict[str, Any]]:
         url = f"{self.fallback_base_url}/chat/completions"
         headers = self._fallback_request_headers(stream=True)
         payload = json.dumps(self._sanitize_fallback_request(request, stream=True)).encode("utf-8")
-        for attempt in range(self.max_retries + 1):
-            yielded = False
-            try:
-                req = Request(url, data=payload, headers=headers, method="POST")
-                with urlopen(req, timeout=self.timeout) as response:
-                    for event in self._iter_sse(response):
-                        yielded = True
-                        yield event
-                return
-            except HTTPError as e:
-                body = e.read().decode("utf-8") if e.fp else ""
-                if yielded or not self._should_retry_status(e.code) or attempt >= self.max_retries:
-                    raise AthenaClientError(f"Fail-open HTTP {e.code}: {body}") from e
-                self._sleep_backoff(attempt)
-            except URLError as e:
-                if yielded or attempt >= self.max_retries:
-                    raise AthenaClientError(f"Fail-open stream failed: {e}") from e
-                self._sleep_backoff(attempt)
-        raise AthenaClientError("Fail-open stream failed after retries")
+        yield from self._stream_with_retry(url, payload, headers, source="Fail-open provider")
 
     def _apply_trace_context(
         self,

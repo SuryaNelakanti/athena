@@ -1,116 +1,36 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
-from fastapi.responses import StreamingResponse, JSONResponse
-from typing import Annotated, Optional
+"""Compose proxy inference, observability feedback, and operational routes."""
 
-from sqlmodel import Session
-from app.database import get_session
-from app.schemas.proxy import ChatCompletionRequest, ChatCompletionResponse, ModelListResponse
-from app.services.proxy_service import ProxyService
-from app.services.cache import get_cache
+from fastapi import APIRouter
 
-router = APIRouter(prefix="/v1")
+from app.routers.proxy_completion_routes import chat_completions, router as completion_router
+from app.routers.proxy_operation_routes import (
+    clear_cache,
+    get_cache_stats,
+    list_models,
+    router as operations_router,
+    toggle_cache,
+)
+from app.routers.proxy_span_feedback_routes import (
+    create_span_feedback,
+    router as span_feedback_router,
+    upsert_span_score,
+)
+from app.schemas.proxy_observability import SpanFeedbackRequest, SpanScoreRequest
 
-@router.post("/chat/completions")
-async def chat_completions(
-    request: ChatCompletionRequest,
-    session: Session = Depends(get_session),
-    authorization: Annotated[str | None, Header()] = None,
-    x_athena_project_id: Annotated[Optional[str], Header()] = None,
-    x_athena_trace_id: Annotated[Optional[str], Header()] = None,
-    x_athena_parent_span_id: Annotated[Optional[str], Header()] = None,
-    x_athena_cache_control: Annotated[Optional[str], Header()] = None,  # "no-cache" to bypass
-    x_athena_cache_key: Annotated[Optional[str], Header()] = None,  # base64url/hex 32-byte key
-):
-    service = ProxyService(session)
-    
-    # Priority: header > request body > fallback
-    project_id = x_athena_project_id or getattr(request, 'project_id', None) or "proj_default"
-    
-    # Pass trace_id from header to request if provided (for parent context)
-    if x_athena_trace_id and not request.trace_id:
-        request.trace_id = x_athena_trace_id
-    if x_athena_parent_span_id and not request.parent_span_id:
-        request.parent_span_id = x_athena_parent_span_id
+router = APIRouter(prefix="/v1", tags=["proxy"])
+router.include_router(completion_router)
+router.include_router(span_feedback_router)
+router.include_router(operations_router)
 
-    # Check cache bypass
-    bypass_cache = x_athena_cache_control == "no-cache"
-
-    try:
-        if request.stream:
-            # For streaming, headers are sent with the SSE response
-            # The trace context will be in the first chunk or aggregated output
-            stream, trace_id, span_id, log_id = await service.stream_chat_completion(
-                request,
-                project_id,
-                parent_span_id=request.parent_span_id,
-            )
-
-            headers = {}
-            if trace_id:
-                headers["X-Athena-Trace-ID"] = trace_id
-            if span_id:
-                headers["X-Athena-Span-ID"] = span_id
-            headers["X-Athena-Log-ID"] = log_id
-
-            return StreamingResponse(
-                stream,
-                media_type="text/event-stream",
-                headers=headers,
-            )
-        else:
-            response = await service.chat_completion(
-                request,
-                project_id,
-                bypass_cache=bypass_cache,
-                parent_span_id=request.parent_span_id,
-                cache_encryption_key=x_athena_cache_key,
-            )
-            
-            # Return response with trace context headers for client correlation
-            headers = {}
-            if response.trace_id:
-                headers["X-Athena-Trace-ID"] = response.trace_id
-            if response.span_id:
-                headers["X-Athena-Span-ID"] = response.span_id
-            if response.log_id:
-                headers["X-Athena-Log-ID"] = response.log_id
-            
-            return JSONResponse(
-                content=response.model_dump(exclude_none=True),
-                headers=headers
-            )
-            
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        # TODO: Better error handling/mapping
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/models", response_model=ModelListResponse)
-async def list_models(session: Session = Depends(get_session)):
-    service = ProxyService(session)
-    models = await service.list_models()
-    return ModelListResponse(data=models)
-
-@router.get("/cache/stats")
-async def get_cache_stats():
-    """Get cache statistics."""
-    cache = get_cache()
-    return cache.get_stats()
-
-@router.post("/cache/clear")
-async def clear_cache():
-    """Clear the cache."""
-    cache = get_cache()
-    await cache.clear()
-    return {"status": "success", "message": "Cache cleared"}
-
-@router.post("/cache/toggle")
-async def toggle_cache(enabled: bool = True):
-    """Enable or disable the cache."""
-    cache = get_cache()
-    if enabled:
-        cache.enable()
-    else:
-        cache.disable()
-    return {"status": "success", "enabled": cache.enabled}
+__all__ = [
+    "SpanFeedbackRequest",
+    "SpanScoreRequest",
+    "chat_completions",
+    "clear_cache",
+    "create_span_feedback",
+    "get_cache_stats",
+    "list_models",
+    "router",
+    "toggle_cache",
+    "upsert_span_score",
+]

@@ -1,18 +1,18 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { AgentRun, RunGraph, RunGraphNode } from '../../types';
-import { api } from '../../lib/api';
+import React, { useMemo, useState } from 'react';
 import { Badge, Button } from '../../components/ui';
 import { PageHeader } from '../../layouts/PageHeader';
 import RunGraphComponent from './RunGraph';
 import TimelineCard from './TimelineCard';
+import RunNodeInspector from './RunNodeInspector';
+import { statusVariant } from './runNarrativeUtils';
+import { RunEvaluationPanels } from './RunEvaluationPanels';
+import { useRunNarrativeData } from './useRunNarrativeData';
 import {
-    ClockIcon,
     ExclamationTriangleIcon,
     PlayCircleIcon,
     DocumentTextIcon,
     ListBulletIcon,
-    CpuChipIcon,
-    CurrencyDollarIcon
+    CpuChipIcon
 } from '@heroicons/react/24/outline';
 
 interface RunNarrativeProps {
@@ -21,48 +21,31 @@ interface RunNarrativeProps {
     onOpenTrace?: (traceId: string) => void;
 }
 
-const statusVariant = (status: string): 'neutral' | 'primary' | 'success' | 'warning' | 'danger' => {
-    switch (status) {
-        case 'error': return 'danger';
-        case 'active': return 'primary';
-        case 'running': return 'primary';
-        case 'completed': return 'success';
-        case 'success': return 'success';
-        default: return 'neutral';
-    }
-};
-
 const RunNarrative: React.FC<RunNarrativeProps> = ({ runId, onBack, onOpenTrace }) => {
-    const [run, setRun] = useState<AgentRun | null>(null);
-    const [graph, setGraph] = useState<RunGraph | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        run,
+        graph,
+        graphError,
+        loading,
+        error,
+        retryLoad,
+        sessionEval,
+        evalLoading,
+        evalRunning,
+        evalError,
+        evalExpected,
+        setEvalExpected,
+        evalCriteria,
+        setEvalCriteria,
+        evalUseJudge,
+        setEvalUseJudge,
+        runEvaluation,
+        evalScoreEntries,
+        flaggedNodeIds,
+    } = useRunNarrativeData(runId);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'timeline' | 'graph'>('timeline');
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        if (!runId) return;
-        setLoading(true);
-        setError(null);
-
-        Promise.all([
-            api.getRun(runId),
-            api.getRunGraph(runId).catch(() => null)
-        ])
-            .then(([runData, graphData]) => {
-                setRun(runData);
-                setGraph(graphData);
-                if (graphData && graphData.root_id) {
-                    // Select root by default logic if needed, or nothing
-                    // setSelectedNodeId(graphData.root_id);
-                }
-            })
-            .catch((err) => {
-                setError(err.message || 'Failed to load run');
-            })
-            .finally(() => setLoading(false));
-    }, [runId]);
 
     const sortedNodes = useMemo(() => {
         if (!graph?.nodes) return [];
@@ -111,6 +94,11 @@ const RunNarrative: React.FC<RunNarrativeProps> = ({ runId, onBack, onOpenTrace 
                 badge={<Badge variant={statusVariant(run.status)}>{run.status}</Badge>}
                 actions={
                     <div className="flex gap-2">
+                        {run.trace_id && onOpenTrace && (
+                            <Button variant="secondary" onClick={() => onOpenTrace(run.trace_id)}>
+                                Open trace
+                            </Button>
+                        )}
                         <Button variant="secondary" onClick={() => onBack(run.session_id)}>Back</Button>
                     </div>
                 }
@@ -177,7 +165,19 @@ const RunNarrative: React.FC<RunNarrativeProps> = ({ runId, onBack, onOpenTrace 
                         {viewMode === 'graph' ? (
                             <div className="h-full bg-panel rounded-xl border border-border-base overflow-hidden shadow-inner">
                                 {graph ? (
-                                    <RunGraphComponent graph={graph} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} />
+                                    <RunGraphComponent
+                                        graph={graph}
+                                        selectedNodeId={selectedNodeId}
+                                        onSelectNode={setSelectedNodeId}
+                                        flaggedNodeIds={flaggedNodeIds}
+                                    />
+                                ) : graphError ? (
+                                    <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
+                                        <p role="alert" className="text-sm text-rose-500">{graphError}</p>
+                                        <Button variant="secondary" size="sm" onClick={retryLoad}>
+                                            Retry
+                                        </Button>
+                                    </div>
                                 ) : (
                                     <div className="h-full flex items-center justify-center text-text-muted">No Graph Data</div>
                                 )}
@@ -219,112 +219,30 @@ const RunNarrative: React.FC<RunNarrativeProps> = ({ runId, onBack, onOpenTrace 
                     </div>
                     <div className="flex-1 overflow-y-auto p-0">
                         {selectedNode ? (
-                            <div className="p-5 space-y-6">
-                                {/* Node Header */}
-                                <div>
-                                    <div className="text-[10px] uppercase tracking-widest text-text-muted font-semibold mb-1">
-                                        {selectedNode.kind}
-                                    </div>
-                                    <h2 className="text-lg font-bold text-text-main break-words">{selectedNode.name}</h2>
-                                    <div className="flex items-center gap-2 mt-3">
-                                        <Badge variant={statusVariant(selectedNode.status)}>{selectedNode.status}</Badge>
-                                        <span className="text-xs text-text-muted font-mono">{selectedNode.id.slice(0, 8)}</span>
-                                    </div>
-                                </div>
-
-                                {/* Error Box */}
-                                {selectedNode.error_message && (
-                                    <div className="p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg">
-                                        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-2">
-                                            <ExclamationTriangleIcon className="w-4 h-4" />
-                                            <span className="text-xs font-bold uppercase tracking-wide">Error</span>
-                                        </div>
-                                        <p className="text-sm text-rose-700 dark:text-rose-300 font-mono text-xs whitespace-pre-wrap">
-                                            {selectedNode.error_message}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Metrics Grid */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-3 bg-app rounded-lg border border-border-hairline">
-                                        <div className="flex items-center gap-2 text-text-muted mb-1">
-                                            <ClockIcon className="w-3.5 h-3.5" />
-                                            <span className="text-[10px] uppercase tracking-widest font-semibold">Duration</span>
-                                        </div>
-                                        <div className="text-sm font-mono font-medium text-text-main">
-                                            {Math.round(selectedNode.duration_ms)}ms
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-app rounded-lg border border-border-hairline">
-                                        <div className="flex items-center gap-2 text-text-muted mb-1">
-                                            <CurrencyDollarIcon className="w-3.5 h-3.5" />
-                                            <span className="text-[10px] uppercase tracking-widest font-semibold">Cost</span>
-                                        </div>
-                                        <div className="text-sm font-mono font-medium text-text-main">
-                                            ${selectedNode.metrics?.total_cost?.toFixed(6) ?? '0.000'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Input & Output */}
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Input</span>
-                                        </div>
-                                        <div className="bg-app border border-border-hairline rounded-lg overflow-hidden">
-                                            <pre className="text-xs text-text-main p-3 font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                                                {JSON.stringify(selectedNode.input ?? {}, null, 2)}
-                                            </pre>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Output</span>
-                                        </div>
-                                        <div className="bg-app border border-border-hairline rounded-lg overflow-hidden">
-                                            <pre className="text-xs text-text-main p-3 font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                                                {JSON.stringify(selectedNode.output ?? {}, null, 2)}
-                                            </pre>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Causal Chain */}
-                                {selectedNode.causal_chain && selectedNode.causal_chain.length > 0 && (
-                                    <div className="space-y-2 pt-4 border-t border-border-hairline">
-                                        <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Causal Chain</span>
-                                        <div className="space-y-1">
-                                            {selectedNode.causal_chain.map((ancestor, idx) => (
-                                                <div key={ancestor.id} className="text-xs px-3 py-2 rounded-lg border border-border-hairline bg-app flex items-center justify-between">
-                                                    <span className="font-mono text-text-muted">{idx + 1}. {ancestor.name}</span>
-                                                    <Badge variant={statusVariant(ancestor.status)} size="sm">{ancestor.status}</Badge>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Metadata Attributes */}
-                                {selectedNode.attributes && Object.keys(selectedNode.attributes).length > 0 && (
-                                    <div className="space-y-2 pt-4 border-t border-border-hairline">
-                                        <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold">Attributes</span>
-                                        <div className="bg-app border border-border-hairline rounded-lg overflow-hidden">
-                                            <pre className="text-xs text-text-muted p-3 font-mono whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                                                {JSON.stringify(selectedNode.attributes, null, 2)}
-                                            </pre>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            <RunNodeInspector node={selectedNode} />
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-text-muted bg-panel/50">
-                                <div className="w-12 h-12 rounded-xl bg-app border border-border-hairline flex items-center justify-center mb-3 shadow-sm">
-                                    <CpuChipIcon className="w-6 h-6 text-text-muted" />
+                            <div className="p-5 space-y-6">
+                                <RunEvaluationPanels
+                                    sessionEval={sessionEval}
+                                    loading={evalLoading}
+                                    running={evalRunning}
+                                    error={evalError}
+                                    expected={evalExpected}
+                                    criteria={evalCriteria}
+                                    useJudge={evalUseJudge}
+                                    scoreEntries={evalScoreEntries}
+                                    failingNodeCount={flaggedNodeIds.length}
+                                    onExpectedChange={setEvalExpected}
+                                    onCriteriaChange={setEvalCriteria}
+                                    onUseJudgeChange={setEvalUseJudge}
+                                    onRun={runEvaluation}
+                                />
+                                <div className="flex flex-col items-center justify-center text-text-muted bg-panel/50 rounded-xl py-10">
+                                    <div className="w-12 h-12 rounded-xl bg-app border border-border-hairline flex items-center justify-center mb-3 shadow-sm">
+                                        <CpuChipIcon className="w-6 h-6 text-text-muted" />
+                                    </div>
+                                    <p className="text-sm font-medium">Select a step to view details</p>
                                 </div>
-                                <p className="text-sm font-medium">Select a step to view details</p>
                             </div>
                         )}
                     </div>

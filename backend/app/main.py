@@ -1,3 +1,31 @@
+import logging
+import os
+from pathlib import Path
+
+
+def load_local_env() -> None:
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or key in os.environ:
+            continue
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].strip()
+        os.environ[key] = value
+
+
+load_local_env()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
@@ -33,7 +61,12 @@ from .routers import playgrounds as playgrounds_router
 from .routers import owl as owl_router
 from .routers import ingest as ingest_router
 from .routers import sessions as sessions_router
+from .routers import prompt_tests as prompt_tests_router
+from .routers import automations as automations_router
+from .routers import remote_evals as remote_evals_router
 from .services.job_worker import JobWorker
+
+logger = logging.getLogger(__name__)
 
 # --- Startup ---
 @asynccontextmanager
@@ -56,7 +89,7 @@ async def lifespan(app: FastAPI):
             )
             session.add(default_org)
             await session.commit()
-            print("✓ Seeded default organization: org_default")
+            logger.info("Seeded default organization %s", default_org.id)
         
         # Check and seed default project
         project_result = await session.execute(select(Project))
@@ -68,7 +101,7 @@ async def lifespan(app: FastAPI):
             )
             session.add(default_project)
             await session.commit()
-            print("✓ Seeded default project: proj_default")
+            logger.info("Seeded default project %s", default_project.id)
     
     stop_event = asyncio.Event()
     worker_task = asyncio.create_task(JobWorker.run_forever(stop_event))
@@ -122,6 +155,9 @@ app.include_router(playgrounds_router.router)
 app.include_router(owl_router.router)
 app.include_router(ingest_router.router)
 app.include_router(sessions_router.router)
+app.include_router(prompt_tests_router.router)
+app.include_router(automations_router.router)
+app.include_router(remote_evals_router.router)
 
 # --- Endpoints (Async) ---
 

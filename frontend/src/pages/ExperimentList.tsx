@@ -1,35 +1,43 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { api } from '../lib/api';
-import { Experiment } from '../types';
+import { getErrorMessage } from '../lib/errors';
+import { Dataset, Experiment } from '../types';
 import { BeakerIcon, PlusIcon, ChevronRightIcon, PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { Badge, Button, Input, Modal, Select } from '../components/ui';
 import { PageHeader } from '../layouts/PageHeader';
+import { useProject } from '../contexts/ProjectContext';
 
-interface ExperimentListProps {
-    projectId: string;
-    onSelectExperiment: (experiment: Experiment) => void;
-}
-
-const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExperiment }) => {
+const ExperimentList: React.FC = () => {
+    const navigate = useNavigate();
+    const { currentProject } = useProject();
+    const projectId = currentProject?.id || '';
     const [experiments, setExperiments] = useState<Experiment[]>([]);
-    const [datasets, setDatasets] = useState<any[]>([]);
+    const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newExperiment, setNewExperiment] = useState({ name: '', dataset_id: '' });
     const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!projectId) return;
         loadExperiments();
-        api.getDatasets(projectId).then(setDatasets).catch(console.error);
+        api.getDatasets(projectId)
+            .then(setDatasets)
+            .catch((loadError: unknown) => {
+                setLoadError(getErrorMessage(loadError, 'Failed to load datasets'));
+            });
     }, [projectId]);
 
     const loadExperiments = async () => {
         setLoading(true);
+        setLoadError(null);
         try {
             const data = await api.getExperiments(projectId);
             setExperiments(data);
-        } catch (e) {
-            console.error("Failed to load experiments", e);
+        } catch (loadError: unknown) {
+            setLoadError(getErrorMessage(loadError, 'Failed to load experiments'));
         } finally {
             setLoading(false);
         }
@@ -48,8 +56,8 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
             setNewExperiment({ name: '', dataset_id: '' });
             setShowCreateModal(false);
             loadExperiments();
-        } catch (e: any) {
-            setError(e.message || "Failed to create experiment");
+        } catch (e: unknown) {
+            setError(getErrorMessage(e, 'Failed to create experiment'));
         }
     };
 
@@ -90,7 +98,6 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header */}
             {/* Header */}
             <PageHeader
                 title="Experiments"
@@ -149,6 +156,11 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
+                {loadError && (
+                    <div role="alert" className="mx-6 mt-4 rounded-md bg-rose-500/10 p-3 text-xs font-medium text-rose-500">
+                        {loadError}
+                    </div>
+                )}
                 {loading ? (
                     <div className="flex items-center justify-center py-20 text-text-muted text-sm">
                         Loading experiments...
@@ -168,10 +180,10 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
                 ) : (
                     <div className="divide-y divide-border-hairline">
                         {experiments.map(exp => (
-                            <div
+                            <button
                                 key={exp.id}
-                                onClick={() => onSelectExperiment(exp)}
-                                className="px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group"
+                                onClick={() => navigate({ to: '/experiments/$experimentId', params: { experimentId: exp.id } })}
+                                className="w-full px-6 py-4 flex items-center gap-4 hover:bg-panel-hover cursor-pointer transition-colors group text-left"
                             >
                                 {/* Icon */}
                                 <div className="icon-chip icon-chip--copper flex-shrink-0">
@@ -203,7 +215,7 @@ const ExperimentList: React.FC<ExperimentListProps> = ({ projectId, onSelectExpe
 
                                 {/* Arrow */}
                                 <ChevronRightIcon className="w-4 h-4 text-border-base group-hover:text-text-muted transition-colors flex-shrink-0" />
-                            </div>
+                            </button>
                         ))}
                     </div>
                 )}

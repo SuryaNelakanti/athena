@@ -5,22 +5,97 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description"
-    content="Athena is the underlying architecture for autonomous AI — a distributed platform for proxying, observing, and evaluating agentic workflows.">
-  <title>Athena | Tactical AI Operations</title>
+    content="Athena is an AI proxy + observability + evaluation platform with a closed-loop workflow (Logs → Dataset → Experiment). Capture every tool call and retry as a session trace, debug with run graphs, and turn production failures into eval-driven fixes.">
+  <meta name="keywords"
+    content="AI observability, LLM proxy, agent tracing, agent monitoring, tool call tracing, session replay, agent debugging, LLM evaluation, semantic evaluation, LLM judge, LLM ops, AI operations, agentic workflows">
+  <meta name="author" content="Athena AI">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://athena.dev/">
+  <meta property="og:title" content="Athena | AI Ops for Agents in Production">
+  <meta property="og:description"
+    content="Stop debugging agents from vibes. Capture session-first traces, inspect run graphs, promote failures into datasets, run semantic evals, ship fixes.">
+  <meta property="og:image" content="https://athena.dev/og-image.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://athena.dev/">
+  <meta property="twitter:title" content="Athena | AI Ops Platform">
+  <meta property="twitter:description"
+    content="Session traces + run graphs + evals. Debug agent failures fast. Close the loop: Logs → Dataset → Experiment.">
+  <meta property="twitter:image" content="https://athena.dev/og-image.png">
+
+  <title>Athena | AI Operations Platform for Agents in Production — Proxy, Traces, Evals</title>
+  <link rel="canonical" href="https://athena.dev/">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap"
     rel="stylesheet">
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Athena",
+    "description": "AI proxy + observability + evaluation platform with closed-loop workflow for agentic AI. Debug agent failures with session-first debugging, graph views, and semantic evaluation.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "url": "https://athena.dev",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Athena AI",
+      "url": "https://athena.dev"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
   <style>
     :root {
-      --bg: #F7F7F2;
-      --ink: #0C0C0C;
-      --accent: #FF4400;
-      /* Bright orange */
-      --surface: #FFFFFF;
-      --border-color: #0C0C0C;
+      /* Backgrounds */
+      --bg-primary: #0A0A0A;
+      --bg-elevated: #141414;
+      --bg-hover: #1E1E1E;
 
+      /* Text */
+      --text-primary: #E0E0E0;
+      --text-secondary: #A0A0A0;
+      --text-muted: #737373;
+
+      /* Borders - distinct from surfaces */
+      --border-subtle: #242424;
+      --border-default: #333333;
+      --border-strong: #454545;
+
+      /* Accent (Cyan) */
+      --accent: #00D4FF;
+      --accent-muted: #00A3CC;
+      --accent-subtle: #003D4D;
+      --accent-ink: #001014;
+
+      /* Status */
+      --success: #10B981;
+      --error: #EF4444;
+      --warning: #F59E0B;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --error-bg: rgba(239, 68, 68, 0.12);
+      --warning-bg: rgba(245, 158, 11, 0.14);
+
+      /* Legacy aliases for compatibility */
+      --bg: var(--bg-primary);
+      --ink: var(--text-primary);
+      --surface: var(--bg-elevated);
+      --border-color: var(--border-default);
+
+      /* Fonts */
       --font-serif: "DM Serif Display", serif;
       --font-mono: "IBM Plex Mono", monospace;
       --font-sans: "Inter", sans-serif;
@@ -258,7 +333,7 @@
       position: relative;
       display: flex;
       flex-direction: column;
-      background-color: #F2F2EE;
+      background-color: var(--bg-primary);
       overflow: hidden;
     }
 
@@ -296,7 +371,7 @@
     }
 
     .log-entry.dim {
-      color: #888;
+      color: var(--text-muted);
     }
 
     .blink {
@@ -512,11 +587,11 @@
     }
 
     .feature-col:hover {
-      background: #FFFFFF;
+      background: var(--surface);
     }
 
     .feature-col:active {
-      background: #F0F0F0;
+      background: #222222;
     }
 
     .feature-col:last-child {
@@ -579,7 +654,7 @@
     .feature-icon-anim {
       width: 12px;
       height: 12px;
-      border: 1px solid var(--ink);
+      border: 1px solid var(--accent);
       transform: rotate(45deg);
       animation: spin-slow 10s linear infinite;
     }
@@ -603,7 +678,7 @@
       margin-bottom: 12px;
       font-size: 12px;
       line-height: 1.5;
-      color: #444;
+      color: var(--text-muted);
     }
 
     .feature-list li::before {
@@ -763,7 +838,7 @@
       font-size: 9px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #666;
+      color: var(--text-muted);
       display: flex;
       justify-content: space-between;
       margin-top: 24px;
@@ -806,9 +881,9 @@
   <div class="app-container">
     <!-- Top Bar -->
     <div class="top-bar">
-      <span><span class="live-dot"></span>CONFIDENTIAL — FIELD DEPLOYMENT READY</span>
-      <span>TACTICAL AI LABORATORY</span>
-      <span>>>> ADAPTIVE AGENT SURVEILLANCE</span>
+      <span><span class="live-dot"></span>EARLY ACCESS — NOW OPEN</span>
+      <span>AI OPS FOR AGENT WORKFLOWS</span>
+      <span>LOGS → DATASET → EXPERIMENT</span>
     </div>
 
     <!-- Header -->
@@ -818,10 +893,10 @@
         <span>Athena</span>
       </div>
       <nav class="nav-links">
-        <a href="#">Process</a>
-        <a href="#">Team</a>
-        <a href="#">Docs</a>
-        <a href="#">Login</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#features">Features</a>
+        <!-- <a href="#">Docs</a> -->
+        <a href="#" class="cta-btn" style="padding: 8px 16px; font-size: 10px;">Get Started</a>
       </nav>
     </header>
 
@@ -829,9 +904,9 @@
     <div class="hero-grid">
       <div class="left-panel">
         <div class="panel-label">
-          <span>AI-OPS DIVISION</span>
+          <span>AI OPERATIONS</span>
           <span>/</span>
-          <span>REGION [GLOBAL] NODE</span>
+          <span>FOR AGENTIC WORKFLOWS</span>
         </div>
 
         <div>
@@ -841,25 +916,29 @@
             <span>Evals.</span>
           </h1>
           <p class="hero-copy">
-            Athena is the underlying architecture for autonomous AI.
-            See what happened in production, promote failures into datasets, and measure fixes with experiments.
+            <em>Your agent shipped. When it breaks in production, can you replay the exact run?</em>
+          </p>
+          <p class="hero-copy" style="margin-top: 16px;">
+            Athena captures every prompt, tool call, retry, and output as a session trace — with the full run graph.
+            Debug what happened, promote the failure into a dataset row, run evals against a fix, and ship with proof.
           </p>
 
           <div class="cta-group">
-            <a href="#" class="cta-btn">Get Early Access</a>
-            <span class="cta-link">Read Documentation</span>
+            <a href="#" class="cta-btn">Request Early Access</a>
+            <a href="#" class="cta-link">Read Docs</a>
           </div>
         </div>
 
         <div class="infra-footer">
-          <span class="text-xs uppercase tracking-widest" style="margin-bottom: 24px;">AI-OPS INFRASTRUCTURE // BUILT BY
-            ENGINEERS</span>
+          <span class="text-xs uppercase tracking-widest" style="margin-bottom: 24px;">UNIFIED AI INFRASTRUCTURE // FOR
+            DEVELOPERS</span>
 
           <div class="stat-block">
-            <span class="stat-label">OBSERVABILITY LOCK</span>
-            <div class="stat-val">100%</div>
+            <span class="stat-label">CLOSED-LOOP WORKFLOW</span>
+            <div class="stat-val">FAILURE → FIX</div>
             <p class="stat-desc">
-              Close the loop between production and evaluation. No manual glue.
+              Capture real production failures. Turn them into datasets. Run semantic evals. Prevent the same failure
+              class from shipping twice.
             </p>
           </div>
         </div>
@@ -867,7 +946,7 @@
 
       <div class="right-panel corner-brackets">
         <div class="system-status">
-          <span>SYSTEM MODE: ACTIVE TRACE RESOLUTION</span>
+          <span>SYSTEM MODE: TRACE RESOLUTION ACTIVE</span>
           <span>ADS-991</span>
         </div>
 
@@ -875,9 +954,10 @@
           <div class="log-entry">[ SYSTEM LOG ]</div>
           <div class="log-entry success"># INIT... OK</div>
           <div class="log-entry success"># PROXY... ONLINE</div>
-          <div class="log-entry success"># SIGNAL LOCK... STABLE</div>
-          <div class="log-entry success"># EVALUATION LOOP... CONNECTED</div>
-          <div class="log-entry success"># MCP AGENT... ACTIVE</div>
+          <div class="log-entry success"># TRACE CONTEXT... CAPTURED</div>
+          <div class="log-entry success"># RUN GRAPH... MATERIALIZED</div>
+          <div class="log-entry success"># EVAL LOOP... CONNECTED</div>
+          <div class="log-entry success"># MCP SERVER... ACTIVE</div>
           <div class="log-entry dim">-</div>
           <div class="log-entry blink">_</div>
 
@@ -899,6 +979,913 @@
       </div>
     </div>
 
+    <!-- APP SHOWCASE -->
+    <section id="how-it-works" class="showcase-section">
+      <div class="showcase-header">
+        <span class="showcase-label">THE CLOSED LOOP</span>
+        <h2 class="showcase-title">From Production Failure to Fixed Agent</h2>
+        <p class="showcase-desc">
+          Start from a real failing session. See the exact sequence of model outputs and tool calls. Convert the failure
+          into a dataset example. Evaluate fixes before they ship.
+        </p>
+      </div>
+
+      <div class="showcase-content">
+        <!-- Multi-screen Demo -->
+        <div class="lottie-container" id="app-demo">
+          <div class="demo-placeholder">
+            <div class="demo-window demo-elaborate">
+              <div class="demo-chrome">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+                <span class="demo-title">Athena Dashboard</span>
+                <span class="demo-url">athena.dev/project/demo</span>
+              </div>
+
+              <!-- Tab Navigation -->
+              <div class="demo-tabs">
+                <button class="demo-tab active" data-screen="sessions">Sessions</button>
+                <button class="demo-tab" data-screen="graph">Run Graph</button>
+                <button class="demo-tab" data-screen="dataset">Dataset</button>
+                <button class="demo-tab" data-screen="experiment">Experiment</button>
+              </div>
+
+              <div class="demo-screens">
+                <!-- Screen 1: Sessions List -->
+                <div class="demo-screen active" id="screen-sessions">
+                  <div class="screen-header">
+                    <span class="screen-title">Agent Sessions</span>
+                    <span class="screen-badge">Live</span>
+                  </div>
+                  <div class="sessions-list">
+                    <div class="session-row error">
+                      <span class="session-status">✗</span>
+                      <span class="session-name">customer-support-agent</span>
+                      <span class="session-meta">3 runs • 1 failure • 2.3s</span>
+                      <span class="session-action">→</span>
+                    </div>
+                    <div class="session-row success">
+                      <span class="session-status">✓</span>
+                      <span class="session-name">code-review-agent</span>
+                      <span class="session-meta">5 runs • 0 failures • 4.1s</span>
+                      <span class="session-action">→</span>
+                    </div>
+                    <div class="session-row success">
+                      <span class="session-status">✓</span>
+                      <span class="session-name">research-agent</span>
+                      <span class="session-meta">2 runs • 0 failures • 1.8s</span>
+                      <span class="session-action">→</span>
+                    </div>
+                  </div>
+                  <div class="screen-footer">
+                    <span class="footer-hint">Click failing session to debug →</span>
+                  </div>
+                </div>
+
+                <!-- Screen 2: Graph Debugging -->
+                <div class="demo-screen" id="screen-graph">
+                  <div class="screen-header">
+                    <span class="screen-title">Run Graph</span>
+                    <span class="screen-badge error">Failed at Tool Call</span>
+                  </div>
+                  <div class="graph-view">
+                    <div class="graph-flow">
+                      <div class="gnode gnode-start">User Query</div>
+                      <div class="gedge"></div>
+                      <div class="gnode">LLM: GPT-4</div>
+                      <div class="gedge"></div>
+                      <div class="gnode">Tool: search_docs</div>
+                      <div class="gedge"></div>
+                      <div class="gnode gnode-error">Tool: update_ticket<br><small>Schema Error</small></div>
+                    </div>
+                    <div class="graph-inspector">
+                      <div class="inspector-title">Node Details</div>
+                      <div class="inspector-row"><span>Tool:</span><span>update_ticket</span></div>
+                      <div class="inspector-row"><span>Status:</span><span class="error-text">FAILED</span></div>
+                      <div class="inspector-row"><span>Error:</span><span>Missing 'priority' field</span></div>
+                      <div class="inspector-action">+ Add to Dataset</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Screen 3: Dataset -->
+                <div class="demo-screen" id="screen-dataset">
+                  <div class="screen-header">
+                    <span class="screen-title">Dataset: tool-failures-v2</span>
+                    <span class="screen-badge">42 rows</span>
+                  </div>
+                  <div class="dataset-table">
+                    <div class="table-header">
+                      <span>Input</span>
+                      <span>Expected</span>
+                      <span>Label</span>
+                    </div>
+                    <div class="table-row new-row">
+                      <span>"Update ticket #1234 urgently"</span>
+                      <span>priority: "high"</span>
+                      <span class="label gold">Gold</span>
+                    </div>
+                    <div class="table-row">
+                      <span>"Close the support case"</span>
+                      <span>status: "closed"</span>
+                      <span class="label gold">Gold</span>
+                    </div>
+                    <div class="table-row">
+                      <span>"Escalate to manager"</span>
+                      <span>assignee: "manager"</span>
+                      <span class="label anti">Anti</span>
+                    </div>
+                  </div>
+                  <div class="screen-footer">
+                    <span class="footer-hint">Run experiment with this dataset →</span>
+                  </div>
+                </div>
+
+                <!-- Screen 4: Experiment Results -->
+                <div class="demo-screen" id="screen-experiment">
+                  <div class="screen-header">
+                    <span class="screen-title">Experiment: prompt-v3 vs v2</span>
+                    <span class="screen-badge success">+12% improvement</span>
+                  </div>
+                  <div class="experiment-results">
+                    <div class="result-card">
+                      <div class="result-label">LLM Judge</div>
+                      <div class="result-score">0.87</div>
+                      <div class="result-bar">
+                        <div class="bar-fill" style="width: 87%;"></div>
+                      </div>
+                    </div>
+                    <div class="result-card">
+                      <div class="result-label">Tool Correctness</div>
+                      <div class="result-score">0.92</div>
+                      <div class="result-bar">
+                        <div class="bar-fill" style="width: 92%;"></div>
+                      </div>
+                    </div>
+                    <div class="result-card">
+                      <div class="result-label">Criteria Match</div>
+                      <div class="result-score">0.78</div>
+                      <div class="result-bar">
+                        <div class="bar-fill warn" style="width: 78%;"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="experiment-compare">
+                    <div class="compare-item old">v2: 0.75 avg</div>
+                    <div class="compare-arrow">→</div>
+                    <div class="compare-item new">v3: 0.86 avg</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Workflow indicator -->
+          <div class="workflow-indicator">
+            <div class="workflow-step active">1. Capture</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Debug</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Curate</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Evaluate</div>
+          </div>
+        </div>
+
+        <div class="showcase-features">
+          <div class="feature-pill">
+            <span class="pill-icon">◉</span>
+            <span>Session Timeline</span>
+          </div>
+          <div class="feature-pill">
+            <span class="pill-icon">◇</span>
+            <span>Graph Debugging</span>
+          </div>
+          <div class="feature-pill">
+            <span class="pill-icon">⊕</span>
+            <span>Dataset Builder</span>
+          </div>
+          <div class="feature-pill">
+            <span class="pill-icon">✓</span>
+            <span>Semantic Evals</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      // Auto-cycle through demo screens
+      (function () {
+        const tabs = document.querySelectorAll('.demo-tab');
+        const screens = document.querySelectorAll('.demo-screen');
+        const steps = document.querySelectorAll('.workflow-step');
+        let currentIndex = 0;
+
+        function showScreen(index) {
+          tabs.forEach((t, i) => t.classList.toggle('active', i === index));
+          screens.forEach((s, i) => s.classList.toggle('active', i === index));
+          steps.forEach((s, i) => s.classList.toggle('active', i === index));
+        }
+
+        // Click handler for tabs
+        tabs.forEach((tab, i) => {
+          tab.addEventListener('click', () => {
+            currentIndex = i;
+            showScreen(currentIndex);
+          });
+        });
+
+        // Auto-cycle every 4 seconds
+        setInterval(() => {
+          currentIndex = (currentIndex + 1) % 4;
+          showScreen(currentIndex);
+        }, 4000);
+      })();
+    </script>
+
+    <style>
+      .showcase-section {
+        padding: 80px 48px;
+        border-bottom: 2px solid var(--border-color);
+        background: var(--surface);
+        text-align: center;
+      }
+
+      .showcase-header {
+        max-width: 600px;
+        margin: 0 auto 48px;
+      }
+
+      .showcase-label {
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        color: var(--accent);
+        margin-bottom: 16px;
+        display: block;
+      }
+
+      .showcase-title {
+        font-family: var(--font-serif);
+        font-size: clamp(2rem, 4vw, 3rem);
+        margin: 0 0 16px 0;
+        line-height: 1.1;
+      }
+
+      .showcase-desc {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-muted);
+        margin: 0;
+      }
+
+      .showcase-content {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .lottie-container {
+        width: 100%;
+        border: 2px solid var(--border-color);
+        background: var(--surface);
+        padding: 32px;
+        margin-bottom: 32px;
+      }
+
+      .demo-placeholder {
+        position: relative;
+      }
+
+      .demo-window {
+        background: var(--bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+      }
+
+      .demo-chrome {
+        background: var(--ink);
+        color: var(--bg);
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .demo-chrome .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .demo-chrome .dot.red {
+        background: #ff5f56;
+      }
+
+      .demo-chrome .dot.yellow {
+        background: #ffbd2e;
+      }
+
+      .demo-chrome .dot.green {
+        background: #27ca40;
+      }
+
+      .demo-title {
+        flex: 1;
+        text-align: center;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+      }
+
+      .demo-body {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        min-height: 300px;
+      }
+
+      .demo-sidebar {
+        background: var(--surface);
+        border-right: 1px solid var(--border-color);
+        padding: 16px 0;
+      }
+
+      .sidebar-item {
+        padding: 10px 16px;
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .sidebar-item.active {
+        background: var(--accent);
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .demo-main {
+        padding: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .graph-node {
+        background: var(--surface);
+        border: 2px solid var(--ink);
+        padding: 16px 24px;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        animation: pulse-node 2s ease-in-out infinite;
+      }
+
+      .graph-node.node-1 {
+        animation-delay: 0s;
+      }
+
+      .graph-node.node-2 {
+        animation-delay: 0.5s;
+      }
+
+      .graph-node.node-3 {
+        animation-delay: 1s;
+      }
+
+      .graph-node.node-4 {
+        animation-delay: 1.5s;
+        background: var(--accent);
+      }
+
+      .graph-edge {
+        width: 24px;
+        height: 2px;
+        background: var(--ink);
+        position: relative;
+      }
+
+      .graph-edge::after {
+        content: "→";
+        position: absolute;
+        right: -4px;
+        top: -8px;
+        font-size: 12px;
+      }
+
+      @keyframes pulse-node {
+
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(255, 68, 0, 0);
+        }
+
+        50% {
+          transform: scale(1.02);
+          box-shadow: 0 0 0 4px rgba(255, 68, 0, 0.1);
+        }
+      }
+
+      .showcase-features {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .feature-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--ink);
+        color: var(--bg);
+        padding: 12px 20px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .pill-icon {
+        color: var(--accent);
+        font-weight: bold;
+      }
+
+      @media (max-width: 768px) {
+        .demo-body {
+          grid-template-columns: 1fr;
+        }
+
+        .demo-sidebar {
+          display: flex;
+          border-right: none;
+          border-bottom: 1px solid var(--border-color);
+          overflow-x: auto;
+        }
+
+        .demo-main {
+          flex-direction: column;
+        }
+
+        .graph-edge {
+          width: 2px;
+          height: 24px;
+        }
+
+        .graph-edge::after {
+          content: "↓";
+          right: -8px;
+          top: 4px;
+        }
+      }
+
+      /* ELABORATE DEMO STYLES */
+      .demo-elaborate {
+        min-height: 420px;
+      }
+
+      .demo-url {
+        font-size: 9px;
+        opacity: 0.5;
+        margin-left: auto;
+      }
+
+      .demo-tabs {
+        display: flex;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .demo-tab {
+        flex: 1;
+        padding: 12px 16px;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: var(--font-mono);
+        color: var(--text-secondary);
+      }
+
+      .demo-tab:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      .demo-tab.active {
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 600;
+      }
+
+      .demo-screens {
+        position: relative;
+        min-height: 320px;
+      }
+
+      .demo-screen {
+        display: none;
+        padding: 16px;
+        animation: fadeIn 0.3s ease;
+      }
+
+      .demo-screen.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .screen-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #2A2A2A;
+      }
+
+      .screen-title {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
+
+      .screen-badge {
+        font-size: 9px;
+        padding: 4px 10px;
+        background: var(--ink);
+        color: var(--bg);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .screen-badge.error {
+        background: #dc3545;
+      }
+
+      .screen-badge.success {
+        background: #27ca40;
+      }
+
+      .screen-footer {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #2A2A2A;
+        text-align: center;
+      }
+
+      .footer-hint {
+        font-size: 10px;
+        color: var(--accent);
+        letter-spacing: 0.1em;
+      }
+
+      /* Sessions List */
+      .sessions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .session-row {
+        display: grid;
+        grid-template-columns: 24px 1fr auto 24px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border-color);
+        font-size: 11px;
+        transition: all 0.2s;
+      }
+
+      .session-row:hover {
+        background: #1a1a1a;
+        border-color: var(--ink);
+      }
+
+      .session-row.error {
+        border-left: 3px solid #dc3545;
+      }
+
+      .session-row.success .session-status {
+        color: var(--success);
+      }
+
+      .session-row.error .session-status {
+        color: var(--error);
+      }
+
+      .session-name {
+        font-weight: 500;
+      }
+
+      .session-meta {
+        color: #888;
+        font-size: 10px;
+      }
+
+      .session-action {
+        color: var(--accent);
+      }
+
+      /* Graph View */
+      .graph-view {
+        display: grid;
+        grid-template-columns: 1fr 180px;
+        gap: 16px;
+        min-height: 200px;
+      }
+
+      .graph-flow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 16px;
+        background: #1a1a1a;
+        border: 1px solid #eee;
+      }
+
+      .gnode {
+        padding: 10px 16px;
+        background: var(--surface);
+        border: 2px solid var(--ink);
+        font-size: 10px;
+        font-weight: 500;
+        text-align: center;
+      }
+
+      .gnode-start {
+        background: #e8f4fd;
+        border-color: #3b82f6;
+      }
+
+      .gnode-error {
+        background: var(--error-bg);
+        border-color: var(--error);
+        color: var(--error);
+      }
+
+      .gnode small {
+        display: block;
+        font-size: 8px;
+        margin-top: 4px;
+        opacity: 0.7;
+      }
+
+      .gedge {
+        width: 20px;
+        height: 2px;
+        background: var(--ink);
+        position: relative;
+      }
+
+      .gedge::after {
+        content: "→";
+        position: absolute;
+        right: -2px;
+        top: -6px;
+        font-size: 10px;
+      }
+
+      .graph-inspector {
+        background: var(--ink);
+        color: var(--bg);
+        padding: 12px;
+        font-size: 10px;
+      }
+
+      .inspector-title {
+        font-size: 9px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .inspector-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .inspector-row span:first-child {
+        opacity: 0.6;
+      }
+
+      .error-text {
+        color: var(--error);
+      }
+
+      .inspector-action {
+        margin-top: 16px;
+        padding: 8px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        text-align: center;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      /* Dataset Table */
+      .dataset-table {
+        font-size: 10px;
+      }
+
+      .table-header,
+      .table-row {
+        display: grid;
+        grid-template-columns: 2fr 1.5fr 60px;
+        gap: 12px;
+        padding: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .table-header {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+      }
+
+      .table-row.new-row {
+        background: var(--accent-subtle);
+        animation: pulse-row 2s infinite;
+      }
+
+      @keyframes pulse-row {
+
+        0%,
+        100% {
+          background: var(--accent-subtle);
+        }
+
+        50% {
+          background: var(--accent-ink)
+        }
+      }
+
+      .label {
+        font-size: 9px;
+        padding: 2px 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        text-align: center;
+      }
+
+      .label.gold {
+        background: var(--warning-bg);
+        color: var(--warning);
+      }
+
+      .label.anti {
+        background: var(--error-bg);
+        color: var(--error);
+      }
+
+      /* Experiment Results */
+      .experiment-results {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .result-card {
+        padding: 12px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-default);
+        text-align: center;
+      }
+
+      .result-label {
+        font-size: 9px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #888;
+        margin-bottom: 8px;
+      }
+
+      .result-score {
+        font-size: 24px;
+        font-weight: 600;
+        font-family: var(--font-serif);
+      }
+
+      .result-bar {
+        height: 4px;
+        background: #eee;
+        margin-top: 8px;
+      }
+
+      .bar-fill {
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.5s;
+      }
+
+      .bar-fill.warn {
+        background: #ffc107;
+      }
+
+      .experiment-compare {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        font-size: 11px;
+      }
+
+      .compare-item {
+        padding: 8px 16px;
+        border: 1px solid #eee;
+      }
+
+      .compare-item.old {
+        opacity: 0.6;
+      }
+
+      .compare-item.new {
+        background: var(--success-bg);
+        border-color: var(--success);
+        font-weight: 600;
+      }
+
+      .compare-arrow {
+        color: var(--accent);
+        font-size: 16px;
+      }
+
+      /* Workflow Indicator */
+      .workflow-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        margin-top: 24px;
+        padding: 16px;
+        background: #f5f5f5;
+      }
+
+      .workflow-step {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 8px 16px;
+        background: var(--surface);
+        border: 1px solid #ddd;
+        transition: all 0.3s;
+      }
+
+      .workflow-step.active {
+        background: var(--ink);
+        color: var(--bg);
+        border-color: var(--ink);
+      }
+
+      .workflow-arrow {
+        color: var(--text-secondary);
+      }
+
+      @media (max-width: 768px) {
+        .graph-view {
+          grid-template-columns: 1fr;
+        }
+
+        .experiment-results {
+          grid-template-columns: 1fr;
+        }
+
+        .workflow-indicator {
+          flex-wrap: wrap;
+        }
+
+        .workflow-arrow {
+          display: none;
+        }
+      }
+    </style>
+
     <!-- THE LOOP (Divider) -->
     <div class="section-loop">
       <div class="loop-track">
@@ -906,9 +1893,9 @@
         &rarr; EXPERIMENT &rarr; LOGS &rarr; DATASET
       </div>
       <div class="loop-sub">
-        <span>Capture real failures</span>
+        <span>Capture failing sessions</span>
         <span>&rarr;</span>
-        <span>curate examples</span>
+        <span>curate datasets</span>
         <span>&rarr;</span>
         <span>run evals</span>
         <span>&rarr;</span>
@@ -917,7 +1904,7 @@
     </div>
 
     <!-- FEATURES GRID -->
-    <div class="grid-container">
+    <div id="features" class="grid-container">
       <!-- Proxy -->
       <div class="feature-col">
         <div class="tech-marker tm-tl"></div>
@@ -931,12 +1918,13 @@
         </div>
         <h3 class="feature-title">Universal <br>Proxy</h3>
         <ul class="feature-list">
-          <li>One integration across all providers</li>
-          <li>Unified request/response + streaming (SSE)</li>
-          <li>Metrics capture (tokens, latency, cost)</li>
-          <li>Trace/span context propagation</li>
-          <li>Fail-open fallback mechanisms</li>
-          <li>Optional caching with explicit bypass</li>
+          <li>One integration across providers and models</li>
+          <li>Normalized request/response + streaming (SSE)</li>
+          <li>Tool call schema capture (inputs, outputs, errors)</li>
+          <li>Tokens, latency, and cost accounting per run</li>
+          <li>Trace/span context propagation across services</li>
+          <li>Fail-open / fallback routing with explicit policies</li>
+          <li>Optional caching with explicit bypass controls</li>
         </ul>
       </div>
 
@@ -953,11 +1941,12 @@
         </div>
         <h3 class="feature-title">Agent-Native <br>Observability</h3>
         <ul class="feature-list">
-          <li>Logs table + trace view</li>
-          <li>Sessions and runs (stable timeline)</li>
-          <li>Graph debugging for runs (branches, retries)</li>
-          <li>Permalinks to exact bad runs for review</li>
-          <li>Full tool call introspection</li>
+          <li>Session-first debugging: start from the run, not the log line</li>
+          <li>Timeline view + raw trace view (all context preserved)</li>
+          <li>Run graph: branches, retries, tool calls, and outcomes</li>
+          <li>Permalinks to exact failing sessions for reviews</li>
+          <li>Tool call introspection: args, responses, latency, exceptions</li>
+          <li>Audit-friendly: stable IDs for runs, steps, and artifacts</li>
         </ul>
       </div>
 
@@ -974,11 +1963,12 @@
         </div>
         <h3 class="feature-title">Semantic <br>Evaluation</h3>
         <ul class="feature-list">
-          <li>LLM judge (auditable: prompt/model stored)</li>
-          <li>Criteria checklist scorer</li>
-          <li>Tool correctness scorer</li>
-          <li>Outcome/decision scorer</li>
-          <li>Deterministic checks (exact/regex)</li>
+          <li>LLM judge with full audit trail (model + prompt + rubric versioned)</li>
+          <li>Criteria checklist scorer (pass/fail + graded)</li>
+          <li>Tool correctness scoring (schema + output validation)</li>
+          <li>Outcome/decision scoring for agent trajectories</li>
+          <li>Deterministic checks (exact/regex) for guardrails</li>
+          <li>Compare experiments across prompt/model versions with diffs</li>
         </ul>
       </div>
     </div>
@@ -997,8 +1987,8 @@
               style="margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block;">
               IDE Integration</h4>
             <p style="font-size: 13px; line-height: 1.6;">
-              MCP server allows IDE agents to query Athena directly. Search docs, run AQL queries, and fetch experiment
-              summaries without leaving your editor.
+              MCP server lets your IDE agent query Athena directly: fetch failing runs, search traces, pull dataset
+              rows, and summarize experiment results without leaving the editor.
             </p>
           </div>
           <div>
@@ -1006,8 +1996,8 @@
               style="margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block;">
               Data Isolation</h4>
             <p style="font-size: 13px; line-height: 1.6;">
-              Optional customer-owned data plane ensures raw telemetry never leaves your environment. You keep the logs;
-              we provide the intelligence.
+              Optional customer-owned data plane keeps raw telemetry in your environment. You keep the logs; Athena
+              operates on derived signals and metadata.
             </p>
           </div>
         </div>
@@ -1018,8 +2008,8 @@
         <div class="secure-icon">
           <div>
             <div style="font-size: 48px;">&#9737;</div>
-            <div style="font-size: 10px; letter-spacing: 0.2em; margin-top: 16px;">SECURE PROTOCOL</div>
-            <div class="secure-status">ENCRYPTION ACTIVE</div>
+            <div style="font-size: 10px; letter-spacing: 0.2em; margin-top: 16px;">YOUR CLOUD</div>
+            <div class="secure-status">DATA STAYS WITH YOU</div>
           </div>
         </div>
       </div>
@@ -1031,14 +2021,15 @@
         <div class="logo" style="justify-content: center; margin-bottom: 16px;">
           <div class="logo-icon" style="border-bottom-width: 16px; border-bottom-color: var(--accent);"></div>
         </div>
-        <h2 style="font-family: var(--font-serif); font-size: 2rem;">Ship faster without losing track of quality.</h2>
+        <h2 style="font-family: var(--font-serif); font-size: 2rem;">When agents break, you'll know why — and you can
+          prove the fix.</h2>
       </div>
 
       <a href="#" class="cta-btn">Book a Demo</a>
 
       <div class="footer-meta">
-        <span>All research conducted under field spec: 2401-AD / FWD OPS</span>
-        <span>© 2025 Athena AI</span>
+        <span>Unified AI Ops for Agentic Workflows</span>
+        <span>© 2026 Athena AI</span>
       </div>
     </footer>
   </div>

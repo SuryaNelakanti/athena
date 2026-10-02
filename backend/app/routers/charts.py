@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional, Dict, Any
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 import time
 
@@ -48,7 +48,7 @@ class MonitorChartResponse(BaseModel):
     x_field: str
     y_field: str
     series_field: Optional[str] = None
-    config: Dict[str, Any] = {}
+    config: Dict[str, Any] = Field(default_factory=dict)
     created_at: int
     updated_at: int
 

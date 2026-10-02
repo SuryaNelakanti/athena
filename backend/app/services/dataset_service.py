@@ -55,12 +55,12 @@ class DatasetService:
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
 
-    async def _next_dataset_version(self, dataset: DatasetModel) -> int:
+    def _next_dataset_version(self, dataset: DatasetModel) -> int:
         dataset.version = int(dataset.version or 0) + 1
         self.session.add(dataset)
         return dataset.version
 
-    async def _record_dataset_version(
+    def _record_dataset_version(
         self,
         dataset: DatasetModel,
         action: str,
@@ -80,6 +80,25 @@ class DatasetService:
         )
         self.session.add(entry)
         return entry
+
+    async def _save_row_revision(
+        self,
+        dataset: DatasetModel,
+        row: DatasetRowModel,
+        action: str,
+        version_meta: Optional[dict[str, Any]],
+    ) -> DatasetRowModel:
+        self.session.add(row)
+        self._record_dataset_version(
+            dataset=dataset,
+            action=action,
+            logical_id=row.logical_id,
+            row_id=row.id,
+            meta=version_meta or {},
+        )
+        await self.session.commit()
+        await self.session.refresh(row)
+        return row
 
     async def list_rows(
         self,
@@ -111,7 +130,7 @@ class DatasetService:
         stmt = (
             select(DatasetRowModel)
             .where(DatasetRowModel.dataset_id == dataset_id)
-            .where(DatasetRowModel.is_deleted == False)
+            .where(DatasetRowModel.is_deleted.is_(False))
             .join(
                 subquery,
                 (DatasetRowModel.logical_id == subquery.c.logical_id)
@@ -173,7 +192,7 @@ class DatasetService:
         version_meta: Optional[dict[str, Any]] = None,
     ) -> DatasetRowModel:
         dataset = await self.get_dataset(dataset_id)
-        await self._next_dataset_version(dataset)
+        self._next_dataset_version(dataset)
 
         resolved_row_kind = self._resolve_row_kind(row_kind)
         resolved_eval_label = self._resolve_eval_label(
@@ -198,18 +217,7 @@ class DatasetService:
             created_at=int(time.time() * 1000),
         )
 
-        self.session.add(row)
-        await self._record_dataset_version(
-            dataset=dataset,
-            action="insert",
-            logical_id=row.logical_id,
-            row_id=row.id,
-            meta=version_meta or {},
-        )
-
-        await self.session.commit()
-        await self.session.refresh(row)
-        return row
+        return await self._save_row_revision(dataset, row, "insert", version_meta)
 
     async def update_row(
         self,
@@ -233,7 +241,7 @@ class DatasetService:
         if not latest:
             raise ValueError("Latest dataset row not found")
 
-        await self._next_dataset_version(dataset)
+        self._next_dataset_version(dataset)
 
         resolved_row_kind = self._resolve_row_kind(
             row_kind if row_kind is not None else latest.row_kind
@@ -263,18 +271,7 @@ class DatasetService:
             created_at=int(time.time() * 1000),
         )
 
-        self.session.add(new_row)
-        await self._record_dataset_version(
-            dataset=dataset,
-            action="update",
-            logical_id=new_row.logical_id,
-            row_id=new_row.id,
-            meta=version_meta or {},
-        )
-
-        await self.session.commit()
-        await self.session.refresh(new_row)
-        return new_row
+        return await self._save_row_revision(dataset, new_row, "update", version_meta)
 
     async def delete_row(
         self,
@@ -294,7 +291,7 @@ class DatasetService:
         if latest.is_deleted:
             return latest
 
-        await self._next_dataset_version(dataset)
+        self._next_dataset_version(dataset)
 
         new_row = DatasetRowModel(
             id=f"dr_{uuid.uuid4().hex[:8]}",
@@ -313,25 +310,14 @@ class DatasetService:
             created_at=int(time.time() * 1000),
         )
 
-        self.session.add(new_row)
-        await self._record_dataset_version(
-            dataset=dataset,
-            action="delete",
-            logical_id=new_row.logical_id,
-            row_id=new_row.id,
-            meta=version_meta or {},
-        )
-
-        await self.session.commit()
-        await self.session.refresh(new_row)
-        return new_row
+        return await self._save_row_revision(dataset, new_row, "delete", version_meta)
 
     async def flush(self, dataset_id: str, reason: Optional[str] = None) -> DatasetVersionModel:
         dataset = await self.get_dataset(dataset_id)
         current_rows = await self.list_rows(dataset_id)
 
-        await self._next_dataset_version(dataset)
-        entry = await self._record_dataset_version(
+        self._next_dataset_version(dataset)
+        entry = self._record_dataset_version(
             dataset=dataset,
             action="flush",
             meta={

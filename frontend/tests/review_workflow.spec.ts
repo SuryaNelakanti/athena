@@ -4,11 +4,11 @@ import { mockSeedStoryApi } from './fixtures/mockApi';
 test.describe('Review Workflow', () => {
     test.beforeEach(async ({ page }) => {
         await mockSeedStoryApi(page);
-        await page.goto('/#/', { waitUntil: 'networkidle' });
+        await page.goto('/', { waitUntil: 'networkidle' });
     });
 
     test('should triage review items', async ({ page }) => {
-        await page.goto('/#/review');
+        await page.goto('/review');
 
         // Select an open item
         // Assuming list items have a status indicator or we pick the first one
@@ -26,7 +26,7 @@ test.describe('Review Workflow', () => {
     });
 
     test('should promote review item to dataset', async ({ page }) => {
-        await page.goto('/#/review');
+        await page.goto('/review');
         await page.locator('.review-item').first().click();
 
         // Open Promote Modal

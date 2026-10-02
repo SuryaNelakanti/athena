@@ -8,16 +8,13 @@ client-provided key.
 """
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
-import base64
-import binascii
 import hashlib
 import json
-import secrets
-import string
 import time
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidTag
+
+from app.services.cache_payload import CachePayloadCodec
 
 
 @dataclass
@@ -54,6 +51,7 @@ class CacheService:
         self._default_ttl = default_ttl
         self._max_entries = max_entries
         self._enabled = True
+        self._payload_codec = CachePayloadCodec()
         self._stats = {
             "hits": 0,
             "misses": 0,
@@ -101,49 +99,28 @@ class CacheService:
         return hashlib.sha256(key_str.encode()).hexdigest()[:32]
     
     def _decode_cache_key(self, cache_key: str) -> bytes:
-        cache_key = cache_key.strip()
-        if not cache_key:
-            raise ValueError("Cache key cannot be empty.")
-        if self._looks_like_hex(cache_key):
-            return bytes.fromhex(cache_key)
-        padded = cache_key + "=" * (-len(cache_key) % 4)
-        try:
-            return base64.urlsafe_b64decode(padded.encode("ascii"))
-        except binascii.Error as exc:
-            raise ValueError("Cache key must be base64url or hex encoded.") from exc
+        return self._payload_codec.decode_key(cache_key)
 
     def _looks_like_hex(self, value: str) -> bool:
-        return len(value) % 2 == 0 and all(c in string.hexdigits for c in value)
+        return self._payload_codec.looks_like_hex(value)
 
     def _normalize_cache_key(self, cache_key: Optional[str | bytes]) -> Optional[bytes]:
-        if cache_key is None:
-            return None
-        if isinstance(cache_key, bytes):
-            key_bytes = cache_key
-        else:
-            key_bytes = self._decode_cache_key(cache_key)
-        if len(key_bytes) != 32:
-            raise ValueError("Cache key must decode to 32 bytes for AES-256-GCM.")
-        return key_bytes
+        return self._payload_codec.normalize_key(cache_key)
 
     def normalize_encryption_key(self, encryption_key: Optional[str | bytes]) -> Optional[bytes]:
         return self._normalize_cache_key(encryption_key)
 
     def _encrypt_payload(self, payload: bytes, key: bytes, aad: str) -> tuple[bytes, bytes]:
-        nonce = secrets.token_bytes(12)
-        aesgcm = AESGCM(key)
-        ciphertext = aesgcm.encrypt(nonce, payload, aad.encode("utf-8"))
-        return ciphertext, nonce
+        return self._payload_codec.encrypt(payload, key, aad)
 
     def _decrypt_payload(self, ciphertext: bytes, nonce: bytes, key: bytes, aad: str) -> bytes:
-        aesgcm = AESGCM(key)
-        return aesgcm.decrypt(nonce, ciphertext, aad.encode("utf-8"))
+        return self._payload_codec.decrypt(ciphertext, nonce, key, aad)
 
     def _serialize_value(self, value: Any) -> bytes:
-        return json.dumps(value, sort_keys=True).encode("utf-8")
+        return self._payload_codec.serialize(value)
 
     def _deserialize_value(self, payload: bytes) -> Any:
-        return json.loads(payload.decode("utf-8"))
+        return self._payload_codec.deserialize(payload)
 
     async def get(
         self,

@@ -14,7 +14,7 @@ test.describe('Resilience', () => {
             }
         });
 
-        await page.goto('/#/overview');
+        await page.goto('/overview');
 
         // Expect NOT a white screen, but maybe an error toast or boundary
         // This test asserts that the app doesn't crash completely (white screen)
@@ -43,7 +43,7 @@ test.describe('Resilience', () => {
             });
         });
 
-        await page.goto('/#/logs');
+        await page.goto('/logs');
 
         // Expect table to render (maybe empty, maybe one row with error text)
         // Main verification is that the whole page didn't crash

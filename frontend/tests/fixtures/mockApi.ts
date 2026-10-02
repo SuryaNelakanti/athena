@@ -1,7 +1,7 @@
-import { API_BASE_URL } from '../../src/lib/api';
 import {
   seedLogs,
   seedProject,
+  seedOrganization,
   seedQueries,
   seedTraces,
   seedViews,
@@ -25,6 +25,7 @@ import {
 import type { AqlFilter } from '../../src/types';
 import type { Page, Route } from '@playwright/test';
 
+const API_BASE_URL = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
 const useLiveApi = process.env.E2E_USE_LIVE_API === 'true' || process.env.E2E_USE_LIVE_API === '1';
 
 const respondJson = (route: Route, payload: unknown, status = 200) =>
@@ -134,6 +135,7 @@ export const mockSeedStoryApi = async (page: Page) => {
     experimentResults.set(runId, created);
   };
 
+  await page.route(`${API_BASE_URL}/organizations`, (route) => respondJson(route, [seedOrganization]));
   await page.route(`${API_BASE_URL}/projects`, (route) => respondJson(route, [seedProject]));
   await page.route(`${API_BASE_URL}/projects/${seedProject.id}`, (route) => respondJson(route, seedProject));
   await page.route(new RegExp(`${API_BASE_URL}/projects/${seedProject.id}/traces.*`), (route) => respondJson(route, seedTraces));
@@ -411,32 +413,98 @@ export const mockSeedStoryApi = async (page: Page) => {
     }
 
     if (parts.length >= 3 && parts[2] === 'compare' && request.method() === 'GET') {
-      const experimentId = parts[1];
       const baselineRunId = url.searchParams.get('baseline_run_id');
       const candidateRunId = url.searchParams.get('candidate_run_id');
       const baseRun = baselineRunId ? getRunById(baselineRunId) : null;
       const candRun = candidateRunId ? getRunById(candidateRunId) : null;
       const baseResults = baselineRunId ? getRunResults(baselineRunId) : [];
       const candResults = candidateRunId ? getRunResults(candidateRunId) : [];
-      const scoreFor = (result: any) => Number(result?.scores?.exact_match ?? 0);
-      const avg = (list: any[]) =>
-        list.length ? list.reduce((sum, res) => sum + scoreFor(res), 0) / list.length : 0;
-      const deltaSummary = {
-        avg_score: avg(candResults) - avg(baseResults),
-        baseline: baseRun?.summary?.avg_score ?? null,
-        candidate: candRun?.summary?.avg_score ?? null,
+      const candVersion = candRun ? getExperimentVersion(candRun.experiment_version_id) : null;
+      const candScorers = Array.isArray(candVersion?.config?.scorers) ? candVersion?.config?.scorers : [];
+      const configuredScorers = candScorers.filter((scorer) => typeof scorer !== 'string');
+      const firstScorer = candScorers[0];
+      const primaryScorer = configuredScorers.find((scorer) => scorer.is_primary)?.type
+        || (typeof firstScorer === 'string' ? firstScorer : firstScorer?.type)
+        || 'exact_match';
+
+      const scoreFor = (result: any, scorer: string) => {
+        const value = result?.scores?.[scorer];
+        return typeof value === 'number' ? value : null;
       };
-      const rows = baseResults.map((base) => {
-        const candidate = candResults.find((res) => res.dataset_row_id === base.dataset_row_id);
-        const rowInput = seedDatasetRows.find((row) => row.id === base.dataset_row_id)?.input;
-        return {
-          dataset_row_id: base.dataset_row_id,
-          input: rowInput,
-          baseline: base,
-          candidate,
+      const avgFor = (list: any[], scorer: string) => {
+        const values = list.map((res) => scoreFor(res, scorer)).filter((val) => typeof val === 'number') as number[];
+        return values.length ? values.reduce((sum, val) => sum + val, 0) / values.length : null;
+      };
+
+      const scorerTypes = new Set<string>();
+      configuredScorers.forEach((scorer) => {
+        scorerTypes.add(scorer.type);
+      });
+      const perScorer: Record<string, { baseline: number | null; candidate: number | null; delta: number | null }> = {};
+      scorerTypes.forEach((scorer) => {
+        const baseAvg = avgFor(baseResults, scorer);
+        const candAvg = avgFor(candResults, scorer);
+        perScorer[scorer] = {
+          baseline: baseAvg,
+          candidate: candAvg,
+          delta: typeof baseAvg === 'number' && typeof candAvg === 'number' ? candAvg - baseAvg : null,
         };
       });
-      return respondJson(route, { experiment_id: experimentId, delta_summary: deltaSummary, rows });
+
+      const baseMap = new Map(baseResults.map((res: any) => [res.dataset_row_id, res]));
+      const candMap = new Map(candResults.map((res: any) => [res.dataset_row_id, res]));
+      const rowIds = new Set([...baseMap.keys(), ...candMap.keys()]);
+      let improvedCount = 0;
+      let regressedCount = 0;
+      let unchangedCount = 0;
+      const rows = Array.from(rowIds).map((rowId) => {
+        const base = baseMap.get(rowId);
+        const cand = candMap.get(rowId);
+        const baseScore = scoreFor(base, primaryScorer);
+        const candScore = scoreFor(cand, primaryScorer);
+        let status = 'unchanged';
+        if (typeof baseScore === 'number' && typeof candScore === 'number') {
+          const delta = candScore - baseScore;
+          if (delta > 0.01) status = 'improved';
+          else if (delta < -0.01) status = 'regressed';
+        }
+        if (status === 'improved') improvedCount += 1;
+        else if (status === 'regressed') regressedCount += 1;
+        else unchangedCount += 1;
+
+        const row = seedDatasetRows.find((entry) => entry.id === rowId);
+        return {
+          dataset_row_id: rowId,
+          input: row?.input,
+          expected: row?.expected,
+          baseline: base ? {
+            scores: base.scores,
+            output_text: base.output?.content || null,
+            trace_id: base.output?.athena_trace_id || null,
+            latency_ms: base.latency_ms,
+          } : null,
+          candidate: cand ? {
+            scores: cand.scores,
+            output_text: cand.output?.content || null,
+            trace_id: cand.output?.athena_trace_id || null,
+            latency_ms: cand.latency_ms,
+          } : null,
+          status,
+        };
+      });
+
+      return respondJson(route, {
+        baseline_run: baseRun,
+        candidate_run: candRun,
+        primary_scorer: primaryScorer,
+        delta_summary: {
+          per_scorer: perScorer,
+          improved_count: improvedCount,
+          regressed_count: regressedCount,
+          unchanged_count: unchangedCount,
+        },
+        rows,
+      });
     }
 
     if (parts.length === 2) {
@@ -471,7 +539,7 @@ export const mockSeedStoryApi = async (page: Page) => {
               temperature: payload.temperature,
               max_tokens: payload.max_tokens,
             },
-            scorers: payload.scorers || ['exact_match'],
+            scorers: payload.scorers || [{ type: 'exact_match', weight: 1.0, threshold: 0.8, is_primary: true }],
           },
           created_at: Date.now(),
         };

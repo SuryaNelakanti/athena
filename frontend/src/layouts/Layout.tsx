@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Project } from '../types';
 import {
   HomeIcon,
@@ -32,8 +33,6 @@ interface LayoutProps {
   projects: Project[];
   currentProject: Project;
   onProjectChange: (p: Project) => void;
-  currentPath: string;
-  onNavigate: (path: string) => void;
 }
 
 // Navigation mode types
@@ -57,10 +56,10 @@ const Layout: React.FC<LayoutProps> = ({
   children,
   projects,
   currentProject,
-  onProjectChange,
-  currentPath,
-  onNavigate
+  onProjectChange
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   // Three-mode navigation structure per UX spec
   const navSections: NavSection[] = [
     {
@@ -79,6 +78,7 @@ const Layout: React.FC<LayoutProps> = ({
       icon: ArrowTrendingUpIcon,
       items: [
         { name: 'Review', icon: ClipboardDocumentCheckIcon, path: '/review', tone: 'amber' },
+        { name: 'Collaboration', icon: UsersIcon, path: '/collaboration', tone: 'amber' },
         { name: 'Datasets', icon: CircleStackIcon, path: '/datasets', tone: 'indigo' },
         { name: 'Experiments', icon: BeakerIcon, path: '/experiments', tone: 'copper' },
         { name: 'Playgrounds', icon: CommandLineIcon, path: '/playgrounds', tone: 'slate' },
@@ -131,9 +131,9 @@ const Layout: React.FC<LayoutProps> = ({
 
   const isItemActive = (itemPath: string) => {
     if (itemPath === '/') {
-      return currentPath === '/';
+      return location.pathname === '/';
     }
-    return currentPath === itemPath || currentPath.startsWith(itemPath + '/');
+    return location.pathname === itemPath || location.pathname.startsWith(itemPath + '/');
   };
 
   return (
@@ -202,7 +202,7 @@ const Layout: React.FC<LayoutProps> = ({
                     return (
                       <button
                         key={item.name}
-                        onClick={() => onNavigate(item.path)}
+                        onClick={() => navigate({ to: item.path })}
                         title={isCollapsed ? item.name : undefined}
                         className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-3'} py-2 text-sm rounded-md transition-colors ${isActive
                           ? 'bg-primary/10 text-primary font-medium'
@@ -265,7 +265,7 @@ const Layout: React.FC<LayoutProps> = ({
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-app p-2">
         <div className="flex-1 overflow-hidden bg-canvas rounded-lg border border-border-hairline shadow-sm">
-          <div key={currentPath} className="h-full animate-soft-in">
+          <div key={location.pathname} className="h-full animate-soft-in">
             {children}
           </div>
         </div>

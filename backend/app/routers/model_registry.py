@@ -53,7 +53,7 @@ async def create_model(
     if not provider or not model_id:
         raise HTTPException(status_code=400, detail="provider and model_id are required")
 
-    if provider not in {"openai", "anthropic", "gemini", "mock"}:
+    if provider not in {"openai", "anthropic", "gemini", "groq", "mock"}:
         raise HTTPException(status_code=400, detail="Unsupported provider")
 
     # Unique (provider, model_id)
@@ -109,7 +109,7 @@ async def sync_models(
     optionally filtered to a single provider.
     """
     provider_filter = payload.provider.strip().lower() if payload.provider else None
-    if provider_filter and provider_filter not in {"openai", "anthropic", "gemini", "mock"}:
+    if provider_filter and provider_filter not in {"openai", "anthropic", "gemini", "groq", "mock"}:
         raise HTTPException(status_code=400, detail="Unsupported provider")
 
     service = ProxyService(session)

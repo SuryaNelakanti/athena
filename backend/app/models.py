@@ -1,674 +1,133 @@
-from typing import List, Optional, Any, Dict
-from enum import Enum
-from sqlmodel import SQLModel, Field, Relationship, JSON
-from sqlalchemy import Column
-from pydantic import BaseModel
-from sqlalchemy import UniqueConstraint
-
-# Enums
-class SpanType(str, Enum):
-    LLM = 'llm'
-    TOOL = 'tool'
-    CHAIN = 'chain'
-    RETRIEVER = 'retriever'
-
-# Database Models
-
-# --- Organization Model ---
-class OrganizationModel(SQLModel, table=True):
-    """Organizations are the top-level container for projects and users."""
-    __tablename__ = "organization"
-    
-    id: str = Field(primary_key=True)
-    name: str
-    description: Optional[str] = None
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-
-# --- Auth Primitives ---
-class UserModel(SQLModel, table=True):
-    __tablename__ = "user"
-    __table_args__ = (UniqueConstraint("org_id", "email", name="uq_user_org_email"),)
-
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    email: str = Field(index=True)
-    name: Optional[str] = None
-    role: Optional[str] = Field(default="member", index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class SessionModel(SQLModel, table=True):
-    __tablename__ = "session"
-    __table_args__ = (UniqueConstraint("token_hash", name="uq_session_token_hash"),)
-
-    id: str = Field(primary_key=True)
-    user_id: str = Field(foreign_key="user.id", index=True)
-    token_hash: str = Field(index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    expires_at: Optional[int] = Field(default=None, index=True)
-    revoked_at: Optional[int] = Field(default=None, index=True)
-    last_used_at: Optional[int] = Field(default=None)
-
-
-class ServiceAccountModel(SQLModel, table=True):
-    __tablename__ = "service_account"
-
-    id: str = Field(primary_key=True)
-    org_id: str = Field(index=True)
-    name: str
-    description: Optional[str] = None
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    revoked_at: Optional[int] = Field(default=None, index=True)
-
-
-class ServiceTokenModel(SQLModel, table=True):
-    __tablename__ = "service_token"
-    __table_args__ = (UniqueConstraint("token_hash", name="uq_service_token_hash"),)
-
-    id: str = Field(primary_key=True)
-    service_account_id: str = Field(foreign_key="service_account.id", index=True)
-    name: Optional[str] = None
-    token_hash: str = Field(index=True)
-    token_last4: Optional[str] = None
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    last_used_at: Optional[int] = Field(default=None)
-    revoked_at: Optional[int] = Field(default=None, index=True)
-
-
-# --- MCP OAuth Models ---
-class McpAuthCodeModel(SQLModel, table=True):
-    __tablename__ = "mcp_auth_code"
-    __table_args__ = (UniqueConstraint("code_hash", name="uq_mcp_auth_code_hash"),)
-
-    id: str = Field(primary_key=True)
-    client_id: str = Field(index=True)
-    redirect_uri: str
-    code_hash: str = Field(index=True)
-    code_challenge: str
-    code_challenge_method: str = Field(default="S256")
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    expires_at: int = Field(index=True)
-    consumed_at: Optional[int] = Field(default=None, index=True)
-
-
-class McpTokenModel(SQLModel, table=True):
-    __tablename__ = "mcp_token"
-    __table_args__ = (UniqueConstraint("token_hash", name="uq_mcp_token_hash"),)
-
-    id: str = Field(primary_key=True)
-    client_id: str = Field(index=True)
-    token_hash: str = Field(index=True)
-    token_last4: Optional[str] = None
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    last_used_at: Optional[int] = Field(default=None)
-    expires_at: Optional[int] = Field(default=None, index=True)
-    revoked_at: Optional[int] = Field(default=None, index=True)
-
-
-# --- Audit Log Model ---
-class AuditLogModel(SQLModel, table=True):
-    """
-    Audit logs record who-did-what for compliance and debugging.
-    Every mutating action should create an audit log entry.
-    """
-    __tablename__ = "audit_log"
-    
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    actor_id: Optional[str] = Field(default=None, index=True)  # user or service account ID
-    action: str = Field(index=True)  # CREATE, UPDATE, DELETE, RUN, etc.
-    entity_type: str = Field(index=True)  # project, dataset, experiment, trace, function, etc.
-    entity_id: str = Field(index=True)
-    changes: Dict = Field(sa_column=Column(JSON), default={})  # {field: {old, new}}
-    audit_metadata: Dict = Field(sa_column=Column(JSON), default={})  # Additional context
-    timestamp: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class Project(SQLModel, table=True):
-    id: str = Field(primary_key=True)
-    name: str
-    org_id: str
-
-    traces: List["TraceModel"] = Relationship(back_populates="project")
-
-
-class EnvironmentModel(SQLModel, table=True):
-    __tablename__ = "environment"
-    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_environment_project_name"),)
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id", index=True)
-    name: str
-    description: Optional[str] = None
-    is_default: bool = Field(default=False, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-class PlaygroundModel(SQLModel, table=True):
-    __tablename__ = "playground"
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id", index=True)
-    name: str = Field(index=True)
-    description: Optional[str] = None
-    config: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-class TraceModel(SQLModel, table=True):
-    __tablename__ = "trace" # Rename table to avoid keyword conflicts if any, though Trace is usually safe
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id")
-    parent_trace_id: Optional[str] = Field(default=None, index=True)
-    trace_group_id: Optional[str] = Field(default=None, index=True)
-    input_span_id: Optional[str] = Field(default=None, index=True)
-    output_span_id: Optional[str] = Field(default=None, index=True)
-    timestamp: int = Field(index=True)
-    total_latency: float
-    total_cost: float
-    total_tokens: int
-    status: str
-    tags: List[str] = Field(sa_column=Column(JSON), default=[])
-    
-    project: Project = Relationship(back_populates="traces")
-    spans: List["SpanModel"] = Relationship(back_populates="trace")
-
-class SpanModel(SQLModel, table=True):
-    __tablename__ = "span"
-    
-    id: str = Field(primary_key=True)
-    trace_id: str = Field(foreign_key="trace.id")
-    parent_id: Optional[str] = Field(default=None, index=True)
-    name: str
-    type: SpanType
-    start_time: int
-    end_time: int
-    status: str
-    input: Dict = Field(sa_column=Column(JSON), default={})
-    output: Dict = Field(sa_column=Column(JSON), default={})
-    # Flattenting metrics or keeping as JSON? JSON is easier for now.
-    metrics: Dict = Field(sa_column=Column(JSON), default={}) 
-    attributes: Dict = Field(sa_column=Column(JSON), default={})
-    tags: List[str] = Field(sa_column=Column(JSON), default=[])
-    error_message: Optional[str] = None
-
-    trace: TraceModel = Relationship(back_populates="spans")
-
-
-# --- Agent session models (agent-native wedge) ---
-
-class AgentSessionModel(SQLModel, table=True):
-    __tablename__ = "agent_session"
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id", index=True)
-    agent_name: Optional[str] = Field(default=None, index=True)
-    env: Optional[str] = Field(default=None, index=True)
-    status: str = Field(default="active", index=True)
-    tags: List[str] = Field(sa_column=Column(JSON), default=[])
-    metadata_: Dict = Field(sa_column=Column("metadata", JSON), default_factory=dict)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    last_run_at: Optional[int] = Field(default=None, index=True)
-
-
-class AgentRunModel(SQLModel, table=True):
-    __tablename__ = "agent_run"
-
-    id: str = Field(primary_key=True)
-    session_id: str = Field(foreign_key="agent_session.id", index=True)
-    project_id: str = Field(index=True)
-    trace_id: Optional[str] = Field(default=None, index=True)
-    status: str = Field(default="completed", index=True)
-    started_at: int = Field(index=True)
-    ended_at: Optional[int] = Field(default=None, index=True)
-    total_tokens: Optional[int] = Field(default=None)
-    total_cost: Optional[float] = Field(default=None)
-    total_latency: Optional[float] = Field(default=None)
-    tags: List[str] = Field(sa_column=Column(JSON), default=[])
-    metadata_: Dict = Field(sa_column=Column("metadata", JSON), default_factory=dict)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class AgentSessionEventModel(SQLModel, table=True):
-    __tablename__ = "agent_session_event"
-
-    id: str = Field(primary_key=True)
-    session_id: str = Field(foreign_key="agent_session.id", index=True)
-    run_id: Optional[str] = Field(default=None, foreign_key="agent_run.id", index=True)
-    sequence: int = Field(index=True)
-    event_type: str = Field(index=True)
-    timestamp: int = Field(index=True)
-    payload: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class AgentSessionAnnotationModel(SQLModel, table=True):
-    __tablename__ = "agent_session_annotation"
-
-    id: str = Field(primary_key=True)
-    session_id: str = Field(foreign_key="agent_session.id", index=True)
-    project_id: str = Field(index=True)
-    labels: List[str] = Field(sa_column=Column(JSON), default=[])
-    severity: Optional[str] = Field(default=None, index=True)
-    owner: Optional[str] = Field(default=None, index=True)
-    status: str = Field(default="open", index=True)
-    note: Optional[str] = Field(default=None)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class AgentSessionIngestModel(SQLModel, table=True):
-    __tablename__ = "agent_session_ingest"
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(index=True)
-    session_id: str = Field(index=True)
-    schema_version: str = Field(index=True)
-    payload: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-class ViewModel(SQLModel, table=True):
-    __tablename__ = "view"
-    
-    id: str = Field(primary_key=True)
-    project_id: str = Field(index=True)
-    name: str
-    entity_type: str = Field(default="traces", index=True)  # traces, logs, datasets
-    config: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-# --- Log Models (first-class, separate from traces) ---
-
-class LogModel(SQLModel, table=True):
-    __tablename__ = "log"
-    
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id", index=True)
-    trace_id: Optional[str] = Field(default=None, index=True)  # Optional link to trace
-    span_id: Optional[str] = Field(default=None, index=True)   # Optional link to span
-    
-    # Deprecated: level is kept for backward compatibility (INFO/ERROR).
-    level: str = Field(default="INFO", index=True)
-    # Event semantics
-    event_type: str = Field(default="custom", index=True)  # llm_call, llm_stream, guardrail, audit, etc.
-    status: str = Field(default="success", index=True)  # success | error
-    message: str
-    timestamp: int = Field(index=True)
-    
-    # Proxy call metrics (nullable for non-proxy logs)
-    latency_ms: Optional[float] = Field(default=None)
-    prompt_tokens: Optional[int] = Field(default=None)
-    completion_tokens: Optional[int] = Field(default=None)
-    total_tokens: Optional[int] = Field(default=None)
-    cost: Optional[float] = Field(default=None)
-    model: Optional[str] = Field(default=None, index=True)
-    provider: Optional[str] = Field(default=None, index=True)
-    
-    # Structured data
-    attributes: Dict = Field(sa_column=Column(JSON), default={})
-    log_metadata: Dict = Field(sa_column=Column(JSON), default={})
-    
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-# --- Monitor Charts ---
-
-class MonitorChartModel(SQLModel, table=True):
-    __tablename__ = "monitor_chart"
-
-    id: str = Field(primary_key=True)
-    project_id: str = Field(index=True)
-    name: str
-    query: str
-    chart_type: str = Field(default="line", index=True)  # line | area | bar
-    x_field: str
-    y_field: str
-    series_field: Optional[str] = None
-    config: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-
-# --- Review Queue Models ---
-
-class ReviewItemModel(SQLModel, table=True):
-    __tablename__ = "review_item"
-
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: str = Field(index=True)
-    source_type: str = Field(index=True)  # trace | log | experiment_result | dataset_row
-    source_id: str = Field(index=True)
-    status: str = Field(default="open", index=True)  # open | in_review | resolved | dismissed
-    priority: int = Field(default=0, index=True)
-    labels: List[str] = Field(sa_column=Column(JSON), default=[])
-    score: Optional[float] = Field(default=None)
-    notes: Optional[str] = Field(default=None)
-    dataset_id: Optional[str] = Field(default=None, index=True)
-    dataset_row_id: Optional[str] = Field(default=None, index=True)
-    meta: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    resolved_at: Optional[int] = Field(default=None, index=True)
-
-
-
-# --- Dataset Models ---
-
-class DatasetModel(SQLModel, table=True):
-    __tablename__ = "dataset"
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id")
-    name: str
-    description: Optional[str] = None
-    version: int = Field(default=1)
-    kind: str = Field(default="eval", index=True)
-    schema: Dict = Field(sa_column=Column(JSON), default={})
-    schema_version: int = Field(default=1)
-    review_policy: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-class DatasetRowModel(SQLModel, table=True):
-    __tablename__ = "dataset_row"
-    id: str = Field(primary_key=True)
-    dataset_id: str = Field(foreign_key="dataset.id", index=True)
-    
-    # Append-only versioning fields
-    logical_id: str = Field(index=True)  # Groups revisions of the same logical row
-    version: int = Field(default=1)  # Revision number for this logical row
-    dataset_version: int = Field(default=1, index=True)  # Dataset version when this revision was added
-    is_deleted: bool = Field(default=False)  # Tombstone marker for soft deletes
-    
-    # Content fields
-    row_kind: str = Field(default="eval", index=True)  # eval | resource
-    eval_label: Optional[str] = Field(default=None, index=True)  # gold | anti_pattern
-    input: Dict = Field(sa_column=Column(JSON), default={})
-    expected: Optional[Dict] = Field(sa_column=Column(JSON), default={})
-    meta: Dict = Field(sa_column=Column(JSON), default={})
-    example_type: str = Field(default="gold")  # "gold" (positive example) or "anti_pattern" (negative example)
-    source_trace_id: Optional[str] = Field(default=None)  # If promoted from a trace
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-
-class DatasetVersionModel(SQLModel, table=True):
-    __tablename__ = "dataset_version"
-    __table_args__ = (UniqueConstraint("dataset_id", "version", name="uq_dataset_version"),)
-
-    id: str = Field(primary_key=True)
-    dataset_id: str = Field(foreign_key="dataset.id", index=True)
-    version: int = Field(index=True)
-    action: str = Field(index=True)  # insert, update, delete, flush
-    logical_id: Optional[str] = Field(default=None, index=True)
-    row_id: Optional[str] = Field(default=None, index=True)
-    meta: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-# --- Collaboration Primitives ---
-
-class AttachmentModel(SQLModel, table=True):
-    __tablename__ = "attachment"
-
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    object_type: str = Field(index=True)
-    object_id: str = Field(index=True)
-    kind: str = Field(default="external", index=True)  # external | internal
-    url: str
-    content_type: Optional[str] = Field(default=None)
-    size_bytes: Optional[int] = Field(default=None)
-    label: Optional[str] = Field(default=None)
-    meta: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class AssignmentModel(SQLModel, table=True):
-    __tablename__ = "assignment"
-
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    object_type: str = Field(index=True)
-    object_id: str = Field(index=True)
-    assignee: str = Field(index=True)  # email or user id
-    status: str = Field(default="open", index=True)  # open | resolved
-    note: Optional[str] = Field(default=None)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class MentionModel(SQLModel, table=True):
-    __tablename__ = "mention"
-
-    id: str = Field(primary_key=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    object_type: str = Field(index=True)
-    object_id: str = Field(index=True)
-    mentioned: str = Field(index=True)  # email or user id
-    note: Optional[str] = Field(default=None)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class ShareLinkModel(SQLModel, table=True):
-    __tablename__ = "share_link"
-    __table_args__ = (UniqueConstraint("token", name="uq_share_link_token"),)
-
-    id: str = Field(primary_key=True)
-    token: str = Field(index=True)
-    org_id: Optional[str] = Field(default=None, index=True)
-    project_id: Optional[str] = Field(default=None, index=True)
-    object_type: str = Field(index=True)
-    object_id: str = Field(index=True)
-    expires_at: Optional[int] = Field(default=None, index=True)
-    revoked_at: Optional[int] = Field(default=None, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-# --- Job Model ---
-
-class JobModel(SQLModel, table=True):
-    __tablename__ = "job"
-
-    id: str = Field(primary_key=True)
-    kind: str = Field(index=True)  # e.g. experiment_run
-    ref_id: str = Field(index=True)
-    status: str = Field(default="queued", index=True)  # queued | running | completed | error
-    attempts: int = Field(default=0)
-    max_attempts: int = Field(default=3)
-    locked_at: Optional[int] = Field(default=None, index=True)
-    started_at: Optional[int] = Field(default=None, index=True)
-    completed_at: Optional[int] = Field(default=None, index=True)
-    last_error: Optional[str] = Field(default=None)
-    payload: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    updated_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-
-# --- Experiment Models ---
-
-class ExperimentModel(SQLModel, table=True):
-    __tablename__ = "experiment"
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id")
-    dataset_id: str = Field(foreign_key="dataset.id")
-    name: str
-    status: str = "pending" # pending, running, completed, error
-    summary: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-class ExperimentResultModel(SQLModel, table=True):
-    __tablename__ = "experiment_result"
-    id: str = Field(primary_key=True)
-    experiment_id: str = Field(foreign_key="experiment.id")
-    dataset_row_id: str = Field(foreign_key="dataset_row.id")
-    output: Dict = Field(sa_column=Column(JSON), default={})
-    scores: Dict = Field(sa_column=Column(JSON), default={})
-    latency_ms: float = 0.0
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
-# --- Experiment Versioning + Runs (vNext) ---
-
-class ExperimentVersionModel(SQLModel, table=True):
-    __tablename__ = "experiment_version"
-
-    id: str = Field(primary_key=True)
-    experiment_id: str = Field(foreign_key="experiment.id", index=True)
-    version_number: int = Field(index=True)
-    parent_version_id: Optional[str] = Field(default=None, index=True)
-    dataset_version_pinned: int = 1
-    config: Dict = Field(sa_column=Column(JSON), default={})
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-class ExperimentRunModel(SQLModel, table=True):
-    __tablename__ = "experiment_run"
-
-    id: str = Field(primary_key=True)
-    experiment_version_id: str = Field(foreign_key="experiment_version.id", index=True)
-    status: str = Field(default="queued", index=True)  # queued, running, completed, error, canceled
-    summary: Dict = Field(sa_column=Column(JSON), default={})
-
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-    started_at: Optional[int] = None
-    completed_at: Optional[int] = None
-    cancel_requested_at: Optional[int] = None
-
-
-class ExperimentRunResultModel(SQLModel, table=True):
-    __tablename__ = "experiment_run_result"
-
-    id: str = Field(primary_key=True)
-    run_id: str = Field(foreign_key="experiment_run.id", index=True)
-    dataset_row_id: str = Field(foreign_key="dataset_row.id", index=True)
-    output: Dict = Field(sa_column=Column(JSON), default={})
-    scores: Dict = Field(sa_column=Column(JSON), default={})
-    latency_ms: float = 0.0
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-# --- Model registry (curated list used by UI) ---
-
-class ModelRegistryModel(SQLModel, table=True):
-    __tablename__ = "model_registry"
-    __table_args__ = (UniqueConstraint("provider", "model_id", name="uq_model_registry_provider_model_id"),)
-
-    id: str = Field(primary_key=True)
-    provider: str = Field(index=True)
-    model_id: str = Field(index=True)
-    display_name: Optional[str] = None
-    enabled: bool = Field(default=True, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-# --- Function/Scorer Registry ---
-
-class FunctionType(str, Enum):
-    SCORER = 'scorer'
-    TOOL = 'tool'
-
-class FunctionRuntime(str, Enum):
-    BUILTIN = 'builtin'
-    PYTHON = 'python'
-    LLM_JUDGE = 'llm_judge'
-
-class FunctionModel(SQLModel, table=True):
-    __tablename__ = "function"
-    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_function_project_name"),)
-
-    id: str = Field(primary_key=True)
-    project_id: Optional[str] = Field(default=None, foreign_key="project.id", index=True)  # None = global/builtin
-    name: str = Field(index=True)  # e.g., "exact_match", "contains", "llm_judge"
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    type: str = Field(default="scorer", index=True)  # scorer | tool
-    runtime: str = Field(default="builtin", index=True)  # builtin | python | llm_judge
-    config: Dict = Field(sa_column=Column(JSON), default={})  # scorer-specific configuration
-    code: Optional[str] = None  # For custom Python scorers (future)
-    enabled: bool = Field(default=True, index=True)
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000), index=True)
-
-
-# Pydantic Schemas for API (matching the Frontend types mostly)
-
-class SpanMetrics(BaseModel):
-    prompt_tokens: Optional[int] = 0
-    completion_tokens: Optional[int] = 0
-    total_tokens: Optional[int] = 0
-    cost: Optional[float] = 0.0
-    latency_ms: float
-
-class SpanAttributes(BaseModel):
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    temperature: Optional[float] = None
-    reasoning_effort: Optional[str] = None
-    reasoning_enabled: Optional[bool] = None
-    reasoning_delta: Optional[bool] = None
-    reasoning_step_ids: Optional[List[str]] = None
-    class Config:
-        extra = "allow"
-
-class Span(BaseModel):
-    id: str
-    trace_id: str
-    parent_id: Optional[str] = None
-    name: str
-    type: SpanType
-    start_time: int
-    end_time: int
-    status: str
-    input: Any
-    output: Any
-    metrics: SpanMetrics
-    attributes: SpanAttributes
-    tags: List[str] = []
-    error_message: Optional[str] = None
-
-class Trace(BaseModel):
-    id: str
-    root_span: Span
-    spans: List[Span]
-    project_id: str
-    parent_trace_id: Optional[str] = None
-    trace_group_id: Optional[str] = None
-    input_span_id: Optional[str] = None
-    output_span_id: Optional[str] = None
-    timestamp: int
-    total_latency: float
-    total_cost: float
-    total_tokens: int
-    status: str
-    tags: List[str] = []
-
-
-# --- Guardrail Model ---
-
-class GuardrailModel(SQLModel, table=True):
-    """
-    Guardrails are runtime protection rules that check outputs before returning to users.
-    They can block, warn, or flag responses based on anti-patterns or other conditions.
-    """
-    __tablename__ = "guardrail"
-    id: str = Field(primary_key=True)
-    project_id: str = Field(foreign_key="project.id")
-    name: str
-    description: Optional[str] = None
-    action: str = Field(default="warn")  # "block", "warn", "flag_for_review"
-    condition_type: str = Field(default="anti_pattern")  # "anti_pattern", "regex", "keyword"
-    condition_config: Dict = Field(sa_column=Column(JSON), default={})  # e.g. {"pattern_ids": [...], "keywords": [...]}
-    enabled: bool = Field(default=True)
-    priority: int = Field(default=0)  # Higher priority runs first
-    created_at: int = Field(default_factory=lambda: int(__import__("time").time() * 1000))
-
+"""Compatibility exports for Athena database and API models."""
+
+from app.db_models.collaboration import (
+    AssignmentModel,
+    AttachmentModel,
+    MentionModel,
+    ShareLinkModel,
+)
+
+from app.db_models.datasets import DatasetModel, DatasetRowModel, DatasetVersionModel
+
+from app.db_models.experiments import (
+    ExperimentModel,
+    ExperimentResultModel,
+    ExperimentRunModel,
+    ExperimentRunResultModel,
+    ExperimentVersionModel,
+    ModelRegistryModel,
+)
+
+from app.db_models.functions import (
+    FunctionModel,
+    FunctionRuntime,
+    FunctionType,
+    FunctionVersionModel,
+    RemoteEvalModel,
+)
+
+from app.db_models.guardrails import GuardrailModel
+
+from app.db_models.identity import (
+    AuditLogModel,
+    McpAuthCodeModel,
+    McpTokenModel,
+    OrganizationModel,
+    ServiceAccountModel,
+    ServiceTokenModel,
+    SessionModel,
+    UserModel,
+)
+
+from app.db_models.logs import LogModel, MonitorChartModel, ReviewItemModel, ViewModel
+
+from app.db_models.observability import (
+    EnvironmentModel,
+    Project,
+    Span,
+    SpanAttributes,
+    SpanFeedbackModel,
+    SpanMetrics,
+    SpanModel,
+    SpanScoreModel,
+    SpanType,
+    Trace,
+    TraceModel,
+)
+
+from app.db_models.playgrounds import PlaygroundModel
+
+from app.db_models.prompt_tests import PromptTestModel, PromptTestResultModel
+
+from app.db_models.providers import ProviderKeyModel
+
+from app.db_models.sessions import (
+    AgentRunModel,
+    AgentSessionAnnotationModel,
+    AgentSessionEvalModel,
+    AgentSessionEventModel,
+    AgentSessionIngestModel,
+    AgentSessionModel,
+    RunReplayModel,
+)
+
+from app.db_models.workflows import AutomationRuleModel, AutomationRunModel, JobModel
+
+__all__ = [
+    "AgentRunModel",
+    "AgentSessionAnnotationModel",
+    "AgentSessionEvalModel",
+    "AgentSessionEventModel",
+    "AgentSessionIngestModel",
+    "AgentSessionModel",
+    "AssignmentModel",
+    "AttachmentModel",
+    "AuditLogModel",
+    "AutomationRuleModel",
+    "AutomationRunModel",
+    "DatasetModel",
+    "DatasetRowModel",
+    "DatasetVersionModel",
+    "EnvironmentModel",
+    "ExperimentModel",
+    "ExperimentResultModel",
+    "ExperimentRunModel",
+    "ExperimentRunResultModel",
+    "ExperimentVersionModel",
+    "FunctionModel",
+    "FunctionRuntime",
+    "FunctionType",
+    "FunctionVersionModel",
+    "GuardrailModel",
+    "JobModel",
+    "LogModel",
+    "McpAuthCodeModel",
+    "McpTokenModel",
+    "MentionModel",
+    "ModelRegistryModel",
+    "MonitorChartModel",
+    "OrganizationModel",
+    "PlaygroundModel",
+    "Project",
+    "PromptTestModel",
+    "PromptTestResultModel",
+    "ProviderKeyModel",
+    "RemoteEvalModel",
+    "ReviewItemModel",
+    "RunReplayModel",
+    "ServiceAccountModel",
+    "ServiceTokenModel",
+    "SessionModel",
+    "ShareLinkModel",
+    "Span",
+    "SpanAttributes",
+    "SpanFeedbackModel",
+    "SpanMetrics",
+    "SpanModel",
+    "SpanScoreModel",
+    "SpanType",
+    "Trace",
+    "TraceModel",
+    "UserModel",
+    "ViewModel",
+]

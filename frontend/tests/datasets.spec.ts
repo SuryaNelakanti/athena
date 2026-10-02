@@ -5,12 +5,12 @@ import { generateUUID } from './fixtures/seedStoryData';
 test.describe('Datasets Feature', () => {
   test.beforeEach(async ({ page }) => {
     await mockSeedStoryApi(page);
-    await page.goto('/#/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'networkidle' });
   });
 
   test('should allow creating a new dataset row', async ({ page }) => {
     // Navigate to Datasets
-    await page.click('a[href="#/datasets"]');
+    await page.goto('/datasets');
     await expect(page.locator('h1')).toContainText('Datasets');
 
     // Select the first dataset
@@ -38,7 +38,7 @@ test.describe('Datasets Feature', () => {
   });
 
   test('should validate empty inputs when adding row', async ({ page }) => {
-    await page.goto('/#/datasets');
+    await page.goto('/datasets');
     await page.click('text=Golden Dataset');
     await page.click('button:has-text("Add Example")');
 
@@ -51,7 +51,7 @@ test.describe('Datasets Feature', () => {
   });
 
   test('should filter dataset rows', async ({ page }) => {
-    await page.goto('/#/datasets');
+    await page.goto('/datasets');
     await page.click('text=Golden Dataset');
 
     // Switch to Anti-Pattern
@@ -64,7 +64,7 @@ test.describe('Datasets Feature', () => {
   });
 
   test('should view dataset history', async ({ page }) => {
-    await page.goto('/#/datasets');
+    await page.goto('/datasets');
     await page.click('text=Golden Dataset');
     
     // Click History Tab

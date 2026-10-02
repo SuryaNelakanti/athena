@@ -6,33 +6,25 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from pydantic import BaseModel
 import uuid
 
 from ..database import get_session
-from ..models import FunctionModel
+from ..models import FunctionModel, FunctionVersionModel as FunctionVersionModel
+from ..schemas.functions import (
+    CreateFunctionRequest,
+    CreateFunctionVersionRequest as CreateFunctionVersionRequest,
+    InvokeFunctionRequest as InvokeFunctionRequest,
+    UpdateFunctionRequest,
+)
 from ..services.scorer_service import BUILTIN_SCORERS
+from .function_version_routes import (
+    create_function_version as create_function_version,
+    invoke_function as invoke_function,
+    list_function_versions as list_function_versions,
+    router as version_router,
+)
 
 router = APIRouter(prefix="/functions", tags=["functions"])
-
-
-class CreateFunctionRequest(BaseModel):
-    name: str
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    type: str = "scorer"  # scorer | tool
-    runtime: str = "builtin"  # builtin | python | llm_judge
-    config: dict = {}
-    code: Optional[str] = None
-    enabled: bool = True
-
-
-class UpdateFunctionRequest(BaseModel):
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    config: Optional[dict] = None
-    code: Optional[str] = None
-    enabled: Optional[bool] = None
 
 
 @router.get("/", response_model=List[FunctionModel])
@@ -218,3 +210,6 @@ async def seed_builtin_functions(
     
     await session.commit()
     return {"created": created, "skipped": skipped}
+
+
+router.include_router(version_router)

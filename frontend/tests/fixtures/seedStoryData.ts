@@ -1,5 +1,6 @@
 import {
   Log,
+  Organization,
   Project,
   Span,
   SpanType,
@@ -33,6 +34,13 @@ export const seedProject: Project = {
   id: 'proj_support',
   name: 'Refund Issues',
   org_id: 'org_octoworks',
+};
+
+export const seedOrganization: Organization = {
+  id: seedProject.org_id,
+  name: 'Octoworks',
+  created_at: now,
+  updated_at: now,
 };
 
 const makeSpan = (overrides: Partial<Span>): Span => ({
@@ -281,7 +289,10 @@ export const seedExperimentVersions: ExperimentVersion[] = [
       model: { registry_id: 'model_gpt4o' },
       task: { system_prompt: 'You are a support assistant focused on refunds.' },
       params: { temperature: 0.2, max_tokens: 512 },
-      scorers: ['exact_match', 'contains'],
+      scorers: [
+        { type: 'exact_match', weight: 1.0, threshold: 0.8, is_primary: true },
+        { type: 'contains', weight: 1.0, threshold: 0.8, is_primary: false },
+      ],
     },
     created_at: experimentCreatedAt + 15 * 60 * 1000,
   },
@@ -295,7 +306,11 @@ export const seedExperimentVersions: ExperimentVersion[] = [
       model: { registry_id: 'model_gpt4o' },
       task: { system_prompt: 'Be concise and cite policy IDs.' },
       params: { temperature: 0.3, max_tokens: 512 },
-      scorers: ['exact_match', 'contains', 'llm_judge'],
+      scorers: [
+        { type: 'exact_match', weight: 1.0, threshold: 0.8, is_primary: true },
+        { type: 'contains', weight: 1.0, threshold: 0.8, is_primary: false },
+        { type: 'llm_judge', weight: 1.0, threshold: 0.8, is_primary: false },
+      ],
     },
     created_at: experimentCreatedAt + 2 * 60 * 60 * 1000,
   },

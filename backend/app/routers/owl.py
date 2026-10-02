@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-from pathlib import Path
+import logging
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlmodel import select
+
 from app.database import get_session
+from app.models import ModelRegistryModel
+from app.providers.base import ProviderRequestError
 from app.services.provider_keys import ProviderKeyStore
 from app.services.proxy_service import ProxyService
 from app.schemas.proxy import ChatCompletionRequest, ChatMessage
+from app.services.documentation_search import search_documentation
 
 router = APIRouter(prefix="/owl", tags=["owl"])
-
-
-# Model preference order for Owl assistant
-OWL_MODEL_PREFERENCES = [
-    ("openai", "gpt-4o-mini"),
-    ("anthropic", "claude-3-haiku-20240307"),
-    ("gemini", "gemini-2.0-flash"),
-]
+logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------------
 # System Prompts (managed server-side for security and consistency)
@@ -47,28 +45,28 @@ Available tables and fields:
 - project_traces: timestamp, total_latency, total_cost, total_tokens, status
 
 Provide a ready-to-run AQL query with a brief explanation. Ask clarifying questions if the request is ambiguous.""",
-    
+
     "prompt": """You are helping the user improve their AI prompts.
 Focus on: clarity, safety, policy compliance, and effectiveness.
 Provide the improved prompt with a brief changelog explaining why each change was made.""",
-    
+
     "scorer": """You are helping the user design a scorer for AI evaluation.
 Create a checklist of criteria to evaluate, with yes/no items and an overall scoring rubric.
 Ask clarifying questions if the evaluation criteria are unclear.""",
-    
+
     "dataset": """You are helping the user brainstorm dataset rows for AI evaluation.
 Generate 5-6 diverse dataset row ideas with:
 - Input scenario
 - Expected behavior/output
 - Tags for categorization
 Focus on edge cases and realistic scenarios.""",
-    
+
     "experiment": """You are summarizing experiment results and recommending next steps.
 Analyze the provided metrics and suggest:
 - Key insights from the run
 - 2-3 actionable next steps
 - Potential areas for improvement""",
-    
+
     "chat": """You are having a general conversation about the Athena platform.
 Help the user with their question, offering guidance on features and workflows.""",
 }
@@ -83,8 +81,8 @@ class OwlChatRequest(BaseModel):
     """Request for Owl assistant chat."""
     user_message: str  # The user's message
     action: Optional[str] = "chat"  # aql, prompt, scorer, dataset, experiment, chat
-    context: Optional[dict] = None  # Page context: {page, route, project_name, params}
-    conversation_history: Optional[List[dict]] = None  # Previous messages for multi-turn
+    context: Optional[dict[str, Any]] = None  # Page context: {page, route, project_name, params}
+    conversation_history: Optional[List[dict[str, Any]]] = None  # Previous messages for multi-turn
 
 
 class OwlChatResponse(BaseModel):
@@ -96,63 +94,31 @@ class OwlChatResponse(BaseModel):
     span_id: Optional[str] = None
 
 
-def _doc_root() -> Path:
-    backend_root = Path(__file__).resolve().parents[2]
-    return backend_root.parent
+async def _get_available_model(session: AsyncSession) -> tuple[str, str] | None:
+    """Get the best available model based on enabled models in registry and configured provider keys."""
+    # Query enabled models from the registry, ordered by creation time (most recent first)
+    statement = select(ModelRegistryModel).where(
+        ModelRegistryModel.enabled == True  # noqa: E712
+    ).order_by(ModelRegistryModel.created_at.desc())
+    result = await session.execute(statement)
+    enabled_models = result.scalars().all()
 
-
-def _list_doc_files() -> list[Path]:
-    root = _doc_root()
-    docs_dir = root / "docs"
-    files: list[Path] = []
-    for path in (root / "README.md", root / "Agents.md", root / "sdk" / "README.md"):
-        if path.exists():
-            files.append(path)
-    if docs_dir.exists():
-        files.extend(docs_dir.rglob("*.md"))
-    return files
-
-
-def _search_docs(query: str, limit: int) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    root = _doc_root()
-    query_lower = query.lower()
-    for path in _list_doc_files():
-        try:
-            content = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for idx, line in enumerate(content.splitlines(), start=1):
-            if query_lower in line.lower():
-                results.append(
-                    {
-                        "path": str(path.relative_to(root)).replace("\\", "/"),
-                        "line": idx,
-                        "snippet": line.strip(),
-                    }
-                )
-                if len(results) >= limit:
-                    return results
-    return results
-
-
-def _get_available_model() -> tuple[str, str] | None:
-    """Get the best available model based on configured provider keys."""
-    for provider, model in OWL_MODEL_PREFERENCES:
-        api_key = ProviderKeyStore.get_key(provider)
+    # Find the first model that has a configured API key
+    for model_entry in enabled_models:
+        api_key = ProviderKeyStore.get_key(model_entry.provider)
         if api_key:
-            return (provider, model)
+            return (model_entry.provider, model_entry.model_id)
     return None
 
 
-def _build_system_prompt(action: str, context: Optional[dict]) -> str:
+def _build_system_prompt(action: str, context: Optional[dict[str, Any]]) -> str:
     """Build the full system prompt from action type and context."""
     parts = [OWL_BASE_SYSTEM_PROMPT]
-    
+
     # Add action-specific instructions
     action_prompt = OWL_ACTION_PROMPTS.get(action, OWL_ACTION_PROMPTS["chat"])
     parts.append(action_prompt)
-    
+
     # Add page context if provided
     if context:
         context_lines = ["Current page context:"]
@@ -168,8 +134,26 @@ def _build_system_prompt(action: str, context: Optional[dict]) -> str:
                 context_lines.append(f"- Params: {params_str}")
         if len(context_lines) > 1:
             parts.append("\n".join(context_lines))
-    
+
     return "\n\n".join(parts)
+
+
+def _build_chat_messages(payload: OwlChatRequest) -> list[ChatMessage]:
+    action = payload.action or "chat"
+    system_prompt = _build_system_prompt(action, payload.context)
+    messages = [ChatMessage(role="system", content=system_prompt)]
+    for message in payload.conversation_history or []:
+        if message.get("role") in ("user", "assistant") and message.get("content"):
+            messages.append(
+                ChatMessage(role=message["role"], content=message["content"])
+            )
+    messages.append(ChatMessage(role="user", content=payload.user_message))
+    return messages
+
+
+def _project_id(payload: OwlChatRequest, header_project_id: Optional[str]) -> str:
+    context_project_id = (payload.context or {}).get("project_id")
+    return header_project_id or context_project_id or "proj_default"
 
 
 @router.post("/search-docs")
@@ -178,20 +162,22 @@ async def search_docs(payload: SearchDocsRequest) -> dict[str, Any]:
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
     limit = max(1, min(payload.limit or 8, 50))
-    results = _search_docs(query, limit)
+    results = search_documentation(query, limit)
     return {"query": query, "count": len(results), "results": results}
 
 
 @router.get("/available-model")
-async def get_available_model() -> dict[str, Any]:
+async def get_available_model(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """Check which model is available for Owl."""
-    result = _get_available_model()
+    result = await _get_available_model(session)
     if not result:
         return {
             "available": False,
             "provider": None,
             "model": None,
-            "message": "No provider API keys configured. Add a key in Settings.",
+            "message": "No enabled models with configured API keys. Enable models and add keys in Settings.",
         }
     return {
         "available": True,
@@ -208,58 +194,40 @@ async def owl_chat(
 ) -> OwlChatResponse:
     """
     Owl assistant chat endpoint with server-managed system prompts.
-    
+
     - Automatically selects model based on available provider keys
     - System prompts are managed server-side based on action type
     - Supports multi-turn conversations via conversation_history
     """
     # Get available model
-    model_info = _get_available_model()
+    model_info = await _get_available_model(session)
     if not model_info:
         raise HTTPException(
             status_code=503,
-            detail="No AI provider configured. Please add an API key (OpenAI, Anthropic, or Gemini) in Settings."
+            detail="No enabled models with configured API keys. Enable models and add keys in Settings."
         )
-    
+
     provider, model = model_info
-    project_id = x_athena_project_id or (payload.context or {}).get("project_id") or "proj_default"
-    
-    # Build system prompt server-side
-    action = payload.action or "chat"
-    system_prompt = _build_system_prompt(action, payload.context)
-    
-    # Build messages list
-    messages = [ChatMessage(role="system", content=system_prompt)]
-    
-    # Add conversation history if provided
-    if payload.conversation_history:
-        for msg in payload.conversation_history:
-            if msg.get("role") in ("user", "assistant") and msg.get("content"):
-                messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
-    
-    # Add current user message
-    messages.append(ChatMessage(role="user", content=payload.user_message))
-    
-    # Create proxy request
+    project_id = _project_id(payload, x_athena_project_id)
     request = ChatCompletionRequest(
         model=model,
         provider=provider,
-        messages=messages,
+        messages=_build_chat_messages(payload),
         temperature=0.2,
         max_tokens=1024,
         stream=False,
     )
-    
+
     # Call proxy service
     proxy_service = ProxyService(session)
     try:
         response = await proxy_service.chat_completion(request, project_id=project_id)
-        
+
         # Extract content from response
         content = ""
         if response.choices and response.choices[0].message:
             content = response.choices[0].message.content or ""
-        
+
         return OwlChatResponse(
             content=content,
             model=model,
@@ -267,6 +235,19 @@ async def owl_chat(
             trace_id=response.trace_id,
             span_id=response.span_id,
         )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Owl chat failed: {str(e)}")
+
+    except ProviderRequestError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=str(error),
+            headers={
+                "X-Athena-Error-Origin": "provider",
+                "X-Athena-Used-Provider": error.provider_name,
+            },
+        ) from error
+    except Exception as error:
+        logger.error("Owl chat failed with %s", type(error).__name__)
+        raise HTTPException(
+            status_code=500,
+            detail="Owl chat could not process the request.",
+        ) from error

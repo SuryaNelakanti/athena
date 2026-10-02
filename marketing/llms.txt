@@ -1,0 +1,40 @@
+# Athena - AI Operations Platform
+# https://athena.dev
+# Curated index for LLM agents and AI-powered search
+
+## Overview
+> Site URL: https://athena.dev/
+> Description: AI proxy + observability + evaluation platform with closed-loop workflow for agentic AI
+
+## Core Concepts
+- Athena is an AI proxy + observability + evaluation platform
+- Closed-loop workflow: Logs → Dataset → Experiment
+- Session-first data model for agent runs
+- Graph debugging for visualizing agent execution
+- Semantic-first evaluation (LLM judge, criteria-based, tool correctness)
+- MCP server for IDE integration (Cursor, VS Code, Claude Code)
+
+## Documentation
+https://athena.dev/docs/
+https://athena.dev/docs/quickstart.md
+https://athena.dev/docs/proxy.md
+https://athena.dev/docs/observability.md
+https://athena.dev/docs/evaluation.md
+https://athena.dev/docs/mcp-integration.md
+https://athena.dev/docs/sdk-python.md
+https://athena.dev/docs/sdk-typescript.md
+
+## API Reference
+https://athena.dev/api/
+
+## Key Features
+- Universal Proxy: Provider-agnostic LLM inference with SSE streaming
+- Agent-Native Observability: Sessions, runs, traces, spans, graph views
+- Semantic Evaluation: LLM judge, criteria checklist, tool correctness, outcome scoring
+- IDE Integration: MCP server for direct IDE agent access
+- Data Isolation: Optional customer-owned data plane
+
+## Trust Surfaces
+https://athena.dev/security
+https://athena.dev/privacy
+https://athena.dev/terms
